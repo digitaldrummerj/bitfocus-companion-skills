@@ -2,7 +2,7 @@
   "name": "companion-actions",
   "version": "1.0.0",
   "description": "Implement Bitfocus Companion actions with typed definitions, options, callbacks, and lifecycle hooks.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

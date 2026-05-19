@@ -2,7 +2,7 @@
   "name": "companion-add-feedback-to-category-file",
   "version": "1.0.0",
   "description": "Add new feedbacks to an existing Companion feedback category file without creating a new category.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

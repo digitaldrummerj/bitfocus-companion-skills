@@ -2,7 +2,7 @@
   "name": "companion-config",
   "version": "1.0.0",
   "description": "Define and validate Bitfocus Companion configuration fields, defaults, and configUpdated behavior.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

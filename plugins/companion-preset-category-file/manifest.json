@@ -2,7 +2,7 @@
   "name": "companion-preset-category-file",
   "version": "1.0.0",
   "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

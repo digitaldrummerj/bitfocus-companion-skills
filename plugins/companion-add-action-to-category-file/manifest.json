@@ -2,7 +2,7 @@
   "name": "companion-add-action-to-category-file",
   "version": "1.0.0",
   "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

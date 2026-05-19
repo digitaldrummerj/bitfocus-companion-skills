@@ -2,7 +2,7 @@
   "name": "companion-osc-integration",
   "version": "1.0.0",
   "description": "Integrate OSC transport, lifecycle management, and state updates into a Bitfocus Companion module.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

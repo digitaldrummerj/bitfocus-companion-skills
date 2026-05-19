@@ -2,7 +2,7 @@
   "name": "companion-v1-api-compliance",
   "version": "1.0.0",
   "description": "Review @companion-module/base v1.x modules for required lifecycle behavior and version-specific compliance.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

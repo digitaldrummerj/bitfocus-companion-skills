@@ -2,7 +2,7 @@
   "name": "companion-v2-api-compliance",
   "version": "1.0.0",
   "description": "Review @companion-module/base v2.0+ modules for entrypoint, manifest, expression, and upgrade compliance.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",

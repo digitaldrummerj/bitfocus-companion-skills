@@ -2,7 +2,7 @@
   "name": "companion-feedbacks",
   "version": "1.0.0",
   "description": "Implement Bitfocus Companion feedbacks for boolean styling, advanced rendering, and state-driven updates.",
-  "author": "companion-ai-skills",
+  "author": "Justin James",
   "license": "MIT",
   "platforms": [
     "github-copilot",
