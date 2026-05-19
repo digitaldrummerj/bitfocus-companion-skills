@@ -1,3 +1,9 @@
+---
+name: companion-v2-api-compliance
+description: 'Checklist for reviewing Bitfocus Companion modules against @companion-module/base v2.0+, including critical entrypoint, manifest, runtime, expression, variable, feedback, preset, and upgrade-script requirements.'
+license: MIT
+---
+
 # Skill: Companion Module API v2.0 Compliance
 
 ## Purpose

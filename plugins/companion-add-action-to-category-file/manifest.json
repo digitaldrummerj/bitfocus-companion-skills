@@ -1,0 +1,29 @@
+{
+  "name": "companion-add-action-to-category-file",
+  "version": "1.0.0",
+  "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "add action to existing file",
+    "extend action category",
+    "action enum member",
+    "action-{category}.ts"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "actions",
+    "maintenance"
+  ],
+  "capabilities": [
+    "Extend existing action enums",
+    "Add sync or async action definitions",
+    "Reuse established action helper patterns"
+  ]
+}

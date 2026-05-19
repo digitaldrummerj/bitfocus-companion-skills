@@ -1,0 +1,29 @@
+{
+  "name": "companion-feedback-file-pattern",
+  "version": "1.0.0",
+  "description": "Create and wire a new split-file feedback category for a Bitfocus Companion module.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "new feedback category",
+    "feedback file pattern",
+    "feedback.ts aggregator",
+    "split-file feedbacks"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "feedbacks",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create a new feedback category file",
+    "Wire feedback factories into feedback.ts",
+    "Use shared feedback helpers correctly"
+  ]
+}

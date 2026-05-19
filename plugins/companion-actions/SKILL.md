@@ -1,6 +1,7 @@
 ---
 name: companion-actions
 description: 'Reference for Bitfocus Companion module action definitions using @companion-module/base. Use when asked to add an action, implement a button command, define action options, or wire up a device control. Also use when user needs help with action callbacks, subscribe/unsubscribe lifecycle, or the CompanionActionDefinition API.'
+license: MIT
 ---
 
 # Companion Actions Skill

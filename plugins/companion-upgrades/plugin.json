@@ -1,0 +1,16 @@
+{
+  "name": "companion-upgrades",
+  "description": "Write Companion upgrade scripts that safely migrate config, actions, and feedbacks across breaking changes.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "upgrade script",
+    "migrate config",
+    "rename action id",
+    "CompanionStaticUpgradeScript"
+  ],
+  "skills": "./"
+}

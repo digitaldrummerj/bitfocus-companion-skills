@@ -1,0 +1,29 @@
+{
+  "name": "companion-template-compliance",
+  "version": "1.0.0",
+  "description": "Review Companion modules against the official JavaScript and TypeScript template requirements.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "template compliance",
+    "official template",
+    "manifest.json rules",
+    "HELP.md validation"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "compliance",
+    "review"
+  ],
+  "capabilities": [
+    "Audit modules against templates",
+    "Detect critical file and config mismatches",
+    "Report template violations clearly"
+  ]
+}

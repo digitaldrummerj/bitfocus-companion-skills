@@ -1,0 +1,16 @@
+{
+  "name": "companion-variable-set-value",
+  "description": "Set and read Bitfocus Companion variable values at runtime after the variables are defined.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "setVariableValues",
+    "getVariableValue",
+    "update variable state",
+    "runtime variables"
+  ],
+  "skills": "./"
+}

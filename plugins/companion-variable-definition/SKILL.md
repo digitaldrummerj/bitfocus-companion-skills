@@ -1,6 +1,7 @@
 ---
 name: companion-variable-definition
 description: "Reference for declaring and registering Companion module variables using setVariableDefinitions and CompanionVariableDefinition. Use when you need to register variables, define variable ID naming, expose state as text in Companion's variable picker, or build dynamic variable sets from device capabilities. Do NOT use to update values — use companion-variable-set-value to update values after they are defined."
+license: MIT
 ---
 
 # Companion Variable Definition Skill

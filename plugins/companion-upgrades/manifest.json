@@ -1,0 +1,29 @@
+{
+  "name": "companion-upgrades",
+  "version": "1.0.0",
+  "description": "Write Companion upgrade scripts that safely migrate config, actions, and feedbacks across breaking changes.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "upgrade script",
+    "migrate config",
+    "rename action id",
+    "CompanionStaticUpgradeScript"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "upgrades",
+    "migration"
+  ],
+  "capabilities": [
+    "Create upgrade scripts",
+    "Migrate saved action and feedback data",
+    "Use helper upgrade factories"
+  ]
+}

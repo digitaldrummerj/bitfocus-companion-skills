@@ -1,0 +1,29 @@
+{
+  "name": "companion-preset-category-file",
+  "version": "1.0.0",
+  "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "new preset category",
+    "presets.ts aggregator",
+    "preset file pattern",
+    "enum-based presets"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "presets",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create a new preset category file",
+    "Wire preset factories into presets.ts",
+    "Use enum-based preset IDs consistently"
+  ]
+}

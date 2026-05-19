@@ -1,6 +1,7 @@
 ---
 name: companion-variable-set-value
 description: 'How to set variable values with setVariableValues() and read them with getVariableValue() in a Bitfocus Companion module. Use when you need to update variable state, set variable value on init, handle device state update, or read a variable to compute its next value. Use companion-variable-definition to declare new variables first before setting values.'
+license: MIT
 ---
 
 # Companion Variable Set Value Skill

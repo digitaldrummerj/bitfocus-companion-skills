@@ -1,0 +1,16 @@
+{
+  "name": "companion-actions",
+  "description": "Implement Bitfocus Companion actions with typed definitions, options, callbacks, and lifecycle hooks.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "add action",
+    "button command",
+    "action callback",
+    "CompanionActionDefinition"
+  ],
+  "skills": "./"
+}

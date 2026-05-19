@@ -1,6 +1,7 @@
 ---
 name: companion-upgrades
 description: 'Reference for Bitfocus Companion module upgrade scripts using @companion-module/base. Use when asked to create upgrade scripts, migrate user data, handle breaking changes to actions/feedbacks/config, or rename IDs. Also use when user needs help with CompanionStaticUpgradeScript, version migrations, or the upgrade helper functions.'
+license: MIT
 ---
 
 # Companion Upgrades Skill

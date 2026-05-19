@@ -1,0 +1,29 @@
+{
+  "name": "companion-add-feedback-to-category-file",
+  "version": "1.0.0",
+  "description": "Add new feedbacks to an existing Companion feedback category file without creating a new category.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "add feedback to existing file",
+    "extend feedback category",
+    "feedback enum member",
+    "feedback-{category}.ts"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "feedbacks",
+    "maintenance"
+  ],
+  "capabilities": [
+    "Extend existing feedback enums",
+    "Add boolean or advanced feedbacks",
+    "Reuse shared feedback options and guards"
+  ]
+}

@@ -1,6 +1,7 @@
 ---
 name: companion-osc-integration
 description: 'Patterns for integrating OSC (Open Sound Control) protocol into a BitFocus Companion module using the `osc` npm package. Use when adding OSC UDP/TCP communication, wiring OSC send/receive into a Companion module lifecycle (init, configUpdated, destroy), writing action handlers that send OSC commands, or handling incoming OSC messages to update module state and trigger feedbacks.'
+license: MIT
 ---
 
 # OSC Integration for BitFocus Companion Modules

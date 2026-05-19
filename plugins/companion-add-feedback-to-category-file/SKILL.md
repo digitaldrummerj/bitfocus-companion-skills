@@ -1,6 +1,7 @@
 ---
 name: companion-add-feedback-to-category-file
 description: 'Add one or more feedbacks to an existing feedback category file in a Companion module. Use when you need to extend feedbacks in an existing src/feedbacks/feedback-{category}.ts file, add a feedback to a feedback category file, or grow the feedback list of an existing category file. Does NOT apply when no feedback category file exists yet — use companion-feedback-file-pattern instead.'
+license: MIT
 ---
 
 # Companion Add Feedback to Category File

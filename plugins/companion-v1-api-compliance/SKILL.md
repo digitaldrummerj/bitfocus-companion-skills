@@ -1,3 +1,9 @@
+---
+name: companion-v1-api-compliance
+description: 'Checklist for reviewing Bitfocus Companion modules that use @companion-module/base v1.x, including required lifecycle methods, deprecated patterns, version-specific compliance checks, and upgrade recommendations.'
+license: MIT
+---
+
 # Skill: Companion Module API v1.x Compliance
 
 ## Purpose

@@ -1,6 +1,7 @@
 ---
 name: companion-action-file-pattern
 description: 'Teaches the multi-file action pattern used in split-file Companion modules. Use when asked to add a new action category, create an action file, register actions in an aggregator, or extend the actions layer of a Companion module that splits actions across multiple files with a GetActions aggregator.'
+license: MIT
 ---
 
 # Companion Action File Pattern

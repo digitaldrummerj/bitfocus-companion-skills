@@ -1,6 +1,7 @@
 ---
 name: companion-feedbacks
 description: 'Reference for Bitfocus Companion module feedback definitions using @companion-module/base. Use when asked to add a feedback, change button colors based on state, render button graphics, or create visual indicators. Also use when user needs help with boolean vs advanced feedbacks, subscribe/unsubscribe, or the CompanionFeedbackDefinition API.'
+license: MIT
 ---
 
 # Companion Feedbacks Skill

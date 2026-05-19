@@ -1,0 +1,16 @@
+{
+  "name": "companion-variable-definition",
+  "description": "Declare and register Bitfocus Companion variables so they appear in the variable picker.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "setVariableDefinitions",
+    "declare variable",
+    "variable picker",
+    "dynamic variables"
+  ],
+  "skills": "./"
+}

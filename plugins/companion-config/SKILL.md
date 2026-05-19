@@ -1,6 +1,7 @@
 ---
 name: companion-config
 description: 'Reference for Bitfocus Companion module configuration fields using @companion-module/base. Use when asked to add config fields, define connection settings (host, port, credentials), create module options, or validate user input. Also use when user needs help with config field types, regex validation, or the configUpdated lifecycle.'
+license: MIT
 ---
 
 # Companion Config Skill

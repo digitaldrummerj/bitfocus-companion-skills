@@ -1,0 +1,29 @@
+{
+  "name": "companion-osc-integration",
+  "version": "1.0.0",
+  "description": "Integrate OSC transport, lifecycle management, and state updates into a Bitfocus Companion module.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "OSC integration",
+    "OSC UDP",
+    "OSC receive",
+    "OSC send"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "osc",
+    "networking"
+  ],
+  "capabilities": [
+    "Build an OSC connection class",
+    "Send and receive OSC messages",
+    "Update state and feedbacks from OSC traffic"
+  ]
+}

@@ -1,6 +1,7 @@
 ---
 name: companion-add-preset-to-category-file
 description: 'Add one or more presets to an existing enum-based preset category file in a Companion module. Use when you need to add preset, extend preset enum, add preset to an existing src/presets/preset-{category}.ts file, or grow the preset list of an existing preset category file. Does NOT apply when no preset category file exists yet — use companion-preset-category-file instead.'
+license: MIT
 ---
 
 # Companion Add Preset to Category File

@@ -1,0 +1,29 @@
+{
+  "name": "companion-add-preset-to-category-file",
+  "version": "1.0.0",
+  "description": "Add new presets to an existing enum-based Companion preset category file.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "add preset to existing file",
+    "extend preset enum",
+    "preset-{category}.ts",
+    "existing preset category"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "presets",
+    "maintenance"
+  ],
+  "capabilities": [
+    "Extend preset enums",
+    "Add button preset definitions",
+    "Reuse typed action and feedback references"
+  ]
+}

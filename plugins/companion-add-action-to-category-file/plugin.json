@@ -1,0 +1,16 @@
+{
+  "name": "companion-add-action-to-category-file",
+  "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "add action to existing file",
+    "extend action category",
+    "action enum member",
+    "action-{category}.ts"
+  ],
+  "skills": "./"
+}

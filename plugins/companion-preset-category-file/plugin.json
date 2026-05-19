@@ -1,0 +1,16 @@
+{
+  "name": "companion-preset-category-file",
+  "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
+  "version": "1.0.0",
+  "author": {
+    "name": "companion-ai-skills"
+  },
+  "license": "MIT",
+  "keywords": [
+    "new preset category",
+    "presets.ts aggregator",
+    "preset file pattern",
+    "enum-based presets"
+  ],
+  "skills": "./"
+}

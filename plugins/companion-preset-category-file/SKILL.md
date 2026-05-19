@@ -1,6 +1,7 @@
 ---
 name: companion-preset-category-file
 description: 'Teaches the enum-based preset category file pattern used in split-file Companion modules. Use when asked to create preset file, add preset category, add preset category file, wire presets, extend presets.ts aggregator, or use enum-based preset IDs in a src/presets/preset-{category}.ts file.'
+license: MIT
 ---
 
 # Companion Preset Category File Pattern

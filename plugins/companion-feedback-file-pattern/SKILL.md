@@ -1,6 +1,7 @@
 ---
 name: companion-feedback-file-pattern
 description: 'Creates a new feedback category file in a Companion module and wires it into the aggregator. Use when no src/feedbacks/feedback-{category}.ts exists yet for the category. Does NOT apply when the category file already exists — use companion-add-feedback-to-category-file instead to add feedbacks to an existing file.'
+license: MIT
 ---
 
 # Companion Feedback File Pattern

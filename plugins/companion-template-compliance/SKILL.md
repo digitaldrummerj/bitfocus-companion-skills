@@ -1,3 +1,9 @@
+---
+name: companion-template-compliance
+description: 'Checklist for verifying that a Bitfocus Companion module matches the official JavaScript or TypeScript template, including required files, config file contents, package.json rules, manifest.json rules, HELP.md validation, and husky hooks.'
+license: MIT
+---
+
 # Skill: companion-template-compliance
 
 **Description:** Full checklist for verifying that a Companion module matches the official JS or TS template. Covers required files, config file content, package.json rules, manifest.json rules, HELP.md validation, and husky hooks.  

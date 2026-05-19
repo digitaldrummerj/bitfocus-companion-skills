@@ -1,0 +1,29 @@
+{
+  "name": "companion-bitfocus-dashboard",
+  "version": "1.0.0",
+  "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
+  "author": "companion-ai-skills",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "what's pending",
+    "pending review queue",
+    "Bitfocus dashboard",
+    "clone module for review"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "review",
+    "dashboard"
+  ],
+  "capabilities": [
+    "Query the pending review queue",
+    "Resolve previous approved tags",
+    "Clone review targets from GitHub"
+  ]
+}
