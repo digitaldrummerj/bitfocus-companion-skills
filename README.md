@@ -52,7 +52,7 @@ copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skills
 #### Install any plugin
 
 ```bash
-copilot plugin install digitaldrummerj@bitfocus-companion-skills
+copilot plugin install companion-actions@bitfocus-companion-skills
 ```
 
 #### Or install directly from the repo (no marketplace registration needed)
