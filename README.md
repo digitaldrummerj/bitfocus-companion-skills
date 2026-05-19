@@ -46,13 +46,13 @@ Every plugin is centered on a `SKILL.md` file, then wrapped with marketplace met
 #### One-time: register the marketplace
 
 ```bash
-copilot plugin marketplace add digitaldrummerj/companion-skills
+copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skills
 ```
 
 #### Install any plugin
 
 ```bash
-copilot plugin install digitaldrummerj@companion-skills
+copilot plugin install digitaldrummerj@bitfocus-companion-skills
 ```
 
 #### Or install directly from the repo (no marketplace registration needed)
