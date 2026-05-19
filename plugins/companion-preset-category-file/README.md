@@ -18,8 +18,8 @@ agents can discover and apply the pattern quickly during Bitfocus Companion modu
 
 ### GitHub Copilot CLI
 ```bash
-copilot plugin marketplace add OWNER/companion-ai-skills
-copilot plugin install companion-preset-category-file@companion-ai-skills
+copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skill
+copilot plugin install companion-preset-category-file@bitfocus-companion-skills
 ```
 
 ### Manual

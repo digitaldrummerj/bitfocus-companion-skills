@@ -18,8 +18,8 @@ can discover and apply the pattern quickly during Bitfocus Companion module work
 
 ### GitHub Copilot CLI
 ```bash
-copilot plugin marketplace add OWNER/companion-ai-skills
-copilot plugin install companion-feedback-file-pattern@companion-ai-skills
+copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skill
+copilot plugin install companion-feedback-file-pattern@bitfocus-companion-skills
 ```
 
 ### Manual
