@@ -43,17 +43,23 @@ Every plugin is centered on a `SKILL.md` file, then wrapped with marketplace met
 
 ### GitHub Copilot CLI
 
-```bash
-# One-time: register the marketplace
-copilot plugin marketplace add OWNER/companion-ai-skills
+#### One-time: register the marketplace
 
-# Install any plugin
-copilot plugin install companion-actions@companion-ai-skills
+```bash
+copilot plugin marketplace add digitaldrummerj/companion-skills
 ```
 
-### Manual / Any AI Agent
+#### Install any plugin
 
-Copy any plugin directory to `.github/skills/<plugin-name>/` in your project.
+```bash
+copilot plugin install digitaldrummerj@companion-skills
+```
+
+#### Or install directly from the repo (no marketplace registration needed)
+
+```bash
+copilot plugin install digitaldrummerj/bitfocus-companion-skills:plugins/companion-actions
+```
 
 ---
 

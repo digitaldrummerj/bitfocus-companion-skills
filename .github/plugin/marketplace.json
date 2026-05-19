@@ -1,11 +1,11 @@
 {
-  "name": "companion-ai-skills",
+  "name": "bitfocus-companion-skills",
   "owner": {
-    "name": "companion-ai-skills",
-    "email": ""
+    "name": "Justin James",
+    "email": "digitaldrummerj@gmail.com"
   },
   "metadata": {
-    "description": "AI skills for Bitfocus Companion module development",
+    "description": "Reusable knowledge plugins for AI agents for Bitfocus Companion module development",
     "version": "1.0.0"
   },
   "plugins": [
