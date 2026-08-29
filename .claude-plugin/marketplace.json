@@ -1,0 +1,115 @@
+{
+  "name": "bitfocus-companion-skills",
+  "owner": {
+    "name": "Justin James",
+    "email": "digitaldrummerj@gmail.com"
+  },
+  "metadata": {
+    "description": "Reusable knowledge plugins for AI agents for Bitfocus Companion module development",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "companion-action-file-pattern",
+      "description": "Create and wire a new split-file actions category for a Bitfocus Companion module.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-action-file-pattern"
+    },
+    {
+      "name": "companion-actions",
+      "description": "Implement Bitfocus Companion actions with typed definitions, options, callbacks, and lifecycle hooks.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-actions"
+    },
+    {
+      "name": "companion-add-action-to-category-file",
+      "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-add-action-to-category-file"
+    },
+    {
+      "name": "companion-add-feedback-to-category-file",
+      "description": "Add new feedbacks to an existing Companion feedback category file without creating a new category.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-add-feedback-to-category-file"
+    },
+    {
+      "name": "companion-add-preset-to-category-file",
+      "description": "Add new presets to an existing enum-based Companion preset category file.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-add-preset-to-category-file"
+    },
+    {
+      "name": "companion-bitfocus-dashboard",
+      "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-bitfocus-dashboard"
+    },
+    {
+      "name": "companion-config",
+      "description": "Define and validate Bitfocus Companion configuration fields, defaults, and configUpdated behavior.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-config"
+    },
+    {
+      "name": "companion-feedback-file-pattern",
+      "description": "Create and wire a new split-file feedback category for a Bitfocus Companion module.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-feedback-file-pattern"
+    },
+    {
+      "name": "companion-feedbacks",
+      "description": "Implement Bitfocus Companion feedbacks for boolean styling, advanced rendering, and state-driven updates.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-feedbacks"
+    },
+    {
+      "name": "companion-osc-integration",
+      "description": "Integrate OSC transport, lifecycle management, and state updates into a Bitfocus Companion module.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-osc-integration"
+    },
+    {
+      "name": "companion-preset-category-file",
+      "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-preset-category-file"
+    },
+    {
+      "name": "companion-template-compliance",
+      "description": "Review Companion modules against the official JavaScript and TypeScript template requirements.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-template-compliance"
+    },
+    {
+      "name": "companion-upgrades",
+      "description": "Write Companion upgrade scripts that safely migrate config, actions, and feedbacks across breaking changes.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-upgrades"
+    },
+    {
+      "name": "companion-v1-api-compliance",
+      "description": "Review @companion-module/base v1.x modules for required lifecycle behavior and version-specific compliance.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-v1-api-compliance"
+    },
+    {
+      "name": "companion-v2-api-compliance",
+      "description": "Review @companion-module/base v2.0+ modules for entrypoint, manifest, expression, and upgrade compliance.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-v2-api-compliance"
+    },
+    {
+      "name": "companion-variable-definition",
+      "description": "Declare and register Bitfocus Companion variables so they appear in the variable picker.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-variable-definition"
+    },
+    {
+      "name": "companion-variable-set-value",
+      "description": "Set and read Bitfocus Companion variable values at runtime after the variables are defined.",
+      "version": "1.0.0",
+      "source": "./plugins/companion-variable-set-value"
+    }
+  ]
+}
