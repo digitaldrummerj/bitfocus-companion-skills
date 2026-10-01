@@ -1,0 +1,15 @@
+{
+  "name": "companion-v2-add-feedback-to-category-file",
+  "description": "Add feedbacks to an existing v2 feedback category file by extending the enum, the schema and the definitions, then triggering them.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "v2 add feedback",
+    "extend feedback category v2",
+    "add feedback to category file v2"
+  ],
+  "skills": "./"
+}
