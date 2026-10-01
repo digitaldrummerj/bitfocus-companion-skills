@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-actions",
+  "version": "1.0.0",
+  "description": "Reference for @companion-module/base v2.x action definitions, typed schemas, expression-parsed options, subscribe, learn and 2.1 results.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 action definition",
+    "CompanionActionDefinitions",
+    "optionsToMonitorForSubscribe",
+    "action hasResult"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "actions",
+    "typescript"
+  ],
+  "capabilities": [
+    "Define typed v2 actions",
+    "Explain automatic expression and variable parsing",
+    "Use subscribe, learn, abort signals and action results correctly"
+  ]
+}
