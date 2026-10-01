@@ -202,6 +202,8 @@ export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig, ModuleSe
 ]
 ```
 
+> **Caution (base 2.1.3):** `CreateConvertToBooleanFeedbackUpgradeScript` copies `feedback.options[key]` into `feedback.style` unchanged. In v2 that value is the `{ isExpression, value }` wrapper, not the colour number, so the resulting style holds an object. Until it is fixed upstream, prefer a hand-written script that moves only literal values. There is one in **companion-v1-to-v2-expression-upgrades** → `references/scripts.md`. `CreateUseBuiltinInvertForFeedbacksUpgradeScript` is v2-aware and fine to use.
+
 > **2.1+ (Companion 5.0+)** — `CreateUseActionResultStoreUpgradeScript` needs base **2.1.1** or later. It moves the stored `custom-variable` option into the action's `storeResult`. You must also update the action definition to `hasResult: true` and return the value (see **`companion-v2-actions`**).
 
 ### Testing an upgrade script

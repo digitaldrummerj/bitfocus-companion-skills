@@ -50,6 +50,8 @@ export function UpdateVariableValues(instance: ModuleInstance): void {
 - Batch related updates into one call instead of calling it once per variable.
 - The value type comes from the schema. Setting a `number` variable to a string is a compile error.
 - An ID that isn't in the schema is an excess-property compile error.
+- Don't mix a **computed** template key with other keys in one object literal. `setVariableValues({ a: 1, [`x_${n}`]: 2 })` widens the computed key to `[x: string]` (TS2345). Build a `Partial<VariablesSchema>` bag as above. A lone computed key (see "Unsetting") is fine.
+- A key built from a plain `string` part can't index explicit keys (TS7053). Type the part as a literal union, and use `as const` if the key goes into a variable first.
 
 ## Pattern: Unsetting
 

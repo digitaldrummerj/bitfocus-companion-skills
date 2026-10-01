@@ -256,6 +256,7 @@ Rules:
 - `ModuleSchema` ties everything together. `InstanceBase<ModuleSchema>` then type-checks every `setActionDefinitions`, `setFeedbackDefinitions`, `setPresetDefinitions`, `setVariableValues` and `checkFeedbacks` call.
 - Set `secrets: undefined` when the module has no `secret-text` fields. Otherwise use `secrets: ModuleSecrets` and accept the third `init` argument (see **companion-v2-config**).
 - `init()` must not wait for the device to connect. Start the connection and return.
+- Base helpers `TCPHelper` / `UDPHelper`: in v2, `send()` is **synchronous**. `TCPHelper.send` returns `boolean` (`false` when not connected), and `UDPHelper.send` returns `void`. Errors go to the `'error'` event. Use `await sendAsync()` when you need the promise (resolve or reject). `tsc` doesn't flag `await send()`; only lint's `await-thenable` does.
 - `state` and `sendCommand` stand in for your module's own device state and transport. The examples in the other `companion-v2-*` skills call members like these (`instance.state.muted`, `instance.query(...)`). Define whatever your module needs as real public members of the class.
 - Call `setActionDefinitions` and `setFeedbackDefinitions` **before** `setPresetDefinitions`.
 - Category files import the class as a type only: `import type ModuleInstance from '../main.js'`. Because the import is erased, there is no runtime circular dependency, and every public member of the class (state, helpers, `log`, `setVariableValues`, …) is typed. Do not recreate the v1 `InstanceBaseExt<Config>` interface with `[x: string]: any`.
@@ -339,6 +340,8 @@ yarn package                  # produces <name>-<version>.tgz
 | `import { ModuleConfig } from './config.js'` for a type | Use `import type` / `type` modifiers, because `verbatimModuleSyntax` requires them |
 | `interface ModuleConfig { … }` | Use a `type` alias. Interfaces don't satisfy `JsonObject` |
 | `InstanceBase<ModuleConfig>` | v2 takes the whole schema: `InstanceBase<ModuleSchema>` |
+| `await tcp.send(…)` / `await udp.send(…)` | `send()` is synchronous in v2. Use `sendAsync()` for promise semantics |
+| Adding vitest tests and lint fails on every test file | Turn off `n/no-unpublished-import` and `@typescript-eslint/unbound-method` for `tests/**` and `vitest.config.ts` (see **companion-v1-to-v2-migration** → `references/esm-and-tooling.md`) |
 | Base range `^2.0.0` | Use `~2.1.3` / `~2.0.4`. A minor bump raises the minimum Companion version |
 
 ## Related Skills

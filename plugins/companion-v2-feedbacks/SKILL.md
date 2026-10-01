@@ -163,7 +163,7 @@ Value feedbacks drive preset local variables (`variableType: 'feedback'`, **2.1+
 		const { width, height } = feedback.image
 		const pixels = Buffer.alloc(width * height * 4)
 		return {
-			imageBuffer: pixels.toString('base64'), // v2: must be a base64 string, not a Buffer
+			imageBuffer: pixels.toString('base64'), // v2: must be a base64 string, not a Buffer (Uint8Array: Buffer.from(u8).toString('base64'))
 			imageBufferEncoding: { pixelFormat: 'RGBA' },
 			imageBufferPosition: { x: 0, y: 0, width, height },
 		}

@@ -209,7 +209,7 @@ private connect(): void {
 |---|---|
 | `interface ModuleConfig` | Use `type ModuleConfig = {…}` (it must satisfy `JsonObject`) |
 | `isVisible: (opts) => …` | Not supported. Use `isVisibleExpression` |
-| `required: true` | Replaced by `minLength: 1` |
+| `required: true` | On `textinput` / `secret-text`: replaced by `minLength: 1`. On any other field type: delete it (TS2353), because those fields always hold a value |
 | Password in a `textinput` / v1 `secret` field stored in config | Use `secret-text` and the secrets object. Move existing values with an upgrade script (`updatedSecrets`) |
 | Expecting `saveConfig` to trigger `configUpdated` | It doesn't. Apply the change yourself |
 | Duplicate field `id`s | **2.1+ (Companion 5.0+)** drops later duplicates and logs a warning |

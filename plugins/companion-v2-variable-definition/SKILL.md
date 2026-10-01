@@ -99,7 +99,7 @@ v2 variables can hold **any JSON value**: `string`, `number`, `boolean`, `null`,
 
 - Allowed characters: `a-z A-Z 0-9 _ -`. No spaces, dots or `:`.
 - Users reference them as `$(connection-label:variable_id)`, so keep them short, stable and lowercase-snake.
-- Changing a released variable ID breaks users' buttons. Treat IDs like action IDs.
+- Changing a released variable ID breaks users' buttons. Treat IDs like action IDs. If a released module already uses dotted IDs (`light.ip`), keep them and flag them for checking in Companion 5. Base 2.1.3 doesn't validate IDs itself; the host does.
 - Dynamic IDs should follow one template per family (`channel_${n}_level`) so the template-literal key types them.
 
 ---
