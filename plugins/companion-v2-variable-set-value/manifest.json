@@ -1,0 +1,29 @@
+{
+  "name": "companion-v2-variable-set-value",
+  "version": "1.0.0",
+  "description": "Set and read @companion-module/base v2.x variable values with typed setVariableValues and getVariableValue.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 set variable value",
+    "setVariableValues v2",
+    "getVariableValue"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "variables",
+    "typescript"
+  ],
+  "capabilities": [
+    "Update typed variable values in batches",
+    "Unset variables with undefined",
+    "Store real JSON types instead of strings"
+  ]
+}
