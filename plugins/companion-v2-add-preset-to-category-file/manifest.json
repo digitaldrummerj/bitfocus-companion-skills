@@ -1,0 +1,29 @@
+{
+  "name": "companion-v2-add-preset-to-category-file",
+  "version": "1.0.0",
+  "description": "Add presets to an existing v2 preset category file by extending the enum, adding the definition and referencing it from a section group.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 add preset",
+    "extend preset enum v2",
+    "add preset to category file v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "presets",
+    "typescript"
+  ],
+  "capabilities": [
+    "Add a preset button to an existing v2 category",
+    "Reference presets from section groups",
+    "Avoid presets that never appear in the UI"
+  ]
+}
