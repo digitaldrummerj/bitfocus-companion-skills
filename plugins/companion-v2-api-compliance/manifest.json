@@ -1,7 +1,7 @@
 {
   "name": "companion-v2-api-compliance",
-  "version": "1.0.0",
-  "description": "Review @companion-module/base v2.0+ modules for entrypoint, manifest, expression, and upgrade compliance.",
+  "version": "1.1.0",
+  "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
   "author": "Justin James",
   "license": "MIT",
   "platforms": [
@@ -11,9 +11,12 @@
   ],
   "triggers": [
     "v2 api compliance",
+    "v2.1 api compliance",
     "base v2.0",
+    "base v2.1",
     "InstanceTypes",
-    "expression handling"
+    "expression handling",
+    "companion 5.0 api"
   ],
   "tags": [
     "companion",
@@ -22,8 +25,9 @@
     "v2-api"
   ],
   "capabilities": [
-    "Audit v2-only requirements",
-    "Detect breaking API misuse",
-    "Validate expression-era migration patterns"
+    "Resolve the module's exact base API version",
+    "Audit v2.0 baseline requirements",
+    "Audit v2.1 deltas only when applicable",
+    "Detect 2.1-only features in 2.0 modules"
   ]
 }
