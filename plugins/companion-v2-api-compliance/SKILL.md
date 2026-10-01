@@ -75,9 +75,9 @@ For each finding, include **what** is wrong, **why** it matters for this version
 | Fix area | Skill |
 |---|---|
 | Project setup, manifest, tsconfig, entrypoint | **companion-v2-module-scaffold** |
-| Actions | **companion-v2-actions**, **companion-v2-action-file-pattern** |
-| Feedbacks | **companion-v2-feedbacks**, **companion-v2-feedback-file-pattern** |
-| Presets | **companion-v2-preset-category-file** |
+| Actions | **companion-v2-add-action-to-category-file** (existing file), **companion-v2-action-file-pattern** (new category), **companion-v2-actions** (API reference) |
+| Feedbacks | **companion-v2-add-feedback-to-category-file** (existing file), **companion-v2-feedback-file-pattern** (new category), **companion-v2-feedbacks** (API reference) |
+| Presets | **companion-v2-add-preset-to-category-file** (existing file), **companion-v2-preset-category-file** (new category) |
 | Variables | **companion-v2-variable-definition**, **companion-v2-variable-set-value** |
 | Config and secrets | **companion-v2-config** |
 | Upgrade scripts | **companion-v2-upgrades** |
