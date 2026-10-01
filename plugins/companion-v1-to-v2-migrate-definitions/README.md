@@ -62,6 +62,10 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migrate-definitions/` 
 
 - `SKILL.md` contains the full agent-facing guidance.
 
+- `references/shared-options.md` holds shared option fields, option factories, definition helpers and the "Use variable" idiom.
+
+- `references/variables.md` holds literal variable conversion and catalog-driven variable typing.
+
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
