@@ -1,0 +1,16 @@
+{
+  "name": "companion-v1-to-v2-expression-upgrades",
+  "description": "Retype historical upgrade scripts and add the expression-aware upgrade scripts that ship with a Companion v1 to v2 migration.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "upgrade scripts for v2 migration",
+    "isExpression upgrade script",
+    "FixupNumericOrVariablesValueToExpressions",
+    "textinput to number upgrade"
+  ],
+  "skills": "./"
+}
