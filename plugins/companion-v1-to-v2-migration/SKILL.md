@@ -8,7 +8,7 @@ license: MIT
 
 This skill is the **orchestrator** for converting an existing `@companion-module/base` 1.x module to the v2 API. Work through the phases **in order**. Each phase ends with a build check and a **commit boundary**, so the history reads as small, reviewable steps.
 
-The finished module should match the v2 split-file layout taught by the `companion-v2-*` skills:
+The finished module matches the v2 split-file layout taught by the `companion-v2-*` skills:
 
 ```
 src/
@@ -16,7 +16,7 @@ src/
   config.ts               `export type ModuleConfig = {...}` + GetConfigFields()
   actions.ts              `export type ActionsSchema = ActionsSchemaA & ActionsSchemaB`; UpdateActions(instance)
   actions/action-{category}.ts
-  feedbacks.ts            `export type FeedbacksSchema = ...`; UpdateFeedbacks(instance)
+  feedbacks.ts            `export type FeedbacksSchema = ...` (+ `AnyFeedbackId`); UpdateFeedbacks(instance)
   feedbacks/feedback-{category}.ts
   presets.ts              merges { section, presets } from each category → setPresetDefinitions(structure, presets)
   presets/preset-{category}.ts
@@ -30,15 +30,22 @@ src/
 
 - A module's `package.json` has `@companion-module/base` `^1.x` / `~1.x` and you are asked to move it to v2
 - The module calls `runEntrypoint(...)` and needs a default export instead
-- You are asked to make a module "expression ready" or to support Companion 4.3+ / 5.0+ features
+- You are asked to make a module "expression ready", or to support Companion 4.3+ / 5.0+ features
 
 ### ❌ Do NOT use this skill when:
 
 - You are creating a brand-new module → **companion-v2-module-scaffold**
-- The module is already on base 2.x and you only need to add an action, feedback, or preset → use the `companion-v2-*` skills
+- The module is already on base 2.x and you only need to add an action, feedback or preset → the `companion-v2-*` skills
 - You are only **reviewing** a module → **companion-v1-api-compliance** or **companion-v2-api-compliance**
 
-**The rule:** v1 and v2 APIs never mix inside one module. Once you change the base version, the whole module has to follow the v2 API before it builds again. Phases 1–2 change the toolchain, so the build is expected to stay red until the definition phases are done. From Phase 3 onward, each phase should bring the build closer to green.
+**The rule:** v1 and v2 APIs never mix inside one module. Once you change the base version, the whole module must follow the v2 API before it builds again. The build is expected to be red from Phase 1 until Phase 6. Each phase from Phase 3 on should bring it closer to green.
+
+### Commits while the build is red
+
+Modules generated from the template run husky + lint-staged (`eslint --fix`) on commit. While the build is red (Phases 1–5) those hooks usually fail, because v1-style code also breaks v2-aware lint rules. Pick one approach up front:
+
+- **Preferred:** commit each phase with `git commit --no-verify`. Say so in the commit body, e.g. "Build is still red here (v1 definitions); committed with --no-verify". From Phase 6 on, when the build is green, never skip the hook again.
+- **Alternative:** if the repo's policy forbids skipping hooks, do Phases 2–6 in the working tree and commit them as one green commit.
 
 ---
 
@@ -49,75 +56,25 @@ src/
 ```bash
 git status                                   # must be clean
 git checkout -b feat/companion-api-v2        # never migrate on main
-grep '"@companion-module/base"\|"@companion-module/tools"\|"typescript"\|"type"' package.json
+node -p "const p=require('./package.json');({type:p.type,base:p.dependencies['@companion-module/base'],tools:p.devDependencies['@companion-module/tools'],ts:p.devDependencies.typescript})"
 grep -n '"type"\|"runtime"' -A4 companion/manifest.json
-yarn install && yarn build && yarn test      # baseline: note what already fails
+yarn install && yarn build && yarn test      # baseline: write down what ALREADY fails
 ```
+
+Any test that already fails before the migration is not a migration regression. Record it, and don't "fix" it to make the migration look green.
 
 ### 0.2 Choose the target API
 
 | Target | Base version | Companion | Pick it when |
 |---|---|---|---|
-| **2.1** (recommended) | `~2.1.3` | 5.0+ | Default choice. You also get `context.signal`, action results (`hasResult`), `affectedProperties`, layered/alternatives presets, `internal:*` preset actions, and `node26`. |
+| **2.1** (recommended) | `~2.1.3` | 5.0+ | The default. Adds `context.signal`, action results (`hasResult`), `affectedProperties`, layered/alternatives presets, `internal:*` preset actions and `node26`. |
 | **2.0** | `~2.0.4` | 4.3+ | Users must stay on Companion 4.3/4.4. Skip every step marked **2.1+**. |
 
-In 2.1, some things are required at the TypeScript level only:
-- **Advanced feedbacks** must declare `affectedProperties`.
-- **Actions with `subscribe`** must declare `optionsToMonitorForSubscribe`.
-
-Both are covered in **companion-v1-to-v2-migrate-definitions**.
+Two things are required in 2.1 at the TypeScript level only: advanced feedbacks must declare `affectedProperties`, and actions with `subscribe` must declare `optionsToMonitorForSubscribe`. Both are covered in **companion-v1-to-v2-migrate-definitions**.
 
 ### 0.3 Inventory every v1 API in use
 
-Run these from the module root and save the output. Each line that matches is a work item.
-
-```bash
-# Entry point / class typing
-grep -rn "runEntrypoint" src
-grep -rn "InstanceBase<\|InstanceBaseExt" src tests 2>/dev/null
-grep -rnE "^export (interface|type) .*Config" src
-grep -rnE "interface \w*Config" src
-
-# Variable parsing (removed in v2)
-grep -rn "parseVariablesInString" src tests 2>/dev/null
-
-# Feedback checks / lifecycle
-grep -rnE "checkFeedbacks\(\s*\)" src
-grep -rn "subscribe" src/feedback* src/feedbacks 2>/dev/null
-grep -rn "imageBuffer" src
-
-# Variables
-grep -rn "setVariableDefinitions" src
-grep -rn "variableId" src
-
-# Inputs / config
-grep -rn "isVisible:" src
-grep -rnE "\brequired:\s*(true|false)" src
-grep -rn "InputValue" src tests 2>/dev/null
-grep -rn "optionsToIgnoreForSubscribe" src
-grep -rn "learn:" src
-
-# Presets
-grep -rn "setPresetDefinitions" src
-grep -rn "CompanionButtonPresetDefinition\|CompanionPresetDefinitions\|CompanionTextPresetDefinition" src
-grep -rn "category:" src/preset* src/presets 2>/dev/null
-grep -rnE "type: ['\"](button|text)['\"]" src
-grep -rn "relativeDelay" src
-
-# Module format
-grep -rn "require(" src
-grep -n '"type"' package.json
-grep -n '"extends"\|"module"\|"moduleResolution"' tsconfig*.json
-
-# Custom variable writes from actions (candidates for 2.1 action results)
-grep -rn "setCustomVariableValue" src
-```
-
-Also list the test setup, because tests usually mock the v1 instance surface:
-
-```bash
-ls tests/helpers tests/__mocks__ 2>/dev/null; grep -rln "parseVariablesInString\|checkFeedbacks\|setVariableDefinitions\|setPresetDefinitions" tests 2>/dev/null
-```
+Run the grep inventory in **`references/inventory.md`** and save the output. Each matching line is a work item. It also checks for a lint-staged pre-commit hook and for hard-coded version strings.
 
 ---
 
@@ -127,22 +84,23 @@ ls tests/helpers tests/__mocks__ 2>/dev/null; grep -rln "parseVariablesInString\
 
 | Field | v1 typical | v2 value |
 |---|---|---|
-| `"type"` | missing (CommonJS) | `"module"` |
+| `"type"` | missing (CommonJS) | `"module"` for TypeScript modules. Plain-JS modules may stay CommonJS: base v2 also exports a `require` entry, so `module.exports = class …` with `module.exports.UpgradeScripts = […]` still works. |
 | `dependencies["@companion-module/base"]` | `~1.14.1` | `~2.1.3` (or `~2.0.4` for the 2.0 target) |
 | `devDependencies["@companion-module/tools"]` | `^2.x` | `^3.1.0` (minimum 2.7.1; v3 is a drop-in replacement) |
 | `devDependencies["typescript"]` | `~5.x` | `~6.0.3` |
+| `devDependencies["eslint"]` | `^9.x` | `^10.2.0`. Tools 3.1 depends on `@eslint/js` 10, which peers on eslint ^10.2. With eslint 9, yarn prints `YN0060`. |
+| `devDependencies["prettier"]` | `^3.x` | `^3.8.1` (tools 3.1 peer) |
+| `devDependencies["typescript-eslint"]` | `^8.x` | `^8.56.1` (tools 3.1 peer; older versions don't support TS 6) |
 | `devDependencies["@types/node"]` | `^22.x` | `^22.19.17` (match `engines.node`) |
 | `engines.node` | `^22.x` | `^22.20` |
 | `packageManager` | `yarn@4.x` | keep yarn 4 (the template uses `yarn@4.17.0`) |
 | `main` | `dist/index.js` or `dist/main.js` | keep it, but it **must match** `runtime.entrypoint` in the manifest |
 
-Then:
+If in doubt, match `node_modules/@companion-module/tools/package.json` → `peerDependencies`. Then run `yarn install` and confirm there are no `YN0060` peer warnings.
 
-```bash
-yarn install
-```
+### 1.2 TypeScript config
 
-### 1.2 `tsconfig.build.json`
+`tsconfig.build.json`:
 
 ```json
 {
@@ -157,9 +115,24 @@ yarn install
 }
 ```
 
-- Remove any `"module": "Node16"`, `"moduleResolution": "Node16"`, `baseUrl` or `paths` overrides you carried over from v1. `recommended-esm` sets `nodenext`.
-- Keep `tsconfig.json`, which extends the build config and adds `tests/**` plus `"types": ["node", ...]`, with its test-framework types unchanged.
-- **2.1+ (Companion 5.0+)** with a `node26` runtime: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead.
+`tsconfig.json`, used for tests and the IDE. It extends the build config and **must override `rootDir` and set `noEmit`**:
+
+```json
+{
+	"extends": "./tsconfig.build.json",
+	"include": ["src/**/*.ts", "tests/**/*.ts"],
+	"exclude": ["node_modules/**"],
+	"compilerOptions": {
+		"rootDir": "./",
+		"noEmit": true,
+		"types": ["node"]
+	}
+}
+```
+
+- Without `rootDir: "./"`, `tsc -p tsconfig.json` fails with TS6059 ("not under rootDir"). Without `noEmit`, a stray `tsc -p tsconfig.json` writes `.js` files next to your tests, and lint then fails on them. Add your test framework's types (`"vitest/globals"`, `"jest"`) and extra include globs (`vitest.config.ts`, `scripts/**`) as needed.
+- Remove `"module": "Node16"`, `"moduleResolution": "Node16"`, `baseUrl` and `paths` overrides carried over from v1. `node22/recommended-esm` already sets an ESM-capable `"module": "node20"` / `"moduleResolution": "node16"`, and `"type": "module"` makes the output ESM.
+- **2.1+ (Companion 5.0+)** with a `node26` runtime: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one, because it also uses `node20`/`node16` (with `es2025`). Also bump `engines.node` and `@types/node` to Node 26.
 
 ### 1.3 Fix ESM import syntax across `src/` (and `tests/`)
 
@@ -169,17 +142,17 @@ yarn install
 |---|---|
 | Type-only names imported as values: `import { CompanionActionDefinition } from '@companion-module/base'` | `import type { ... }`, or inline `import { InstanceBase, type SomeCompanionConfigField }` |
 | Relative imports without an extension: `from './utils'` | `from './utils.js'` (always `.js`, even for `.ts` sources) |
-| `require('x')` / `module.exports` | ESM `import`. For CJS-only packages with no usable ESM entry, use `createRequire` (below) |
+| `require('x')` / `module.exports` | ESM `import`. For a CJS-only package with no usable ESM entry, use `createRequire` (below). |
 
 ```ts
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-// CJS-only dependency without ESM exports / types
-const legacyLib = require('node:os') as typeof import('node:os')
+// a CJS-only package that has no ESM entry point (placeholder name)
+const legacyLib = require('some-cjs-only-lib') as { connect(host: string): void }
 ```
 
-Most CJS packages can be default-imported under `nodenext`, e.g. `import osc from 'osc'` or `import nodeOsc from 'node-osc'`. Try that first, and use `createRequire` only if the default import fails at runtime.
+Most CJS packages can be default-imported under ESM, e.g. `import osc from 'osc'` or `import nodeOsc from 'node-osc'`. Try that first, and use `createRequire` only if the default import fails at runtime.
 
 `__dirname` and `__filename` don't exist in ESM. Use `import.meta.dirname` (Node 22) or `fileURLToPath(new URL('.', import.meta.url))`.
 
@@ -191,16 +164,14 @@ Most CJS packages can be default-imported under `nodenext`, e.g. `import osc fro
 
 | Runner | What to change |
 |---|---|
-| **vitest** | Usually nothing. It is ESM-native. Keep `vitest.config.*`. |
-| **jest + ts-jest** | Either switch to vitest (simplest), or use `ts-jest`'s ESM preset (`preset: 'ts-jest/presets/default-esm'`, `extensionsToTreatAsEsm: ['.ts']`, `moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' }`) and run jest with `NODE_OPTIONS=--experimental-vm-modules`. `jest.config.ts` needs `ts-node` with ESM support, or rename it to `jest.config.cjs`/`.mjs`. |
+| **vitest** | Usually nothing. It's ESM-native, so keep `vitest.config.*`. |
+| **jest + ts-jest** | Either switch to vitest (simplest), or use `ts-jest`'s ESM preset: `preset: 'ts-jest/presets/default-esm'`, `extensionsToTreatAsEsm: ['.ts']`, `moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' }`, and run jest with `NODE_OPTIONS=--experimental-vm-modules`. `jest.config.ts` needs `ts-node` with ESM support, or rename it to `jest.config.cjs`/`.mjs`. |
 
-**Commit boundary:** `chore: switch tooling to companion API v2 (ESM, tools v3, base 2.1)`
-
-The build will be red here. That's expected, because the code still uses v1 APIs.
+**Commit boundary:** `chore: switch tooling to companion API v2 (ESM, tools v3, base 2.1)`. The build is red here, which is expected (see "Commits while the build is red").
 
 ---
 
-## Phase 2 — Manifest and Entry Point
+## Phase 2 — Manifest, Entry Point and Config Type
 
 ### 2.1 `companion/manifest.json`
 
@@ -220,7 +191,7 @@ The build will be red here. That's expected, because the code still uses v1 APIs
 
 - Add `$schema` (recommended) and `"type": "connection"` (**required**: v2 refuses to load without it).
 - `runtime.type`: `node18` is no longer allowed. Use `node22`, or `node26` (**2.1+ (Companion 5.0+)**).
-- Keep every other existing field as-is: `id`, `name`, `shortname`, `maintainers`, `legacyIds`, `products`, `keywords`, `bonjourQueries`, `runtime.permissions` and so on. Don't change `id`.
+- Keep every other field as it is: `id`, `name`, `shortname`, `maintainers`, `legacyIds`, `products`, `keywords`, `bonjourQueries`, `runtime.permissions`, and so on. Never change `id`.
 - `runtime.entrypoint` must point at the compiled file that holds the default export.
 
 ### 2.2 Entry point: `runEntrypoint` → default export
@@ -240,19 +211,18 @@ class ZoomInstance extends InstanceBase<ZoomConfig> {
 runEntrypoint(ZoomInstance, [UpgradeV2ToV3, UpgradeV2ToV3, fixWrongPinCommands])
 ```
 
-**After (v2):**
+**After (v2):** the essential changes are below. The complete `main.ts` is in **companion-v2-module-scaffold → Step 5**.
 
 ```ts
-import { InstanceBase, InstanceStatus, type SomeCompanionConfigField } from '@companion-module/base'
-import { GetConfigFields, type ModuleConfig } from './config.js'
-import { UpdateActions, type ActionsSchema } from './actions.js'
-import { UpdateFeedbacks, type FeedbacksSchema } from './feedbacks.js'
-import { UpdatePresets } from './presets.js'
-import { UpdateVariableDefinitions, type VariablesSchema } from './variables.js'
+import { InstanceBase } from '@companion-module/base'
+import type { ZoomConfig } from './config.js'
+import type { ActionsSchema } from './actions.js'
+import type { FeedbacksSchema } from './feedbacks.js'
+import type { VariablesSchema } from './variables.js'
 import { UpgradeScripts } from './upgrades.js'
 
 export type ModuleSchema = {
-	config: ModuleConfig
+	config: ZoomConfig
 	secrets: undefined
 	actions: ActionsSchema
 	feedbacks: FeedbacksSchema
@@ -261,73 +231,49 @@ export type ModuleSchema = {
 
 export { UpgradeScripts }
 
-export default class ModuleInstance extends InstanceBase<ModuleSchema> {
-	config!: ModuleConfig
-
-	constructor(internal: unknown) {
-		super(internal)
-	}
-
-	async init(config: ModuleConfig): Promise<void> {
-		this.config = config
-		this.updateStatus(InstanceStatus.Ok)
-		this.updateDefinitions()
-	}
-
-	async destroy(): Promise<void> {
-		this.log('debug', 'destroy')
-	}
-
-	async configUpdated(config: ModuleConfig): Promise<void> {
-		this.config = config
-	}
-
-	getConfigFields(): SomeCompanionConfigField[] {
-		return GetConfigFields()
-	}
-
-	updateDefinitions(): void {
-		UpdateVariableDefinitions(this)
-		UpdateActions(this)
-		UpdateFeedbacks(this)
-		UpdatePresets(this)
-	}
+export default class ZoomInstance extends InstanceBase<ModuleSchema> {
+	// existing fields, lifecycle methods and an updateDefinitions() that calls
+	// UpdateVariableDefinitions / UpdateActions / UpdateFeedbacks / UpdatePresets
 }
 ```
 
 Rules:
 
-1. Export the class as **`export default class`**. You may keep the old class name, e.g. `export default class ZoomInstance`.
+1. Export the class as **`export default class`**. You may keep the old class name. If the class was already a **named** export imported as `import type { X }`, switch every importer in `src/` and `tests/` to the default import (**companion-v1-to-v2-migrate-definitions** A.2).
 2. Move the upgrade-script array **verbatim** into `src/upgrades.ts` as `export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig>[] = [ ... ]`, and re-export it from the main file with `export { UpgradeScripts }`.
-   - **Keep the same order, and keep duplicates.** Companion stores the index of the last script it ran, so removing or reordering scripts breaks existing users. If v1 listed `UpgradeV2ToV3` twice, list it twice.
-   - Retype each script's signature as described in **companion-v1-to-v2-expression-upgrades** ("Retype existing scripts").
-3. The `ModuleSchema` type replaces the v1 `InstanceBase<Config>` generic. `ActionsSchema`, `FeedbacksSchema` and `VariablesSchema` are created in Phases 3–5. Until then, you can temporarily use `Record<string, never>` placeholders.
-4. Lifecycle signatures:
-   - `init(config, isFirstInit, secrets)`
-   - `configUpdated(config, secrets)`
-   - `saveConfig(config)`, or `saveConfig(config, secrets)` when `secrets` is not `undefined`.
-5. If the file is named `index.ts` you can keep it. Just make sure `package.json` `main` and the manifest `runtime.entrypoint` both point at its compiled `.js`.
-6. Keep `this.instanceOptions.disableVariableValidation = true` in the constructor if the module had it. The option still exists.
+   - **Keep the same order and keep duplicates.** Companion stores the index of the last script it ran. If v1 listed `UpgradeV2ToV3` twice, list it twice.
+   - If v1 passed `[]` (no upgrades file), still create `src/upgrades.ts` exporting an **empty typed array**, so Phase 7 has somewhere to append.
+   - Retype each existing script's signature as described in **companion-v1-to-v2-expression-upgrades** → Part A.
+3. **Convert the config `interface` to a `type` alias now** (**companion-v1-to-v2-migrate-definitions** A.1). `ModuleSchema` fails with TS2344 until you do.
+4. `ActionsSchema`, `FeedbacksSchema` and `VariablesSchema` are written in Phases 3–6. Until then, use `Record<string, never>` placeholders.
+5. Lifecycle signatures are `init(config, isFirstInit, secrets)` and `configUpdated(config, secrets)`. Declaring fewer trailing parameters is fine. `saveConfig(config)` stays the same, or becomes `saveConfig(config, secrets)` when the module has secrets.
+6. A file named `index.ts` can keep its name. Just make sure `package.json` `main` and the manifest `runtime.entrypoint` both point at its compiled `.js`.
+7. Keep `this.instanceOptions.disableVariableValidation = true` in the constructor if the module had it. The option still exists in 2.x.
 
 **Commit boundary:** `refactor: v2 manifest and default-export entrypoint`
 
 ---
 
-## Phase 3 — Actions
+## Counting build errors
 
-Follow **companion-v1-to-v2-migrate-definitions → Part A (Instance typing)** and **Part B (Actions)** for every `src/actions/action-*.ts` file and the `actions.ts` aggregator.
+`tsc`'s default "pretty" output is coloured, so `grep "error TS"` finds nothing. Count errors like this:
 
 ```bash
-yarn build 2>&1 | grep -c "error TS"     # count should drop; action files should now be clean
+yarn tsc -p tsconfig.build.json --noEmit --pretty false | grep -c "error TS"
 ```
+
+## Phase 3 — Actions
+
+Follow **companion-v1-to-v2-migrate-definitions → Part A** (instance typing) and **Part B** (actions) for every `src/actions/action-*.ts` file and the `actions.ts` aggregator. The error count should drop, and the action files should come out clean.
 
 **Commit boundary:** `refactor(actions): typed v2 action schemas, drop parseVariablesInString`
 
 ## Phase 4 — Feedbacks
 
-Follow **companion-v1-to-v2-migrate-definitions → Part C (Feedbacks)**. Then replace every call that triggers feedback re-checks:
-- no-arg `checkFeedbacks()` → `checkAllFeedbacks()`
-- string IDs → enum members
+Follow **companion-v1-to-v2-migrate-definitions → Part C**. Then fix every feedback re-check:
+- `checkFeedbacks()` with no arguments → `checkAllFeedbacks()`
+- string ids → enum members
+- spreading a runtime list → the `AnyFeedbackId` pattern
 
 **Commit boundary:** `refactor(feedbacks): typed v2 feedback schemas and lifecycle`
 
@@ -339,39 +285,30 @@ Follow **companion-v1-to-v2-migrate-presets**.
 
 ## Phase 6 — Variables and Config
 
-Follow **companion-v1-to-v2-migrate-definitions → Part D (Variables)** and **Part E (Config)**.
+Follow **companion-v1-to-v2-migrate-definitions → Part D** (variables) and **Part E** (config). Part E may be a no-op if the module already uses `isVisibleExpression` and has no `required` or secrets.
 
 **Commit boundary:** `refactor: v2 variable definitions and config fields`
 
-At this point `yarn build` must succeed.
+`yarn build` must succeed at this point. From here on, commit with hooks enabled.
 
 ## Phase 7 — Upgrade Scripts for the Migration
 
-Follow **companion-v1-to-v2-expression-upgrades**. You need a new upgrade script whenever the migration changes how saved options are stored:
+Follow **companion-v1-to-v2-expression-upgrades**. A new script is needed whenever the migration changes how saved options are stored:
 - a `textinput` became a `number` or `checkbox`
-- dropdown IDs were renamed
+- dropdown ids were renamed
 - a 0-based value became 1-based
 
-Append new scripts to the **end** of `UpgradeScripts`.
+Append new scripts at the **end** of `UpgradeScripts`.
 
-**Commit boundary:** `feat(upgrades): migrate saved options for v2 field types`
+**Commit boundary:** `feat(upgrades): migrate saved options for v2 field types`. Skip this commit if nothing was added or retyped.
 
 ## Phase 8 — Tests
 
-Update the tests so they assert v2 shapes:
+Update the tests so they assert v2 shapes. The rewrite table is in **`references/tests.md`**. The most important rows:
 
-| v1 test pattern | v2 replacement |
-|---|---|
-| Mock instance stubs `parseVariablesInString: vi.fn(async (s) => s)` | Delete the stub. Callbacks receive already-parsed `options`, so pass the final values straight into `callback({ options: {...} } as any, ctx)`. |
-| Mock instance stubs `checkFeedbacks` and asserts `toHaveBeenCalledWith()` with no args | Stub `checkAllFeedbacks` too. Assert `checkFeedbacks` is called with **feedback IDs** (`FeedbackIdX.member`). |
-| `setVariableDefinitions` mock asserts an array of `{ variableId, name }` | Assert an object: `expect(defs).toHaveProperty('my_var', { name: '...' })`, or `Object.keys(defs)`. |
-| `setPresetDefinitions` mock captures one argument; tests read `preset.category` / `type: 'button'` | It now captures `(structure, presets)`. Assert `type: 'simple'`, and find a preset's section by searching `structure[].definitions[].presets`. |
-| Tests call `callback(event)` only | v2 passes a context object as the 2nd argument. Pass `{ type: 'action', signal: new AbortController().signal }` (or `'feedback'`) when the code reads the context. |
-| Tests import the default class through `require` or `index.js` | `import ModuleInstance from '../src/main.js'` |
-| Tests build option values like `{ userName: '$(internal:x)' }` and expect parsing | Parsing is now Companion's job. Test with already-resolved values. |
-| Guard tests over definitions check `options[].id` uniqueness | Keep them. Duplicate option IDs are rejected at runtime in 2.1. |
-
-Mock helpers: rename any `InstanceBaseExt` mock type to `ModuleInstance`. Cast with `as unknown as ModuleInstance` and add whatever fields the code under test touches.
+- Delete `parseVariablesInString` stubs, and stub `checkAllFeedbacks`.
+- `setPresetDefinitions` captures `(structure, presets)`. Change `type === 'button'` filters to `'simple'`, otherwise guard tests pass while checking nothing.
+- Harness helpers typed with un-parameterised `CompanionActionDefinition` → `unknown` or the precise generic.
 
 **Commit boundary:** `test: update tests for companion API v2`
 
@@ -380,15 +317,15 @@ Mock helpers: rename any `InstanceBaseExt` mock type to `ModuleInstance`. Cast w
 ## Phase 9 — Verify (loop until clean)
 
 ```bash
-yarn install
-yarn build                        # tsc -p tsconfig.build.json — must be 0 errors
-yarn lint                         # fix with: yarn lint:raw --fix  /  yarn format
-yarn test                         # all unit tests green (skip live/hardware suites)
-yarn companion-module-check       # manifest + package validation
-yarn package                      # produces <id>-<version>.tgz; optional smoke test in Companion
+yarn install                        # no YN0060 peer warnings
+yarn build                          # tsc -p tsconfig.build.json: 0 errors
+yarn tsc -p tsconfig.json --noEmit  # typechecks tests too; vitest/jest strip types and hide breakage
+yarn lint                           # fix with: yarn lint:raw --fix  /  yarn format
+yarn test                           # same or fewer failures than the Phase 0 baseline
+yarn companion-module-check         # success = prints only the "Checking for / Tools path / Framework path" lines and exits 0
 ```
 
-Final grep. All of these should return nothing:
+Final grep over **code**. Explanatory comments that mention removed APIs may match, which is fine. Better still, don't name removed APIs in comments:
 
 ```bash
 grep -rn "runEntrypoint\|parseVariablesInString\|InstanceBaseExt\|CompanionButtonPresetDefinition\|optionsToIgnoreForSubscribe\|relativeDelay\|isVisible:" src
@@ -396,31 +333,43 @@ grep -rnE "checkFeedbacks\(\s*\)" src
 grep -rnE "type: ['\"]button['\"]|category:" src/preset* src/presets 2>/dev/null
 ```
 
-Then update `companion/HELP.md` if the migration changed how users enter values (e.g. fields that now accept expressions), and bump the `package.json` version. A major bump is appropriate when the minimum Companion version changes.
+Then:
+
+1. **Bump `package.json` `version` before packaging.** A major bump is appropriate when the minimum Companion version changes. `yarn package` writes `<id>-<version>.tgz` to the repo root and would overwrite an existing tarball with the same version.
+2. `yarn package`, and optionally smoke-test the tarball in Companion.
+3. Update `companion/HELP.md` if the migration changed how users enter values (fields that now accept expressions) or how presets are grouped.
+4. Search for hard-coded copies of the old version (`grep -rn "<old version>" src`) and decide whether each should change.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---|---|
 | Removing a duplicate or "obsolete" upgrade script while moving the array | Scripts are positional. Copy the v1 array exactly and only append. |
-| Forgetting `"type": "connection"` in the manifest | Module fails to load in Companion 4.3+. `companion-module-check` catches it. |
+| Forgetting `"type": "connection"` in the manifest | The module fails to load in Companion 4.3+. `companion-module-check` catches it. |
 | `package.json` `main` / manifest `entrypoint` still points at `dist/index.js` after renaming to `main.ts` | Keep the names aligned. |
 | Leaving `"module": "Node16"` in tsconfig | Extend `recommended-esm` and delete the overrides. |
-| Running `parseVariablesInString` replacements with a custom regex | Don't. Set `useVariables: true` on the `textinput` and let Companion parse. |
-| Migrating to 2.1 but the advanced feedback has no `affectedProperties` | TS error in 2.1. Add the property (may be `undefined`). |
+| `tsconfig.json` without `rootDir: "./"` + `noEmit` | TS6059 on tests, or stray `.js` files next to tests |
+| Not bumping eslint / prettier / typescript-eslint with tools v3 | `YN0060` peer warnings, and lint running an old typescript-eslint against TS 6 |
+| Writing a custom regex to replace `parseVariablesInString` | Don't. Set `useVariables: true` on the `textinput` and let Companion parse it. |
+| Deleting `?? default` guards along with the casts | Options missing from saved buttons then crash the callback. See **companion-v1-to-v2-migrate-definitions** B.1. |
+| Migrating to 2.1 but an advanced feedback has no `affectedProperties` | TS error in 2.1. Add the property (it may be `undefined`). |
+| Only running `yarn build` + `yarn test` | Tests aren't typechecked. Also run `tsc -p tsconfig.json --noEmit`. |
 | Big-bang single commit | Commit at every phase boundary above. |
 
 ## Related Skills
 
-- **companion-v1-to-v2-migrate-definitions** — actions, feedbacks, variables, config, and instance typing transforms
-- **companion-v1-to-v2-migrate-presets** — `button` + `category` → sections, groups and `simple` presets
-- **companion-v1-to-v2-expression-upgrades** — upgrade scripts that ship with the migration
-- **companion-v2-module-scaffold** — the target layout for a fresh v2 module
-- **companion-v2-action-file-pattern**, **companion-v2-feedback-file-pattern**, **companion-v2-preset-category-file** — the per-category v2 patterns
-- **companion-v2-api-compliance** — review the result once the migration is done
+- **companion-v1-to-v2-migrate-definitions**: actions, feedbacks, variables, config, and instance typing transforms
+- **companion-v1-to-v2-migrate-presets**: `button` + `category` → sections, groups and `simple` presets
+- **companion-v1-to-v2-expression-upgrades**: upgrade scripts that ship with the migration
+- **companion-v2-module-scaffold**: the target layout and the full `main.ts`
+- **companion-v2-action-file-pattern**, **companion-v2-feedback-file-pattern**, **companion-v2-preset-category-file**: the per-category v2 patterns
+- **companion-v2-upgrades**: the v2 upgrade-script API
+- **companion-v2-api-compliance**: review the result once the migration is done
 
 ## References
 
+- `references/inventory.md`: Phase 0.3 grep inventory
+- `references/tests.md`: Phase 8 test rewrite table
 - [API 2.0 changes](https://companion.free/for-developers/module-development/api-changes/v2.0)
 - [API 2.1 changes](https://companion.free/for-developers/module-development/api-changes/v2.1)
 - Official TS template: `bitfocus/companion-module-template-ts`

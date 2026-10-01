@@ -62,6 +62,10 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migration/` in your pr
 
 - `SKILL.md` contains the full agent-facing guidance.
 
+- `references/inventory.md` holds the Phase 0.3 grep inventory of v1 APIs.
+
+- `references/tests.md` holds the Phase 8 test-rewrite table.
+
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
