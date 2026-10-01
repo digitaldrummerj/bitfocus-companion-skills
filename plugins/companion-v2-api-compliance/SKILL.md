@@ -25,10 +25,14 @@ The detailed rules are kept in one reference file per minor version. Load only t
 
 Use the first source that gives an exact version:
 
-1. `yarn.lock`: the `"@companion-module/base@npm:…"` entry → its `version:` line
+1. `yarn.lock`:
+   - Yarn 2+ (Berry): the `"@companion-module/base@npm:…"` entry → its `version:` line
+   - Yarn 1: the `"@companion-module/base@…":` entry → its `version "…"` line
 2. `package-lock.json`: `packages["node_modules/@companion-module/base"].version`
-3. `node_modules/@companion-module/base/package.json` → `version` (only if `node_modules` exists)
-4. **Fallback:** the range in `package.json` `dependencies["@companion-module/base"]`
+3. `pnpm-lock.yaml`: the `@companion-module/base` entry under `importers`/`packages` → its resolved version
+4. `node_modules/@companion-module/base/package.json` → `version` (only if `node_modules` exists)
+5. **Fallback:** the value in `package.json` `dependencies["@companion-module/base"]`
+   - an exact version (`2.0.4`, `2.1.3`) → that version
    - `~2.0.x` / `2.0.x` → treat as **2.0**
    - `~2.1.x` / `2.1.x` → treat as **2.1**
    - `^2.0.0` or another range that spans minors is **ambiguous**. Treat it as the **lowest** version the range allows (2.0) and add a 🟡 note: "Pin `@companion-module/base` with `~2.N.x` (or commit the lockfile) so the target API version is explicit."
@@ -48,8 +52,8 @@ State the resolved version and its source at the top of the review, e.g. "Base 2
 
 - **Never** report a missing feature from a later minor version as a required change. That covers `affectedProperties`, `context.signal`, `hasResult`, layered or alternatives presets, `internal:*` preset entries, `node26`, and so on for a 2.0.x module.
 - At most, add **one** consolidated line at the end: "💡 Available if you upgrade to 2.1 (Companion 5.0+): …". It lists the features that would clearly help *this* module, and it never adds to the required-change count.
-- Usage that **needs** a later version **is** a defect. Examples:
-  - a 2.0.x module that uses `hasResult`, `context.signal`, `type: 'layered'`, `internal:*` actions, or `runtime.type: "node26"`
+- Usage that **needs** a later version **is** a defect. For 2.0.x modules the full list is in `references/v2.0.md` → "Uses features from a later API version". Examples:
+  - a 2.0.x module that uses `hasResult`, `context.signal`, `affectedProperties`, preset `type: 'layered'`/`'alternatives'`, `internal:*` action/feedback ids inside preset steps, feedback-type preset local variables, or `runtime.type: "node26"`
   - Report it as 🔴. It will either fail to typecheck or Companion will drop or ignore it. The fix is either to bump base to `~2.1.x` (and accept the Companion 5.0+ requirement) or to remove the usage.
 - Changes to typings within a version also count. At base 2.1.3, an advanced feedback without `affectedProperties`, or an action with `subscribe` but no `optionsToMonitorForSubscribe`, is a compile error, so it is 🔴 for 2.1 modules only.
 
