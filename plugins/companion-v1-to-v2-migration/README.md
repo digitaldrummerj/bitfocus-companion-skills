@@ -38,7 +38,9 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migration/` in your pr
 
 - Hand-off to the definitions, presets, and upgrade-script migration skills.
 
-- Test updates and the final verify loop (build, lint, test, companion-module-check, package).
+- Characterization tests for untested modules, jest → vitest, and test updates for v2.
+
+- The final verify loop (build, lint, test, companion-module-check, package) and tools v3 lint fallout.
 
 ## Example Requests
 
@@ -65,6 +67,12 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migration/` in your pr
 - `references/inventory.md` holds the Phase 0.3 grep inventory of v1 APIs.
 
 - `references/tests.md` holds the Phase 8 test-rewrite table.
+
+- `references/characterization-tests.md` explains how to add tests to an untested v1 module before migrating.
+
+- `references/jest-to-vitest.md` holds the jest → vitest conversion checklist.
+
+- `references/esm-and-tooling.md` covers CommonJS packages, helper scripts, tsconfig inversion, lint findings after the tools v3 bump, git hooks and packaging.
 
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 

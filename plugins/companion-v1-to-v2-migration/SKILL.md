@@ -42,9 +42,10 @@ src/
 
 ### Commits while the build is red
 
-Modules generated from the template run husky + lint-staged (`eslint --fix`) on commit. While the build is red (Phases 1–5) those hooks usually fail, because v1-style code also breaks v2-aware lint rules. Pick one approach up front:
+Modules generated from the template run husky + lint-staged (`eslint --fix`) on commit. While the build is red (Phases 1–5) those hooks usually fail, because v1-style code also breaks v2-aware lint rules.
 
-- **Preferred:** commit each phase with `git commit --no-verify`. Say so in the commit body, e.g. "Build is still red here (v1 definitions); committed with --no-verify". From Phase 6 on, when the build is green, never skip the hook again.
+- **Check the hook at baseline** (Phase 0) with the commands in **`references/esm-and-tooling.md`** → "Git hooks". It may be missing, broken for unrelated reasons, or have globs that match nothing, and each case is handled differently.
+- **Try a normal commit first.** Use `git commit --no-verify` only when the hook **actually fails** on a red-build phase. Say so in the commit body, e.g. "Build is still red here (v1 definitions); committed with --no-verify". From Phase 6 on, when the build is green, don't skip the hook again unless it was already broken at baseline.
 - **Alternative:** if the repo's policy forbids skipping hooks, do Phases 2–6 in the working tree and commit them as one green commit.
 
 ---
@@ -76,6 +77,12 @@ Two things are required in 2.1 at the TypeScript level only: advanced feedbacks 
 
 Run the grep inventory in **`references/inventory.md`** and save the output. Each matching line is a work item. It also checks for a lint-staged pre-commit hook and for hard-coded version strings.
 
+### 0.4 No tests? Write characterization tests first
+
+If the module has no test suite, add a small vitest suite against the **v1** code and commit it once it passes, **before** Phase 1. It is the migration's safety net: every later test edit is then a deliberate v2 shape change. The pattern, including how to load a v1 class that calls `runEntrypoint` at import time, is in **`references/characterization-tests.md`**.
+
+If the module has **jest** tests, convert them to vitest as a separate commit now and confirm identical pass/fail counts (**`references/jest-to-vitest.md`**).
+
 ---
 
 ## Phase 1 — Tooling and ESM
@@ -96,7 +103,9 @@ Run the grep inventory in **`references/inventory.md`** and save the output. Eac
 | `packageManager` | `yarn@4.x` | keep yarn 4 (the template uses `yarn@4.17.0`) |
 | `main` | `dist/index.js` or `dist/main.js` | keep it, but it **must match** `runtime.entrypoint` in the manifest |
 
-If in doubt, match `node_modules/@companion-module/tools/package.json` → `peerDependencies`. Then run `yarn install` and confirm there are no `YN0060` peer warnings.
+If in doubt, match `node_modules/@companion-module/tools/package.json` → `peerDependencies`. These versions are **minimums**: keep newer versions the repo already pins. Bump base and tools in **one** `yarn add`, then run `yarn install` and confirm there are no `YN0060` peer warnings.
+
+Already ESM (`"type": "module"`)? Then Phase 1 is mostly the tsconfig swap plus `import type` fixes (expect TS1484 for each type-only import).
 
 ### 1.2 TypeScript config
 
@@ -115,7 +124,7 @@ If in doubt, match `node_modules/@companion-module/tools/package.json` → `peer
 }
 ```
 
-`tsconfig.json`, used for tests and the IDE. It extends the build config and **must override `rootDir` and set `noEmit`**:
+`tsconfig.json`, used for tests and the IDE. It extends the build config and **must override `rootDir` and set `noEmit`**. If the repo has the inheritance the other way round (`tsconfig.build.json` extends `tsconfig.json`), invert it first; see **`references/esm-and-tooling.md`**.
 
 ```json
 {
@@ -152,20 +161,24 @@ const require = createRequire(import.meta.url)
 const legacyLib = require('some-cjs-only-lib') as { connect(host: string): void }
 ```
 
-Most CJS packages can be default-imported under ESM, e.g. `import osc from 'osc'` or `import nodeOsc from 'node-osc'`. Try that first, and use `createRequire` only if the default import fails at runtime.
+Many CJS packages work as a default import under ESM, e.g. `import osc from 'osc'`. But some need a **named** import (`import { got } from 'got-cjs'`). Untyped packages need an ambient `.d.ts`, and test mocks must then provide `default`. `tsc` and vitest often miss these mistakes, so **check every CJS dependency in Node** with the one-liners in **`references/esm-and-tooling.md`** → "CommonJS packages under ESM". Use `createRequire` only when no import form works.
+
+`"type": "module"` also turns every plain-JS **helper script** (`scripts/*.js` run by husky or `package.json` scripts) into ESM. Rename CommonJS ones to `.cjs` and update their callers.
 
 `__dirname` and `__filename` don't exist in ESM. Use `import.meta.dirname` (Node 22) or `fileURLToPath(new URL('.', import.meta.url))`.
 
 ### 1.4 Lint config
 
-`eslint.config.mjs` stays `generateEslintConfig({ enableTypescript: true })`. Keep any custom rule overrides the module already had.
+`eslint.config.mjs` stays `generateEslintConfig({ enableTypescript: true })`. Keep any custom rule overrides the module already had. If the module has (or gains) vitest tests, add the **test-file override** (`n/no-unpublished-import`, `@typescript-eslint/unbound-method` off for `tests/**` and `vitest.config.ts`) from **`references/esm-and-tooling.md`**. Remove `enableJest: true` when leaving jest.
+
+The tools v3 bump (eslint 10, newer typescript-eslint) also flags some untouched code. The rule-by-rule fixes are in **`references/esm-and-tooling.md`** → "New lint findings after the tools v3 bump".
 
 ### 1.5 Test runner
 
 | Runner | What to change |
 |---|---|
 | **vitest** | Usually nothing. It's ESM-native, so keep `vitest.config.*`. |
-| **jest + ts-jest** | Either switch to vitest (simplest), or use `ts-jest`'s ESM preset: `preset: 'ts-jest/presets/default-esm'`, `extensionsToTreatAsEsm: ['.ts']`, `moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' }`, and run jest with `NODE_OPTIONS=--experimental-vm-modules`. `jest.config.ts` needs `ts-node` with ESM support, or rename it to `jest.config.cjs`/`.mjs`. |
+| **jest + ts-jest** | Either switch to vitest (simplest; checklist in **`references/jest-to-vitest.md`**, ideally done in Phase 0.4), or use `ts-jest`'s ESM preset: `preset: 'ts-jest/presets/default-esm'`, `extensionsToTreatAsEsm: ['.ts']`, `moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' }`, and run jest with `NODE_OPTIONS=--experimental-vm-modules`. `jest.config.ts` needs `ts-node` with ESM support, or rename it to `jest.config.cjs`/`.mjs`. |
 
 **Commit boundary:** `chore: switch tooling to companion API v2 (ESM, tools v3, base 2.1)`. The build is red here, which is expected (see "Commits while the build is red").
 
@@ -243,12 +256,14 @@ Rules:
 2. Move the upgrade-script array **verbatim** into `src/upgrades.ts` as `export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig>[] = [ ... ]`, and re-export it from the main file with `export { UpgradeScripts }`.
    - **Keep the same order and keep duplicates.** Companion stores the index of the last script it ran. If v1 listed `UpgradeV2ToV3` twice, list it twice.
    - If v1 passed `[]` (no upgrades file), still create `src/upgrades.ts` exporting an **empty typed array**, so Phase 7 has somewhere to append.
-   - Retype each existing script's signature as described in **companion-v1-to-v2-expression-upgrades** → Part A.
+   - Retype each existing script **completely** as described in **companion-v1-to-v2-expression-upgrades** → Part A. That means the signature **and** the A.2 wrapped-option rewrite, plus any base helper in the array (A.4). A historical script that reads `action.options.x` can't compile with a signature change alone, and the build has to be green by the end of Phase 6. Only **new** scripts wait for Phase 7.
+   - **Module with secrets:** `ModuleSchema.secrets` is `ModuleSecrets`, and the array is `CompanionStaticUpgradeScript<ModuleConfig, ModuleSecrets>[]`, even when it is empty.
 3. **Convert the config `interface` to a `type` alias now** (**companion-v1-to-v2-migrate-definitions** A.1). `ModuleSchema` fails with TS2344 until you do.
-4. `ActionsSchema`, `FeedbacksSchema` and `VariablesSchema` are written in Phases 3–6. Until then, use `Record<string, never>` placeholders.
+4. `ActionsSchema`, `FeedbacksSchema` and `VariablesSchema` are written in Phases 3–6. Until then, use `Record<string, never>` placeholders, and swap each placeholder for the real schema type **in the phase that creates it**, so the error count stays meaningful. A module with no feedbacks or no variables keeps `Record<string, never>` for good (and `setVariableDefinitions({})`).
 5. Lifecycle signatures are `init(config, isFirstInit, secrets)` and `configUpdated(config, secrets)`. Declaring fewer trailing parameters is fine. `saveConfig(config)` stays the same, or becomes `saveConfig(config, secrets)` when the module has secrets.
 6. A file named `index.ts` can keep its name. Just make sure `package.json` `main` and the manifest `runtime.entrypoint` both point at its compiled `.js`.
 7. Keep `this.instanceOptions.disableVariableValidation = true` in the constructor if the module had it. The option still exists in 2.x.
+8. Exporting the class makes its public methods module boundaries, so `@typescript-eslint/explicit-module-boundary-types` may start failing lint (and the pre-commit hook) at the first green commit. Add return types; see **`references/esm-and-tooling.md`**.
 
 **Commit boundary:** `refactor: v2 manifest and default-export entrypoint`
 
@@ -279,7 +294,7 @@ Follow **companion-v1-to-v2-migrate-definitions → Part C**. Then fix every fee
 
 ## Phase 5 — Presets
 
-Follow **companion-v1-to-v2-migrate-presets**.
+Follow **companion-v1-to-v2-migrate-presets**. A module with **no presets** (an empty `updatePresets()` or none at all) needs nothing here. Don't add an empty `setPresetDefinitions([], {})` call, and skip this commit.
 
 **Commit boundary:** `refactor(presets): v2 sections/groups and simple presets`
 
@@ -289,7 +304,7 @@ Follow **companion-v1-to-v2-migrate-definitions → Part D** (variables) and **P
 
 **Commit boundary:** `refactor: v2 variable definitions and config fields`
 
-`yarn build` must succeed at this point. From here on, commit with hooks enabled.
+`yarn build` must succeed at this point, including the historical upgrade scripts retyped in Phase 2. From here on, commit with hooks enabled.
 
 ## Phase 7 — Upgrade Scripts for the Migration
 
@@ -322,21 +337,24 @@ yarn build                          # tsc -p tsconfig.build.json: 0 errors
 yarn tsc -p tsconfig.json --noEmit  # typechecks tests too; vitest/jest strip types and hide breakage
 yarn lint                           # fix with: yarn lint:raw --fix  /  yarn format
 yarn test                           # same or fewer failures than the Phase 0 baseline
-yarn companion-module-check         # success = prints only the "Checking for / Tools path / Framework path" lines and exits 0
+yarn companion-module-check         # exit 0; esbuild warnings such as [direct-eval] are not failures
 ```
 
-Final grep over **code**. Explanatory comments that mention removed APIs may match, which is fine. Better still, don't name removed APIs in comments:
+Fix `tsc -p tsconfig.json` errors before lint errors in tests: many test lint errors are knock-on effects of type errors. Lint errors in non-module paths that already failed at baseline (agent tooling, scripts) are recorded, not fixed.
+
+Final grep over **code**. Comment lines are filtered out, because explanatory comments may name removed APIs:
 
 ```bash
-grep -rn "runEntrypoint\|parseVariablesInString\|InstanceBaseExt\|CompanionButtonPresetDefinition\|optionsToIgnoreForSubscribe\|relativeDelay\|isVisible:" src
-grep -rnE "checkFeedbacks\(\s*\)" src
-grep -rnE "type: ['\"]button['\"]|category:" src/preset* src/presets 2>/dev/null
+nc() { grep -vE '^[^:]+:[0-9]+:\s*(\*|//|/\*)'; }
+grep -rn "runEntrypoint\|parseVariablesInString\|InstanceBaseExt\|CompanionButtonPresetDefinition\|optionsToIgnoreForSubscribe\|relativeDelay\|isVisible:" src | nc
+grep -rnE "checkFeedbacks\(\s*\)" src | nc
+grep -rnE "type: ['\"]button['\"]|category:" src/preset* src/presets 2>/dev/null | nc
 ```
 
 Then:
 
 1. **Bump `package.json` `version` before packaging.** A major bump is appropriate when the minimum Companion version changes. `yarn package` writes `<id>-<version>.tgz` to the repo root and would overwrite an existing tarball with the same version.
-2. `yarn package`, and optionally smoke-test the tarball in Companion.
+2. `yarn package`, then smoke-test the packaged entry with Node (and optionally in Companion). The one-liner, the tracked-`pkg/` caveat and the manifest-version note are in **`references/esm-and-tooling.md`** → "Packaging".
 3. Update `companion/HELP.md` if the migration changed how users enter values (fields that now accept expressions) or how presets are grouped.
 4. Search for hard-coded copies of the old version (`grep -rn "<old version>" src`) and decide whether each should change.
 
@@ -351,6 +369,10 @@ Then:
 | `tsconfig.json` without `rootDir: "./"` + `noEmit` | TS6059 on tests, or stray `.js` files next to tests |
 | Not bumping eslint / prettier / typescript-eslint with tools v3 | `YN0060` peer warnings, and lint running an old typescript-eslint against TS 6 |
 | Writing a custom regex to replace `parseVariablesInString` | Don't. Set `useVariables: true` on the `textinput` and let Companion parse it. |
+| Removing a `parseVariablesInString` call without adding `useVariables: true` to that field | v2 only parses fields marked `useVariables`, so users' `$(…)` silently stops working. See **companion-v1-to-v2-migrate-definitions** B.3. |
+| `await tcp.send(…)` / `await udp.send(…)` kept as is | `send()` is synchronous in v2, and `tsc` doesn't flag the `await`. Use `sendAsync()` (migrate-definitions B.4). |
+| Default-importing a CJS package because the types allow it | Check the import in Node; some packages need a named import (`references/esm-and-tooling.md`). |
+| Historical upgrade scripts left for Phase 7 | Retype them fully in Phase 2, otherwise the build can't be green after Phase 6. |
 | Deleting `?? default` guards along with the casts | Options missing from saved buttons then crash the callback. See **companion-v1-to-v2-migrate-definitions** B.1. |
 | Migrating to 2.1 but an advanced feedback has no `affectedProperties` | TS error in 2.1. Add the property (it may be `undefined`). |
 | Only running `yarn build` + `yarn test` | Tests aren't typechecked. Also run `tsc -p tsconfig.json --noEmit`. |
@@ -370,6 +392,9 @@ Then:
 
 - `references/inventory.md`: Phase 0.3 grep inventory
 - `references/tests.md`: Phase 8 test rewrite table
+- `references/characterization-tests.md`: Phase 0.4 tests for modules without a suite
+- `references/jest-to-vitest.md`: jest → vitest checklist
+- `references/esm-and-tooling.md`: CJS packages, helper scripts, tsconfig inversion, lint findings after tools v3, git hooks, packaging
 - [API 2.0 changes](https://companion.free/for-developers/module-development/api-changes/v2.0)
 - [API 2.1 changes](https://companion.free/for-developers/module-development/api-changes/v2.1)
 - Official TS template: `bitfocus/companion-module-template-ts`
