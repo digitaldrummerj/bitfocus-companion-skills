@@ -138,6 +138,24 @@ In a preset, only **boolean** feedbacks take `style`, and for them it is require
 
 ## Reusable builders: callbacks instead of `actionId` + loose options
 
+**Single-action helpers first.** A helper that wraps exactly one action (`btn(text, category, actionId, options)`) doesn't need a callback. Pass the entry object itself, and the call site's `actionId` and `options` are checked directly:
+
+```ts
+export function btn(text: string, action: SomePresetActionEntry<ModuleSchema>): CompanionSimplePresetDefinition<ModuleSchema> {
+	return {
+		type: 'simple',
+		name: text,
+		style: { text, size: 'auto', color: 0xffffff, bgcolor: 0 },
+		steps: [{ down: [action], up: [] }],
+		feedbacks: [],
+	}
+}
+
+export const playBtn = btn('Play', { actionId: ActionIdTransport.play, options: {} })
+```
+
+Use callbacks, as below, when the builder constructs entries from a loop index.
+
 Many v1 modules had generic builders such as `buildFixedPresets({ actionId, actionOptions, feedbackId, feedbackOptions })`, typed against the deleted `CompanionPresetExt`. In v2 TypeScript can't prove that a generic `{ actionId: A, options: {...} }` is assignable to the preset action union, so you would need a cast.
 
 The cast-free fix is to have the builder take **callbacks** that return a `SomePresetActionEntry<ModuleSchema>` / `SomePresetSimpleFeedbackEntry<ModuleSchema>`. Each call site then names a concrete action, and its options are checked against that action's schema. Use `CompanionSimplePresetDefinition<ModuleSchema>` as the return type of helpers that build a single preset. It replaces v1's `CompanionButtonPresetDefinition`.

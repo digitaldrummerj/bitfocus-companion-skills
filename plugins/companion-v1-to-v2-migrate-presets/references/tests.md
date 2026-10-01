@@ -26,13 +26,8 @@ export interface CapturedPresets {
 	placement: Map<string, PresetPlacement>
 }
 
-/** Reads the first `setPresetDefinitions(structure, presets)` call off a mocked instance. */
-export function capturePresets(setPresetDefinitions: unknown): CapturedPresets {
-	const [structure, presets] = (setPresetDefinitions as { mock: { calls: unknown[][] } }).mock.calls[0] as [
-		CompanionPresetSection<ModuleSchema>[],
-		CompanionPresetDefinitions<ModuleSchema>,
-	]
-
+/** Pure: where each preset id is listed in a v2 structure. Works with any fake that captured the arguments. */
+export function presetPlacement(structure: CompanionPresetSection<ModuleSchema>[]): Map<string, PresetPlacement> {
 	const placement = new Map<string, PresetPlacement>()
 	for (const section of structure) {
 		for (const entry of section.definitions) {
@@ -46,8 +41,16 @@ export function capturePresets(setPresetDefinitions: unknown): CapturedPresets {
 			}
 		}
 	}
+	return placement
+}
 
-	return { structure, presets, placement }
+/** Reads the first `setPresetDefinitions(structure, presets)` call off a `vi.fn()` mock. */
+export function capturePresets(setPresetDefinitions: unknown): CapturedPresets {
+	const [structure, presets] = (setPresetDefinitions as { mock: { calls: unknown[][] } }).mock.calls[0] as [
+		CompanionPresetSection<ModuleSchema>[],
+		CompanionPresetDefinitions<ModuleSchema>,
+	]
+	return { structure, presets, placement: presetPlacement(structure) }
 }
 ```
 
@@ -60,6 +63,8 @@ export function capturePresets(setPresetDefinitions: unknown): CapturedPresets {
 | `if (preset.type !== 'button') continue` / `preset.type === 'button'` | `'simple'` | **Silent coverage loss.** Every v2 preset is `'simple'`, so a guard test that skips non-button presets now skips everything and still passes. vitest/jest strip types and never notice. Only `tsc -p tsconfig.json --noEmit` reports it (TS2367 "no overlap"). |
 | `expect(preset.options.idVariable).toBeUndefined()` | `toBe('')` (or the field default) | v2 presets must set every option of an action (see the SKILL), so options the preset used to omit now carry their defaults. |
 | Helpers typed `(definition: CompanionActionDefinition \| undefined, …)` | `unknown`, or the schema-specific `CompanionActionDefinition<…>` | A schema-typed definition (plus the `\| false` that `CompanionActionDefinitions` adds) is not assignable to the un-parameterised type. |
+| `preset.steps[0].down[0].options.someKey` | `(entry.options as Record<string, unknown>).someKey` | Entry types also union Companion's internal logic actions (`internal:logicIf`, …), so direct access fails with TS2339/TS7053. |
+| Tests that assert an empty section exists before the device answers | Assert it is **absent** | The aggregator now filters sections with no groups. |
 
 ## Guard tests worth adding
 

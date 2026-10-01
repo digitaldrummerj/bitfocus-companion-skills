@@ -40,10 +40,11 @@ This is Phase 5 of **companion-v1-to-v2-migration**. Actions and feedbacks must 
 | `options: { relativeDelay: true }` | Remove it. All delays are relative now. |
 | `options: { rotaryActions: true }` | Remove it. Add `rotate_left` / `rotate_right` arrays to the step when needed. |
 | `options: { stepAutoProgress }` | Unchanged |
-| `options: {}` relying on field defaults | **Every option of the action must be given.** `CompanionPresetOptionValues<T>` maps over the action's schema, so every key is required. Fill in the field defaults (e.g. `{ userName: '', message: '' }`). Otherwise you get `options: {} is not assignable to … missing the following properties`. Only keys declared optional (`note?: …`) may be left out. |
+| `options: {}` relying on field defaults | **Every option of the action must be given.** `CompanionPresetOptionValues<T>` maps over the action's schema, so every key is required. Fill in the field defaults (e.g. `{ userName: '', message: '' }`). Otherwise you get `options: {} is not assignable to … missing the following properties`. Only keys declared optional (`note?: …`) may be left out. **Check the callback first:** if it treats a *missing* option differently from the field default (e.g. a missing `sceneName` means "do nothing", but the default `''` matches every scene), make that key optional in the action schema (`sceneName?: string`) and keep `options: {}`. Filling in the default would change what the preset does. |
 | `CompanionButtonPresetDefinition`, `CompanionTextPresetDefinition`, `CompanionPresetExt` | `CompanionPresetDefinitions<ModuleSchema>` for the map. `CompanionSimplePresetDefinition<ModuleSchema>` for helpers that return one preset. `SomePresetActionEntry<ModuleSchema>` / `SomePresetSimpleFeedbackEntry<ModuleSchema>` for helpers that return one step action or feedback. |
 | Hand-rolled `actionId: ActionIdA \| ActionIdB \| ...` unions | Delete them. `CompanionPresetDefinitions<ModuleSchema>` already restricts `actionId` / `feedbackId` to your schemas and checks each entry's `options`. |
-| Feedback `style` in presets | **Boolean** feedbacks: `style` is **required**. **Value** and **advanced** feedbacks: `style` is **forbidden** (`style?: never`). |
+| Feedback `style` in presets | **Boolean** feedbacks: `style` is **required**. **Value** and **advanced** feedbacks: `style` is **forbidden** (`style?: never`). Deleting it there is behaviour-neutral, because v1 ignored styles on non-boolean preset feedbacks. |
+| A number literal for a `textinput` option (`roomIndex: 1`) | A string (`'1'`), because the preset value type now follows the field. Buttons users already saved keep the old JSON type, so the callback must keep tolerating it (`Number(value)`). The same goes for dropdowns with string choice ids: `String(index)`. |
 | `setPresetDefinitions(presets)` | `setPresetDefinitions(structure, presets)`. Call it **after** the action and feedback definitions are set. |
 | One preset per index generated in a loop | Either a `template` group with one preset and a local variable, or keep the loop in a `simple` group (Step 4) |
 
@@ -160,17 +161,23 @@ Conversion procedure for each file:
    - `type: 'button'` → `type: 'simple'`.
    - Delete `category`, and delete `relativeDelay` / `rotaryActions` from `options`.
    - Fill in **every option** of each step action and each feedback.
-   - Make `name` human-readable.
-4. Build the section. **Every category file returns exactly one `section`**, which keeps the aggregator uniform:
+   - Make `name` human-readable (optional). `$(…)` is **not** substituted in a preset `name`, so use static text (`Select Input 3`) and leave variables in the button `style.text`.
+4. Build the section. **Every split category file returns exactly one `section`**, which keeps the aggregator uniform:
+   - **A single monolithic `presets.ts`** (no category files, several `category` values) → treat `presets.ts` as the aggregator, and make **one section per v1 category** (one `simple` group each). That keeps the user-visible grouping. Don't collapse the whole palette into one section.
    - **One v1 `category` per file** → one section (`id` in snake case, `name` = the old category string) containing one `simple` group that lists all the enum members.
    - **Several `category` values in one file** → still one section, with **one group per old category**.
    - **Suffix-style categories spread over several files or builders** (`'Scenes'`, `'Scenes - Fixed'`, `'Scenes 001-050 - Dynamic'`) → one `Scenes` section. Each former category becomes a group, and the aggregator appends the builder groups (see `references/dynamic-presets.md` → "One family fed by several sources").
-   - Leave out groups that would list no presets (for example a builder that has nothing before the device answers). Don't emit `presets: []`.
+   - Leave out groups that would list no presets (for example a builder that has nothing before the device answers). Don't emit `presets: []`. A section left with **no groups** is filtered out in the aggregator (Step 3).
+   - Turning several top-level v1 categories into groups inside one section changes the palette's top level. Call it out in the PR, and update `HELP.md` wherever it describes preset "categories".
    - Section and group `id`s must be unique across the module.
 5. Run `yarn build`. Typical errors:
    - `Type '...' is not assignable to type 'CompanionPresetValue<never>'`: the preset sets an option that is not in the schema. Fix the name, or add the option to the schema.
    - `options: {} … missing the following properties`: fill in the missing options.
    - `style … is not assignable to type 'undefined'`: you gave a value or advanced feedback a `style`. Remove it.
+
+   **Many presets with `options: {}`?** Don't fill them by hand. Call the `GetActions*` / `GetFeedbacks*` factories with a mock instance, dump `{ actionId: { optionId: default } }`, and generate the values from that. Check dynamic-choice defaults (group lists, users) by hand, because they depend on instance state.
+
+   **Hard-coded connection labels in preset text** (`$(lynbh:…)`, `$(MyModule_1:…)`) depend on the label the user gave the connection. That is not a migration error, but flag it. v2 local or feedback variables can avoid it later.
 
 Option values in presets can be literals or expressions:
 
@@ -203,7 +210,10 @@ import { GetPresetsChat } from './presets/preset-chat.js'
 export function UpdatePresets(instance: ModuleInstance): void {
 	const categories = [GetPresetsChat() /* , GetPresetsOther(instance), ... */]
 
-	const structure: CompanionPresetSection<ModuleSchema>[] = categories.map((c) => c.section)
+	// sections can be empty before the device has answered (all their groups were left out)
+	const structure: CompanionPresetSection<ModuleSchema>[] = categories
+		.map((c) => c.section)
+		.filter((section) => section.definitions.length > 0)
 	const presets: CompanionPresetDefinitions<ModuleSchema> = Object.assign({}, ...categories.map((c) => c.presets))
 
 	instance.setPresetDefinitions(structure, presets)
@@ -211,6 +221,7 @@ export function UpdatePresets(instance: ModuleInstance): void {
 ```
 
 - The order of `categories` is the order sections appear in the Companion UI.
+- A module with **no presets** needs no `UpdatePresets` at all. Don't add an empty `setPresetDefinitions([], {})` call.
 - Factories that read instance state keep taking `instance: ModuleInstance`. Static ones keep taking nothing.
 - Wherever `main.ts` refreshed presets (`this.setPresetDefinitions(GetPresetList(this))`), call `UpdatePresets(this)` after `UpdateActions` / `UpdateFeedbacks`.
 
@@ -222,7 +233,8 @@ v1 modules often generated hundreds of near-identical presets in a loop (``Calle
 |---|---|
 | The index can live in a local variable (`$(local:channel)`) | **Template group**: one preset plus `type: 'template'` with `templateValues` |
 | Style text builds a variable *name* from the index, or the feedback list varies per index | **Keep the loop** and list the generated ids in one `simple` group |
-| Generic builder helpers (`buildXPresets({ actionId, actionOptions, … })`) | **Callbacks**: the builder takes `(…) => SomePresetActionEntry<ModuleSchema>` so each call site names a concrete action. This avoids casts. |
+| A simple helper wrapping **one** action (`btn(text, category, actionId, options)`) | Pass the entry object itself: `btn(text, action: SomePresetActionEntry<ModuleSchema>)`. No callback is needed. |
+| Generic builder helpers (`buildXPresets({ actionId, actionOptions, … })`) that build entries from a loop index | **Callbacks**: the builder takes `(…) => SomePresetActionEntry<ModuleSchema>` so each call site names a concrete action. This avoids casts. |
 
 The full code for all three, and for merging builder groups into one family section, is in **`references/dynamic-presets.md`**.
 
@@ -255,6 +267,9 @@ A reusable `capturePresets()` helper, the rewrite table and recommended guard te
 | Giving a value or advanced feedback a `style` in a preset | Forbidden (`style?: never`). Remove it. |
 | Returning several sections from one category file | Return one `section` with one group per old category, so the aggregator stays `categories.map((c) => c.section)`. |
 | Empty groups (`presets: []`) | Don't emit the group. |
+| Sections with no groups | Filter them out in the aggregator (`definitions.length > 0`). |
+| Filling a default into `options: {}` where the callback treats "missing" specially | Make the key optional in the action schema instead, to keep the behaviour |
+| One section for a monolithic `presets.ts` with many v1 categories | One section per v1 category |
 | Duplicate section or group `id`s across category files | Prefix group ids with the category: `chat_buttons`, `participants_channels`. |
 | Calling `setPresetDefinitions` before `setActionDefinitions` | Call presets last, in `updateDefinitions()`. |
 | Template `templateVariableName` doesn't match a local variable | Make the names match exactly. |
