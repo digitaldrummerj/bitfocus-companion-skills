@@ -6,6 +6,8 @@ license: MIT
 
 # Companion v2 Action File Pattern
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x. The file template below is 2.0-compatible.
+
 A v2 module splits its action definitions across one file per category. A single `actions.ts` aggregator combines them and calls `setActionDefinitions()`. In v2, every category file also exports a **schema type**. The aggregator joins these schemas with `&` into `ActionsSchema`, which becomes part of `ModuleSchema`. This makes every option fully typed.
 
 ## When to Use This Skill
@@ -94,7 +96,7 @@ The four parts:
 |---|---|
 | `import type ModuleInstance from '../main.js'` | Typed access to the module's state and helpers. A type-only import, so there is no runtime cycle with `main.ts`. It replaces v1's `InstanceBaseExt<Config>` |
 | `enum ActionId{Category}` | Names every action. The string value is the ID stored in users' buttons, so it must be **globally unique** and must **never change** once released (renaming needs an upgrade script) |
-| `type ActionsSchema{Category}` | Keyed by the enum members. Declares each action's option types (and `result` on 2.1+) |
+| `type ActionsSchema{Category}` | Keyed by the enum members. Declares each action's option types (and `result` on **2.1+ (Companion 5.0+)**) |
 | `GetActions{Category}(instance)` | Returns `CompanionActionDefinitions<ActionsSchema{Category}>`. TypeScript forces exactly one definition per schema key |
 
 > Use `{ options: Record<string, never> }` for actions without options.
@@ -238,7 +240,7 @@ Zero errors means the file is typed and wired correctly.
 | `instance.parseVariablesInString(...)` | Removed in v2. Options arrive already parsed |
 | `event.options.x as number` | Unnecessary. Fix the schema instead |
 | `InstanceBaseExt<Config>` parameter type | Use `ModuleInstance` (type import of the default export) |
-| `optionsToIgnoreForSubscribe` | Use `optionsToMonitorForSubscribe` (required with `subscribe` on 2.1+) |
+| `optionsToIgnoreForSubscribe` | Use `optionsToMonitorForSubscribe` (required with `subscribe` on **2.1+ (Companion 5.0+)**) |
 
 ## References
 

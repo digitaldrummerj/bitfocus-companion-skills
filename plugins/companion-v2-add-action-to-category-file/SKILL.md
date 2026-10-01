@@ -6,6 +6,8 @@ license: MIT
 
 # Companion v2 Add Action to Category File
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+
 Add a new action to an **existing** v2 action category file. It takes three edits in the same file. The aggregator (`actions.ts`) doesn't change, because it already composes this file's schema and spreads its factory.
 
 ## When to Use This Skill
@@ -77,8 +79,8 @@ Until all three edits are in place, TypeScript reports the missing or extra key.
 | Form | Signature | Use when |
 |---|---|---|
 | Sync | `callback: (event) => { … }` | Fire-and-forget commands |
-| Async | `callback: async (event, context) => { … }` | Awaiting I/O. On **2.1+** pass `context.signal` to cancellable work |
-| With result (**2.1+**) | `hasResult: true, callback: async (event) => value` | The schema declares `result` |
+| Async | `callback: async (event, context) => { … }` | Awaiting I/O. On **2.1+ (Companion 5.0+)** pass `context.signal` to cancellable work |
+| With result (**2.1+ (Companion 5.0+)**) | `hasResult: true, callback: async (event) => value` | The schema declares `result` |
 
 `event.options.*` values are typed by the schema and **already parsed**: variables in `textinput` fields with `useVariables: true` are substituted, and expressions are evaluated. Don't cast them, and don't call `parseVariablesInString`, which was removed in v2.
 
@@ -94,7 +96,7 @@ Until all three edits are in place, TypeScript reports the missing or extra key.
 | `multidropdown` | `string[]` / `number[]` | `choices`, `default: []` | `sortSelection` (2.0.2+) |
 | `checkbox` | `boolean` | `default` | |
 | `colorpicker` | `number` (or `string` with `returnType: 'string'`) | `default` | `enableAlpha` |
-| `static-text` | (omit from schema) | `value` | Display only |
+| `static-text` | `note?: undefined`: required on base 2.0.x (the id must be a schema key); may be omitted from **2.1.3** | `value` | Display only |
 | `custom-variable` | `string` | — | Actions only |
 
 Expression controls that apply to every field: `disableAutoExpression`, `allowInvalidValues`, `expressionDescription`, `isVisibleExpression`.
@@ -110,7 +112,9 @@ Expression controls that apply to every field: `disableAutoExpression`, `allowIn
 | Duplicate enum string value | IDs must be unique across **all** category enums |
 | `id` in `options` doesn't match a schema key | Compile error. Make them match exactly |
 | `as string` / `as number` casts on `event.options` | Remove them. Let the schema type them |
-| Duplicate option `id` within one action | Companion **2.1+** drops it and logs a warning. Keep ids unique |
+| Duplicate option `id` within one action | Companion **2.1+ (Companion 5.0+)** drops it and logs a warning. Keep ids unique |
+| Added a new option to an **existing** action and read it without a fallback | Buttons saved before the option existed don't have the key. Read it with `event.options.x ?? default` |
+| Added an option to an action used in presets | Presets must give **every** option. Add the new key to each preset that uses the action |
 
 ## References
 

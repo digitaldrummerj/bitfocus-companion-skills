@@ -1,6 +1,6 @@
 ---
 name: companion-v2-actions
-description: '(@companion-module/base v2.x) Reference for Companion v2 action definitions: typed action schemas, CompanionActionDefinitions, automatic expression/variable parsing of options, subscribe/unsubscribe with optionsToMonitorForSubscribe, learn, and 2.1 abort signals and action results. Use when asked to add or fix an action, wire a button command, define action options, or understand callback/subscribe/learn behaviour in a v2 module. Does NOT apply to v1 modules (base 1.x) — use companion-actions; for the split-file wiring use companion-v2-action-file-pattern; for upgrading v1 code use companion-v1-to-v2-migrate-definitions.'
+description: '(@companion-module/base v2.x) API reference for v2 action definitions: option field types, typed action schemas, automatic expression/variable parsing, subscribe/optionsToMonitorForSubscribe, learn, and (2.1+) action results and abort signals. Use when choosing option types or expression behaviour, or debugging callback, subscribe or learn behaviour in a v2 module. For the file edits use companion-v2-add-action-to-category-file (existing category file) or companion-v2-action-file-pattern (new category file). Does NOT apply to v1 modules (use companion-actions) or to upgrading v1 code (use companion-v1-to-v2-migrate-definitions).'
 license: MIT
 ---
 
@@ -8,7 +8,9 @@ license: MIT
 
 The API reference for **actions** in `@companion-module/base` **v2.x**. The file layout (one file per category plus an aggregator) is covered in **`companion-v2-action-file-pattern`**.
 
-> **API level:** examples target base ~2.1.x. Sections marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+> **API level:** examples target base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+>
+> Examples call module-specific members on `ModuleInstance` (`sendCommand`, `state`, `query`). Define your own equivalents as public class members (see **companion-v2-module-scaffold**).
 
 ## When to Use This Skill
 
@@ -16,7 +18,7 @@ The API reference for **actions** in `@companion-module/base` **v2.x**. The file
 - Typing action options with a schema, so `event.options.x` needs no casts
 - Choosing option types and expression behaviour (`useVariables`, `disableAutoExpression`, …)
 - Using `subscribe` / `unsubscribe` / `learn`
-- Returning a value from an action, or honouring cancellation (2.1)
+- Returning a value from an action, or honouring cancellation (**2.1+ (Companion 5.0+)**)
 
 ---
 
@@ -29,14 +31,16 @@ Every action has a schema entry that describes its options (and, from 2.1, its r
 ```typescript
 export type ActionsSchemaLevel = {
 	[ActionIdLevel.setLevel]: { options: { channel: number; level: number } }
-	[ActionIdLevel.readLevel]: { options: { channel: number }; result: number } // 2.1+
+	[ActionIdLevel.readLevel]: { options: { channel: number }; result: number } // 2.1+ (Companion 5.0+)
 	[ActionIdLevel.watchChannel]: { options: { channel: number; label: string } }
 }
 ```
 
 - An action without options uses `{ options: Record<string, never> }`.
 - Option value types: `number`, `string`, `boolean`, `string[]` / `number[]` (multidropdown), or any `JsonValue`.
-- The schema and the `options: [...]` array are **not** cross-checked for types. Keep each `id` and its value type in step by hand. A field id that is missing from the schema *is* a compile error, because `id` is typed as `keyof options`.
+- The schema and the `options: [...]` array are **not** cross-checked for value types, so keep each `id` and its value type in step by hand. A field id that is missing from the schema *is* a compile error, because `id` is typed as `keyof options`.
+- `static-text` fields: on base **2.0.x** their `id` must also be a schema key. Add it as `note?: undefined`. From **2.1.3** a static-text `id` may be any string, so the key can be omitted. Adding it works on both.
+- Option keys that may be **missing from stored buttons** (options added after release) still arrive as `undefined` at runtime. Guard them with `?? default`.
 
 ### `CompanionActionDefinitions<Schema>`
 
@@ -60,9 +64,9 @@ export function GetActionsLevel(instance: ModuleInstance): CompanionActionDefini
 | `learn?(event, context)` | Return **only** the learned options, e.g. `{ level: 42 }` |
 | `learnTimeout?` | Milliseconds (default 5000) |
 | `subscribe?` / `unsubscribe?` | Lifecycle hooks for actions placed on buttons |
-| `optionsToMonitorForSubscribe` | Which options re-trigger subscribe/unsubscribe |
-| `skipUnsubscribeOnOptionsChange?` | Only call unsubscribe on delete/disable |
-| `hasResult: true` | **2.1+** — the callback returns the schema `result` |
+| `optionsToMonitorForSubscribe` | Which options re-trigger subscribe/unsubscribe. **2.1+ (Companion 5.0+)**: required when `subscribe` is present, and **forbidden** when it isn't |
+| `skipUnsubscribeOnOptionsChange?` | Only call unsubscribe on delete/disable. **2.1+ (Companion 5.0+)**: only allowed together with `subscribe` |
+| `hasResult: true` | **2.1+ (Companion 5.0+)**: the callback returns the schema `result` |
 
 ### `CompanionActionEvent`
 
@@ -147,7 +151,7 @@ Guidelines:
 - Use **human-friendly dropdown ids** (`'on'`, `'toggle'`), not protocol fragments (`'ch1=0'`). Users have to type them in expressions.
 - `isVisibleExpression` (for example `'$(options:mode) == "manual"'`) may only reference fields that have `disableAutoExpression: true`. `isVisible` functions are not supported in v2.
 - `textinput` uses `minLength`, not `required`.
-- **2.1+:** option `id`s must be unique within an action. Companion drops duplicates and logs a warning.
+- **2.1+ (Companion 5.0+):** option `id`s must be unique within an action. Companion drops duplicates and logs a warning.
 
 ### Multi-select
 
@@ -227,8 +231,8 @@ Returning every option would overwrite expressions the user typed into the other
 > **2.1+ (Companion 5.0+)**
 
 ```typescript
-// schema: [ActionIdMixer.readLevel]: { options: { channel: number }; result: number }
-[ActionIdMixer.readLevel]: {
+// schema: [ActionIdLevel.readLevel]: { options: { channel: number }; result: number }
+[ActionIdLevel.readLevel]: {
 	name: 'Read channel level',
 	options: [{ id: 'channel', type: 'number', label: 'Channel', default: 1, min: 1, max: 64 }],
 	hasResult: true,
@@ -275,16 +279,16 @@ instance.updateDefinitions() // calls UpdateActions(this), UpdateFeedbacks(this)
 | `isVisible: (opts) => …` | Not supported. Use `isVisibleExpression` on a `disableAutoExpression` field |
 | `required: true` on `textinput` | Use `minLength: 1` |
 | Numbers typed into a `textinput` | Use a `number` field, and migrate stored values with an upgrade script (`companion-v2-upgrades`) |
-| `hasResult` on base 2.0.x | Needs 2.1+ |
+| `hasResult` on base 2.0.x | Needs **2.1+ (Companion 5.0+)** |
 
 ## Import Reference
 
 ```typescript
 import type {
 	CompanionActionDefinitions,
-	CompanionActionDefinition,
+	CompanionActionDefinition, // generic: the options object on 2.0.x, the schema entry ({ options, result? }) on 2.1+
 	CompanionActionEvent,
-	CompanionActionCallbackContext, // 2.1+
+	CompanionActionCallbackContext, // 2.1+ (Companion 5.0+)
 	SomeCompanionActionInputField,
 } from '@companion-module/base'
 import type ModuleInstance from '../main.js'
