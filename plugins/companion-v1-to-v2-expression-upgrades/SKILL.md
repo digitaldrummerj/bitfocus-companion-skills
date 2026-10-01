@@ -80,6 +80,8 @@ export function addPollingConfigOptions(
 ```
 
 - Use `ModuleConfig` (a `type`, not an `interface`; see **companion-v1-to-v2-migrate-definitions** A.1).
+- **Module with secrets:** use `ModuleSecrets` wherever these examples say `undefined`: `CompanionStaticUpgradeProps<ModuleConfig, ModuleSecrets>`, and `CompanionStaticUpgradeScript<ModuleConfig, ModuleSecrets>[]` for the array, even when it is empty.
+- **When:** do this retyping in migration **Phase 2**, together with A.2. A historical script that touches `options` doesn't compile with a new signature alone, and the build must be green by the end of Phase 6.
 - Use `import type { ... }` for these types (`verbatimModuleSyntax`).
 - Config-only scripts usually need nothing else. When **retyping** a historical script, keep its logic: if it built `updatedConfig` from `context.currentConfig`, leave it that way. In **new** scripts, prefer `props.config`, as **companion-v2-upgrades** does. `props.config` is the config to upgrade and is `null` when there is none (e.g. only imported buttons are being upgraded), so return `updatedConfig: null` in that case.
 
@@ -171,6 +173,16 @@ export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig>[] = [
 ]
 ```
 
+### A.4 Base helpers inside the historical array
+
+| Helper | In v2 |
+|---|---|
+| `EmptyUpgradeScript` | Unchanged |
+| `CreateUseBuiltinInvertForFeedbacksUpgradeScript` | v2-aware: it unwraps the old option and writes a wrapped `isInverted`. Keep it as is. |
+| `CreateConvertToBooleanFeedbackUpgradeScript` | **Not v2-aware in base 2.1.3.** It copies `feedback.options[key]` into `feedback.style[styleKey]` as is. Since v2 that is the `{ isExpression, value }` wrapper rather than the colour number, so the style ends up holding an object. It still compiles and looks fine in review. |
+
+For a historical `CreateConvertToBooleanFeedbackUpgradeScript(...)` entry, replace the helper call **at the same array position** with a hand-written script that moves the *literal* value. The full script is in **`references/scripts.md`** → "Replacing CreateConvertToBooleanFeedbackUpgradeScript". The bug only bites users upgrading from a module version older than that script, but those users get corrupted styles. Consider reporting it upstream to companion-module-base.
+
 ---
 
 ## Part B — New Scripts That Accompany the Migration
@@ -208,13 +220,24 @@ export const convertTextInputsToTypedFields: CompanionStaticUpgradeScript<Module
 		updatedActions: [],
 		updatedFeedbacks: [],
 	}
+	const fixups = [
+		[NUMERIC_OPTIONS, FixupNumericOrVariablesValueToExpressions],
+		[BOOLEAN_OPTIONS, FixupBooleanOrVariablesValueToExpressions],
+	] as const
 	for (const action of props.actions) {
-		const numeric = NUMERIC_OPTIONS[action.actionId] ?? []
-		const bools = BOOLEAN_OPTIONS[action.actionId] ?? []
-		if (numeric.length === 0 && bools.length === 0) continue
-		for (const key of numeric) action.options[key] = FixupNumericOrVariablesValueToExpressions(action.options[key])
-		for (const key of bools) action.options[key] = FixupBooleanOrVariablesValueToExpressions(action.options[key])
-		result.updatedActions.push(action)
+		let changed = false
+		for (const [map, fixup] of fixups) {
+			for (const key of map[action.actionId] ?? []) {
+				const before = action.options[key]
+				const after = fixup(before)
+				// push only real changes: values already converted, or expressions, come back the same
+				if (after?.isExpression !== before?.isExpression || after?.value !== before?.value) {
+					action.options[key] = after
+					changed = true
+				}
+			}
+		}
+		if (changed) result.updatedActions.push(action)
 	}
 	return result
 }
@@ -227,6 +250,10 @@ What `FixupNumericOrVariablesValueToExpressions` does:
 | `{ isExpression: false, value: '1' }` | `{ isExpression: false, value: 1 }` |
 | `{ isExpression: false, value: '$(local:abc)' }` | `{ isExpression: true, value: '$(local:abc)' }` |
 | `{ isExpression: false, value: '$(local:abc)$(local:def)' }` | `{ isExpression: true, value: 'parseVariables("$(local:abc)$(local:def)")' }` |
+
+| `{ isExpression: false, value: '' }` | `{ isExpression: true, value: 'parseVariables("")' }`. Decide how empty values should be treated **before** converting the field. |
+
+**Convert only where "empty" carries no meaning, and choose bounds that never reject a value the device accepted.** See **companion-v1-to-v2-migrate-definitions** → `references/behaviour.md` §2.
 
 `FixupBooleanOrVariablesValueToExpressions` does the same for checkbox values (`'true'`, `'1'`, variables). Run the same loop over `props.feedbacks` for feedback options. The field definition change (to `type: 'number'` with `min` / `max`, or `type: 'checkbox'`) happens in the action file. See **companion-v1-to-v2-migrate-definitions**.
 
@@ -305,7 +332,9 @@ Example: **`references/scripts.md`** → Testing.
 | Old script still does `action.options.group as number` | Read with `getLiteralOption`, write with `setLiteralOption` |
 | `CompanionStaticUpgradeProps<ModuleConfig>` (one generic) | Add the secrets generic: `<ModuleConfig, undefined>` |
 | Rewriting expression strings as if they were literals | Skip when `isExpression` is true, unless the change is a safe wrap (B.3) |
-| Pushing every action into `updatedActions` | Push only the ones you changed |
+| Pushing every action into `updatedActions` | Push only the ones you changed. Compare `isExpression` / `value` before and after a fixup. |
+| Keeping a historical `CreateConvertToBooleanFeedbackUpgradeScript(...)` entry | It writes the wrapped option into the style in base 2.1.3. Replace it in place with a literal-moving script (A.4). |
+| Leaving historical scripts for Phase 7 | Retype them in Phase 2, or the build can't be green after Phase 6 |
 | Converting the field type without the fixup script | Saved string values fail validation, and the action is skipped as if disabled |
 | Renaming dropdown IDs but not presets / defaults | Update the choices, the default, the schema type, presets and the command mapping together |
 
@@ -318,6 +347,6 @@ Example: **`references/scripts.md`** → Testing.
 
 ## References
 
-- `references/scripts.md`: full friendly-dropdown-id and 1-based scripts, upgrade-script unit tests
+- `references/scripts.md`: full friendly-dropdown-id and 1-based scripts, the CreateConvertToBooleanFeedbackUpgradeScript replacement, upgrade-script unit tests
 - [API 2.0 changes — Expression handling in upgrade scripts](https://companion.free/for-developers/module-development/api-changes/v2.0)
 - [Upgrade scripts](https://companion.free/for-developers/module-development/connection-basics/upgrade-scripts)

@@ -82,6 +82,44 @@ export const makeIndexesOneBased: CompanionStaticUpgradeScript<ModuleConfig> = (
 
 This is the one case where wrapping an expression is safe: `(<expr>) + 1` keeps the user's intent.
 
+## Replacing CreateConvertToBooleanFeedbackUpgradeScript
+
+Base 2.1.3's helper copies the wrapped `{ isExpression, value }` option into `feedback.style`. Put this script **in the same array position** as the historical helper call, so the positions don't change. It moves only literal colour numbers, drops the old options, and records only the feedbacks it changed. This follows elgato-keylight's v1.4.0 script.
+
+```ts
+import type { CompanionStaticUpgradeResult, CompanionStaticUpgradeScript } from '@companion-module/base'
+import type { ModuleConfig } from '../config.js'
+
+/** v1 advanced-feedback colour options → the boolean-feedback style keys they became */
+const LEGACY_STYLE_OPTIONS = { fg: 'color', bg: 'bgcolor' } as const
+const CONVERTED_FEEDBACK_IDS = new Set(['on', 'brightness'])
+
+export const convertToBooleanFeedbackStyles: CompanionStaticUpgradeScript<ModuleConfig> = (_context, props) => {
+	const result: CompanionStaticUpgradeResult<ModuleConfig, undefined> = {
+		updatedConfig: null,
+		updatedActions: [],
+		updatedFeedbacks: [],
+	}
+	for (const feedback of props.feedbacks) {
+		if (!CONVERTED_FEEDBACK_IDS.has(feedback.feedbackId)) continue
+		let changed = false
+		for (const [optionKey, styleKey] of Object.entries(LEGACY_STYLE_OPTIONS)) {
+			const stored = feedback.options[optionKey]
+			if (stored === undefined) continue
+			delete feedback.options[optionKey]
+			feedback.style ??= {}
+			// v2 hands the option over wrapped; the style needs the literal colour number
+			if (!stored.isExpression && typeof stored.value === 'number') feedback.style[styleKey] = stored.value
+			changed = true
+		}
+		if (changed) result.updatedFeedbacks.push(feedback)
+	}
+	return result
+}
+```
+
+Test it with wrapped input, and assert `style.color` is the **number**, not `{ isExpression, value }`.
+
 ## Testing Upgrade Scripts
 
 Upgrade scripts are pure functions, so unit-test them with wrapped input:

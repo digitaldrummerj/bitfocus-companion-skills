@@ -62,7 +62,7 @@ Copy this directory to `.github/skills/companion-v1-to-v2-expression-upgrades/` 
 
 - `SKILL.md` contains the full agent-facing guidance.
 
-- `references/scripts.md` holds full friendly-dropdown-id and 1-based scripts, plus upgrade-script unit tests.
+- `references/scripts.md` holds full friendly-dropdown-id and 1-based scripts, the CreateConvertToBooleanFeedbackUpgradeScript replacement, plus upgrade-script unit tests.
 
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
