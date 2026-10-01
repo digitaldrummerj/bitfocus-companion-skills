@@ -62,6 +62,10 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migrate-presets/` in y
 
 - `SKILL.md` contains the full agent-facing guidance.
 
+- `references/dynamic-presets.md` holds template groups, kept loops, callback-based preset builders and multi-source families.
+
+- `references/tests.md` holds the `capturePresets()` test helper, test rewrites and guard tests.
+
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
