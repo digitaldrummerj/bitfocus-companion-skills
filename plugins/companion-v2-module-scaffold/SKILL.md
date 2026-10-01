@@ -1,6 +1,6 @@
 ---
 name: companion-v2-module-scaffold
-description: '(@companion-module/base v2.x) Scaffold a new Bitfocus Companion module on the v2 API in the split-file layout (src/actions/, src/feedbacks/, src/presets/ category files plus aggregators, a typed ModuleSchema, ESM, manifest type "connection"). Use when starting a brand-new v2 module from the official TypeScript template, or when laying out the folder structure, package.json, tsconfig, manifest.json and main.ts of a v2 module. Does NOT apply when upgrading an existing v1 module — use companion-v1-to-v2-migration instead; for adding a category to an existing v2 module use companion-v2-action-file-pattern / companion-v2-feedback-file-pattern / companion-v2-preset-category-file.'
+description: '(@companion-module/base v2.x) Scaffold a new Bitfocus Companion module on the v2 API from the official TypeScript template, in the split-file layout with a typed ModuleSchema. Use when starting a brand-new v2 module or setting up its package.json, tsconfig, manifest.json and main.ts. Does NOT apply to upgrading a v1 module (use companion-v1-to-v2-migration) or adding a category to an existing v2 module (use companion-v2-action-file-pattern, companion-v2-feedback-file-pattern or companion-v2-preset-category-file).'
 license: MIT
 ---
 
@@ -85,7 +85,7 @@ Start from [`bitfocus/companion-module-template-ts`](https://github.com/bitfocus
 	"devDependencies": {
 		"@companion-module/tools": "^3.1.0",
 		"@types/node": "^22.19.17",
-		"eslint": "^9.39.4",
+		"eslint": "^10.2.0",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.4.0",
 		"prettier": "^3.8.3",
@@ -106,10 +106,11 @@ The parts that matter for v2:
 
 | Field | Value | Why |
 |---|---|---|
-| `"type"` | `"module"` | Base v2 is ESM-only |
+| `"type"` | `"module"` | The TS template and these skills are ESM. Base v2 ships both `import` and `require` entries, so a plain-JS module could stay CommonJS (`module.exports = class …`), but a TypeScript module built from this template must be ESM |
 | `@companion-module/base` | `~2.1.3` (or `~2.0.4` for Companion 4.3) | Use a **tilde** range: a minor bump changes the API level and the minimum Companion version |
 | `@companion-module/tools` | `^3.1.0` (minimum `2.7.1`) | Its build understands v2 and node26 |
 | `main` | `dist/main.js` | Must match `runtime.entrypoint` in the manifest |
+| `eslint` / `prettier` / `typescript-eslint` | `^10.2.0` / `^3.8.1`+ / `^8.56.1`+ | Tools 3.1 peers. The template's `eslint ^9.39.x` works, but yarn prints `YN0060` because tools' `@eslint/js` 10 wants eslint ^10.2 |
 
 > After changing `"name"`, run `yarn install` again. Otherwise yarn 4 fails with `Package for <name>@workspace:. not found`.
 
@@ -130,7 +131,7 @@ The parts that matter for v2:
 }
 ```
 
-`tsconfig.json` (for the editor, lint and tests):
+`tsconfig.json` (for the editor, lint and tests). This is the template's version, which covers only `src/`:
 
 ```json
 {
@@ -143,11 +144,13 @@ The parts that matter for v2:
 }
 ```
 
-- **Never** use `node22/recommended`. It is CommonJS with `moduleResolution: node` and does not work with base v2.
+When you add tests (`tests/**/*.ts`, `vitest.config.ts`), also set `"rootDir": "./"` and `"noEmit": true` in this file. Otherwise `tsc -p tsconfig.json` fails with TS6059 (files outside `rootDir`), or writes `.js` files next to the tests. Typecheck tests with `yarn tsc -p tsconfig.json --noEmit`, because test runners strip types.
+
+- **Never** use `node22/recommended`. It is CommonJS (`"module": "commonjs"`, `"moduleResolution": "node"`). `node22/recommended-esm` sets `"module": "node20"` / `"moduleResolution": "node16"`, which together with `"type": "module"` produces ESM.
 - `verbatimModuleSyntax: true` means any import used **only as a type** must be written `import type { … }` or `import { type X }`.
 - Every relative import needs the `.js` extension (`./actions.js`), even though the source file is `.ts`.
 
-> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead, and set `runtime.type` to `"node26"` in the manifest (see Step 4). `node22` remains supported.
+> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one: it already uses `node20`/`node16` module settings with an `es2025` target. Then set `runtime.type` to `"node26"` in the manifest (Step 4), and bump `engines.node` and `@types/node` to Node 26. `node22` remains supported.
 
 ## Step 4 — `companion/manifest.json`
 
@@ -180,7 +183,7 @@ The parts that matter for v2:
 - **`"type": "connection"` is required in v2.** Some docs pages leave it out, but `companion-module-check` rejects a manifest without it.
 - `version` and `apiVersion` stay `"0.0.0"`, because the build fills them in.
 - `runtime.type` is `"node22"`, or `"node26"` on **2.1+**. `node18` is not allowed in v2.
-- **Replace every template placeholder.** `companion-module-check` fails if the manifest still contains any of: `companion-module-your-module-name`, `module-shortname`, `A short one line description of your module`, `Your name`, `Your email`, `Your company`.
+- **Replace every template placeholder.** `companion-module-check` fails if the manifest still contains any of: `companion-module-your-module-name`, `module-shortname`, `A short one line description of your module`, `Your name`, `Your email`, `Your company`, `Your product`.
 - Optional fields: `runtime.permissions` (`filesystem`, `child-process`, `worker-threads`, `native-addons`, `insecure-algorithms`), `bonjourQueries`, `isPrerelease`.
 
 ## Step 5 — `src/main.ts`
@@ -238,7 +241,7 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		UpdatePresets(this)
 	}
 
-	sendCommand(path: string, ...args: (string | number)[]): void {
+	sendCommand(path: string, ...args: (string | number | boolean)[]): void {
 		this.log('debug', `${path} ${args.join(' ')}`)
 		this.setVariableValues({ last_command: path })
 		this.checkFeedbacks(FeedbackIdTransport.playing)
@@ -253,6 +256,7 @@ Rules:
 - `ModuleSchema` ties everything together. `InstanceBase<ModuleSchema>` then type-checks every `setActionDefinitions`, `setFeedbackDefinitions`, `setPresetDefinitions`, `setVariableValues` and `checkFeedbacks` call.
 - Set `secrets: undefined` when the module has no `secret-text` fields. Otherwise use `secrets: ModuleSecrets` and accept the third `init` argument (see **companion-v2-config**).
 - `init()` must not wait for the device to connect. Start the connection and return.
+- `state` and `sendCommand` stand in for your module's own device state and transport. The examples in the other `companion-v2-*` skills call members like these (`instance.state.muted`, `instance.query(...)`). Define whatever your module needs as real public members of the class.
 - Call `setActionDefinitions` and `setFeedbackDefinitions` **before** `setPresetDefinitions`.
 - Category files import the class as a type only: `import type ModuleInstance from '../main.js'`. Because the import is erased, there is no runtime circular dependency, and every public member of the class (state, helpers, `log`, `setVariableValues`, …) is typed. Do not recreate the v1 `InstanceBaseExt<Config>` interface with `[x: string]: any`.
 
@@ -316,7 +320,7 @@ For the category files, `config.ts` and `variables.ts`, see the related skills b
 yarn install
 yarn build                    # tsc must report 0 errors
 yarn lint                     # prettier + eslint
-yarn companion-module-check   # manifest + package validation
+yarn companion-module-check   # manifest + package validation; success prints only the path lines and exits 0
 yarn package                  # produces <name>-<version>.tgz
 ```
 
@@ -327,7 +331,7 @@ yarn package                  # produces <name>-<version>.tgz
 | Mistake | Fix |
 |---|---|
 | `runEntrypoint(ModuleInstance, UpgradeScripts)` at the bottom of `main.ts` | Removed in v2. Use `export default class` plus `export { UpgradeScripts }` |
-| `"type": "module"` missing from `package.json` | Base v2 is ESM. Add it |
+| `"type": "module"` missing from `package.json` | The TS template is ESM. Add it |
 | Extending `tsconfig/node22/recommended` | Use `node22/recommended-esm` (or `node26/recommended` on 2.1+) |
 | Manifest without `"type": "connection"` | Required in v2 |
 | Template placeholders left in the manifest | `companion-module-check` rejects them. Replace them all |
