@@ -1,7 +1,7 @@
 {
   "name": "companion-v1-to-v2-migration",
   "description": "Step-by-step procedure for migrating a Companion module from @companion-module/base v1.x to the v2 API (2.0/2.1).",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Justin James"
   },

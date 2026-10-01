@@ -1,7 +1,7 @@
 {
   "name": "companion-v2-action-file-pattern",
   "description": "Create a new v2 action category file with an enum, an enum-keyed schema type and a factory, and wire it into the actions.ts aggregator.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Justin James"
   },

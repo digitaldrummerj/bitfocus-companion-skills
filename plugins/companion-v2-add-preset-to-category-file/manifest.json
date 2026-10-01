@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-add-preset-to-category-file",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add presets to an existing v2 preset category file by extending the enum, adding the definition and referencing it from a section group.",
   "author": "Justin James",
   "license": "MIT",

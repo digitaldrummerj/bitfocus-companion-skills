@@ -1,6 +1,6 @@
 {
   "name": "companion-v1-to-v2-migrate-definitions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Before/after transforms for migrating Companion actions, feedbacks, variables, config, and instance typing from base v1.x to v2.",
   "author": "Justin James",
   "license": "MIT",

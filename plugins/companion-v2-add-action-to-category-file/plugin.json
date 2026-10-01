@@ -1,7 +1,7 @@
 {
   "name": "companion-v2-add-action-to-category-file",
   "description": "Add actions to an existing v2 action category file by extending the enum, the schema and the definitions.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Justin James"
   },

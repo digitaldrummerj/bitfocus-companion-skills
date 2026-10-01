@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-preset-category-file",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create a v2 preset category file returning a section and its presets, and aggregate them into setPresetDefinitions(structure, presets).",
   "author": "Justin James",
   "license": "MIT",

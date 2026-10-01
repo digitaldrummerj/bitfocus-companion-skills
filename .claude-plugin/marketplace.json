@@ -96,109 +96,109 @@
     {
       "name": "companion-v1-to-v2-expression-upgrades",
       "description": "Retype historical upgrade scripts and add the expression-aware upgrade scripts that ship with a Companion v1 to v2 migration.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v1-to-v2-expression-upgrades"
     },
     {
       "name": "companion-v1-to-v2-migrate-definitions",
       "description": "Before/after transforms for migrating Companion actions, feedbacks, variables, config, and instance typing from base v1.x to v2.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v1-to-v2-migrate-definitions"
     },
     {
       "name": "companion-v1-to-v2-migrate-presets",
       "description": "Migrate Companion presets from v1 button/category definitions to v2 sections, groups, and simple presets while keeping enum-per-category files.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v1-to-v2-migrate-presets"
     },
     {
       "name": "companion-v1-to-v2-migration",
       "description": "Step-by-step procedure for migrating a Companion module from @companion-module/base v1.x to the v2 API (2.0/2.1).",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v1-to-v2-migration"
     },
     {
       "name": "companion-v2-action-file-pattern",
       "description": "Create a new v2 action category file with an enum, an enum-keyed schema type and a factory, and wire it into the actions.ts aggregator.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-action-file-pattern"
     },
     {
       "name": "companion-v2-actions",
       "description": "Reference for @companion-module/base v2.x action definitions, typed schemas, expression-parsed options, subscribe, learn and 2.1 results.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-actions"
     },
     {
       "name": "companion-v2-add-action-to-category-file",
       "description": "Add actions to an existing v2 action category file by extending the enum, the schema and the definitions.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-add-action-to-category-file"
     },
     {
       "name": "companion-v2-add-feedback-to-category-file",
       "description": "Add feedbacks to an existing v2 feedback category file by extending the enum, the schema and the definitions, then triggering them.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-add-feedback-to-category-file"
     },
     {
       "name": "companion-v2-add-preset-to-category-file",
       "description": "Add presets to an existing v2 preset category file by extending the enum, adding the definition and referencing it from a section group.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-add-preset-to-category-file"
     },
     {
       "name": "companion-v2-api-compliance",
       "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "source": "./plugins/companion-v2-api-compliance"
     },
     {
       "name": "companion-v2-config",
       "description": "Reference for @companion-module/base v2.x configuration fields, typed config and secrets, isVisibleExpression and the config lifecycle.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-config"
     },
     {
       "name": "companion-v2-feedback-file-pattern",
       "description": "Create a new v2 feedback category file with an enum, an enum-keyed schema type and a factory, and wire it into the feedbacks.ts aggregator.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-feedback-file-pattern"
     },
     {
       "name": "companion-v2-feedbacks",
       "description": "Reference for @companion-module/base v2.x feedback definitions, typed schemas, checkFeedbacks, the callback/unsubscribe lifecycle and 2.1 affectedProperties.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-feedbacks"
     },
     {
       "name": "companion-v2-module-scaffold",
       "description": "Scaffold a new @companion-module/base v2.x module in the split-file layout with ESM, a typed ModuleSchema and a v2 manifest.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-module-scaffold"
     },
     {
       "name": "companion-v2-preset-category-file",
       "description": "Create a v2 preset category file returning a section and its presets, and aggregate them into setPresetDefinitions(structure, presets).",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-preset-category-file"
     },
     {
       "name": "companion-v2-upgrades",
       "description": "Reference for @companion-module/base v2.x upgrade scripts with expression-wrapped options, secrets and the built-in fixup helpers.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-upgrades"
     },
     {
       "name": "companion-v2-variable-definition",
       "description": "Declare @companion-module/base v2.x variables with a typed VariablesSchema and the object form of setVariableDefinitions.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-variable-definition"
     },
     {
       "name": "companion-v2-variable-set-value",
       "description": "Set and read @companion-module/base v2.x variable values with typed setVariableValues and getVariableValue.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-v2-variable-set-value"
     },
     {
