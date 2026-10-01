@@ -1,10 +1,12 @@
 ---
 name: companion-v2-upgrades
-description: '(@companion-module/base v2.x) Reference for Companion v2 upgrade scripts: export const UpgradeScripts from main.ts, CompanionStaticUpgradeScript<Config, Secrets>, expression-wrapped option values ({ isExpression, value }) and isInverted, updatedSecrets, and the helpers FixupNumericOrVariablesValueToExpressions, FixupBooleanOrVariablesValueToExpressions, CreateConvertToBooleanFeedbackUpgradeScript, CreateUseBuiltinInvertForFeedbacksUpgradeScript and (2.1.1+) CreateUseActionResultStoreUpgradeScript. Use when renaming actions/feedbacks/options, changing option types, migrating config or secrets, or writing any upgrade script in a v2 module. Does NOT apply to v1 modules — use companion-upgrades; for the specific scripts to ship with a v1→v2 migration use companion-v1-to-v2-expression-upgrades.'
+description: '(@companion-module/base v2.x) Write upgrade scripts for a v2 module: wrapped { isExpression, value } options, config/secrets migration and the built-in Fixup*/Create* helpers. Use when renaming or removing actions, feedbacks or options, changing option types, or migrating config or secrets in a v2 module. Does NOT apply to v1 modules (use companion-upgrades) or to the scripts shipped with a v1 to v2 migration (use companion-v1-to-v2-expression-upgrades).'
 license: MIT
 ---
 
 # Companion v2 Upgrades Skill
+
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
 
 Upgrade scripts migrate users' saved config, secrets, actions and feedbacks when a module changes. In v2 the most important difference from v1 is that **every option value is wrapped**: `{ isExpression, value }`.
 
@@ -52,6 +54,8 @@ In v2 this replaces `runEntrypoint(ModuleInstance, UpgradeScripts)`. Companion r
 ```
 
 Return only what you changed. Use `null` for config and secrets you didn't touch, and `[]` for no actions or feedbacks.
+
+`props.config` / `props.secrets` hold the config to upgrade, or `null` when there is none, for example when only imported buttons are being upgraded. Base config changes on `props.config` and return `updatedConfig: null` when it is `null`. `context.currentConfig` is the connection's current config and is read-only. Historical v1 scripts that built `updatedConfig` from `context.currentConfig` can keep doing so; see **companion-v1-to-v2-expression-upgrades**.
 
 ### Wrapped option values
 
@@ -183,17 +187,17 @@ const textinputToNumberAndCheckbox: CompanionStaticUpgradeScript<ModuleConfig, M
 
 ```typescript
 export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig, ModuleSecrets>[] = [
-	EmptyUpgradeScript,
+	EmptyUpgradeScript, // a retired script, kept so later positions don't shift. Not boilerplate
 	addPollingConfig,
 	movePasswordToSecrets,
 	renameActionAndOption,
 	// advanced → boolean feedback (`true`, or a map of option id → style property)
-	CreateConvertToBooleanFeedbackUpgradeScript({ mixer_channel_muted: true }),
+	CreateConvertToBooleanFeedbackUpgradeScript<ModuleConfig>({ mixer_channel_muted: true }),
 	// module-defined 'invert' checkbox → Companion's built-in invert
 	CreateUseBuiltinInvertForFeedbacksUpgradeScript<ModuleConfig, ModuleSecrets>({ mixer_channel_muted: 'invert' }),
 	zeroToOneBasedChannels,
 	textinputToNumberAndCheckbox,
-	// 2.1.1+: custom-variable option + setCustomVariableValue → action result flow
+	// 2.1+ (Companion 5.0+), base >= 2.1.1: custom-variable option + setCustomVariableValue → action result flow
 	CreateUseActionResultStoreUpgradeScript<ModuleConfig, ModuleSecrets>({ mixer_read_level: 'targetVariable' }),
 ]
 ```
@@ -235,9 +239,9 @@ const result = renameActionAndOption(
 ```typescript
 import {
 	CreateConvertToBooleanFeedbackUpgradeScript,
-	CreateUseActionResultStoreUpgradeScript, // 2.1.1+
+	CreateUseActionResultStoreUpgradeScript, // 2.1+ (Companion 5.0+), base >= 2.1.1
 	CreateUseBuiltinInvertForFeedbacksUpgradeScript,
-	EmptyUpgradeScript,
+	EmptyUpgradeScript, // a retired script, kept so later positions don't shift. Not boilerplate
 	FixupBooleanOrVariablesValueToExpressions,
 	FixupNumericOrVariablesValueToExpressions,
 	type CompanionMigrationAction,

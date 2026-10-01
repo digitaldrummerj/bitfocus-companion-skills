@@ -6,6 +6,8 @@ license: MIT
 
 # Companion v2 Variable Definition Skill
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+
 In v2, `setVariableDefinitions` takes an **object keyed by variable ID** instead of v1's array of `{ variableId, name }`. Variables are also typed through `ModuleSchema['variables']`, so `setVariableValues` and `getVariableValue` are type-checked.
 
 ## When to Use This Skill

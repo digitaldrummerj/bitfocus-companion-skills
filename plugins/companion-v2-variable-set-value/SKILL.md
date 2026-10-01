@@ -6,6 +6,8 @@ license: MIT
 
 # Companion v2 Variable Set Value Skill
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+
 Update and read variable values in a v2 module. Both calls are typed by `ModuleSchema['variables']` (your `VariablesSchema`).
 
 ## When to Use This Skill
@@ -73,7 +75,7 @@ const last = instance.getVariableValue('last_command') ?? ''
 |---|---|---|
 | `string` | `'connected'` | |
 | `number` | `-12.5` | Expressions can do maths on it directly, with no `parseFloat` |
-| `boolean` | `true` | Usable directly in `internal:checkExpression` / expressions |
+| `boolean` | `true` | Usable directly in expressions (and in `internal:checkExpression` preset feedbacks on **2.1+ (Companion 5.0+)**) |
 | `JsonObject` / arrays | `{ model: 'X32' }` | v2 allows any JSON value. Users access fields through expressions |
 | `undefined` | — | Unsets |
 
@@ -102,6 +104,6 @@ import type { VariablesSchema } from './variables.js'
 
 - **`companion-v2-variable-definition`** — declare variables and `VariablesSchema`
 - **`companion-v2-feedbacks`** — refresh feedbacks with `checkFeedbacks` alongside variable updates
-- **`companion-v2-actions`** — on 2.1+, consider `hasResult` actions instead of writing custom variables
+- **`companion-v2-actions`** — on **2.1+ (Companion 5.0+)**, consider `hasResult` actions instead of writing custom variables
 - **`companion-v2-api-compliance`** — review checklist
 - **`companion-variable-set-value`** — the v1 equivalent

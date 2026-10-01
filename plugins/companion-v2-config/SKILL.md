@@ -1,10 +1,12 @@
 ---
 name: companion-v2-config
-description: '(@companion-module/base v2.x) Reference for Companion v2 module configuration: a ModuleConfig type alias (must satisfy JsonObject), secret-text fields stored in a separate typed secrets object, init/configUpdated/saveConfig with secrets, isVisibleExpression instead of isVisible functions, minLength instead of required, bonjour-device fields, width layout and Regex constants. Use when asked to add config fields, connection settings (host, port, credentials), conditional fields or passwords in a v2 module. Does NOT apply to v1 modules — use companion-config; for converting v1 config code use companion-v1-to-v2-migrate-definitions.'
+description: '(@companion-module/base v2.x) Reference for v2 module configuration: a ModuleConfig type alias, secret-text fields in a typed secrets object, init/configUpdated/saveConfig with secrets, and isVisibleExpression conditional fields. Use when asked to add config fields, connection settings (host, port, credentials), conditional fields or passwords in a v2 module. Does NOT apply to v1 modules (use companion-config) or to converting v1 config code (use companion-v1-to-v2-migrate-definitions).'
 license: MIT
 ---
 
 # Companion v2 Config Skill
+
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
 
 Connection configuration for `@companion-module/base` **v2.x**.
 
@@ -212,7 +214,7 @@ private connect(): void {
 | Expecting `saveConfig` to trigger `configUpdated` | It doesn't. Apply the change yourself |
 | Duplicate field `id`s | **2.1+ (Companion 5.0+)** drops later duplicates and logs a warning |
 | Awaiting the connection inside `init` | Return quickly and connect in the background |
-| `bonjourdevice` / `secret` from older docs or skills | The real type names are `bonjour-device` and `secret-text` |
+| `bonjourdevice` / `secret` (wrong names in some older docs) | The real type names are `bonjour-device` and `secret-text` |
 
 ## Import Reference
 
