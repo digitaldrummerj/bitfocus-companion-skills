@@ -1,6 +1,6 @@
 ---
 name: companion-actions
-description: 'Reference for Bitfocus Companion module action definitions using @companion-module/base. Use when asked to add an action, implement a button command, define action options, or wire up a device control. Also use when user needs help with action callbacks, subscribe/unsubscribe lifecycle, or the CompanionActionDefinition API.'
+description: '(@companion-module/base v1.x) Reference for Bitfocus Companion module action definitions using @companion-module/base. Use when asked to add an action, implement a button command, define action options, or wire up a device control. Also use when user needs help with action callbacks, subscribe/unsubscribe lifecycle, or the CompanionActionDefinition API. For v2 modules use companion-v2-actions instead.'
 license: MIT
 ---
 
@@ -240,3 +240,4 @@ import type {
 - **companion-config** — For understanding option field types (they match config field types)
 - **companion-feedbacks** — Actions often trigger feedback updates via `self.checkFeedbacks()`
 - **companion-variables** — Actions may update variable values via `self.setVariableValues()`
+- **companion-v2-actions** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **companion-v1-to-v2-migration**

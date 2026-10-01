@@ -1,6 +1,6 @@
 ---
 name: companion-feedbacks
-description: 'Reference for Bitfocus Companion module feedback definitions using @companion-module/base. Use when asked to add a feedback, change button colors based on state, render button graphics, or create visual indicators. Also use when user needs help with boolean vs advanced feedbacks, subscribe/unsubscribe, or the CompanionFeedbackDefinition API.'
+description: '(@companion-module/base v1.x) Reference for Bitfocus Companion module feedback definitions using @companion-module/base. Use when asked to add a feedback, change button colors based on state, render button graphics, or create visual indicators. Also use when user needs help with boolean vs advanced feedbacks, subscribe/unsubscribe, or the CompanionFeedbackDefinition API. For v2 modules use companion-v2-feedbacks instead.'
 license: MIT
 ---
 
@@ -289,3 +289,4 @@ import type {
 - **companion-actions** — Actions often trigger feedback updates
 - **companion-variables** — Variables can be displayed via advanced feedbacks
 - **companion-config** — Feedback options use the same field types as config
+- **companion-v2-feedbacks** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **companion-v1-to-v2-migration**
