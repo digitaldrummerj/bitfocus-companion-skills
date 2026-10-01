@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-upgrades",
+  "version": "1.0.0",
+  "description": "Reference for @companion-module/base v2.x upgrade scripts with expression-wrapped options, secrets and the built-in fixup helpers.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 upgrade script",
+    "isExpression upgrade",
+    "FixupNumericOrVariablesValueToExpressions",
+    "UpgradeScripts export"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "upgrades",
+    "typescript"
+  ],
+  "capabilities": [
+    "Write upgrade scripts that handle wrapped option values",
+    "Migrate config into secrets",
+    "Use the built-in v2 upgrade helpers"
+  ]
+}
