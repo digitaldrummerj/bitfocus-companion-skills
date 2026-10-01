@@ -6,6 +6,10 @@ license: MIT
 
 # Companion v2 Add Feedback to Category File
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+>
+> `instance.state.clipping` stands in for your module's own state on `ModuleInstance`.
+
 Add a feedback to an **existing** v2 feedback category file. There are three edits in that file, plus a `checkFeedbacks` call wherever the state it watches changes. The aggregator doesn't change.
 
 ## When to Use This Skill
@@ -74,7 +78,7 @@ Pass the **enum member**. A string literal won't type-check against the enum-key
 |---|---|---|
 | `'boolean'` (preferred) | `defaultStyle` | `boolean` |
 | `'value'` | — | any `JsonValue` |
-| `'advanced'` (discouraged) | `affectedProperties` (**2.1+**) | style object (+ base64 `imageBuffer`) |
+| `'advanced'` (discouraged) | `affectedProperties` (**2.1+ (Companion 5.0+)**; omit on 2.0.x) | style object (+ base64 `imageBuffer`) |
 
 The schema's `type` must equal the definition's `type`.
 
@@ -103,7 +107,7 @@ There is no feedback `subscribe` in v2. If a feedback needs the device to start 
 | Feedback never updates | Call `instance.checkFeedbacks(FeedbackIdX.y)` when the state changes |
 | `context.parseVariablesInString` in the callback | Removed. Options are pre-parsed |
 | Casting `feedback.options.x as number` | Unnecessary. Fix the schema instead |
-| Duplicate option `id` | **2.1+** drops duplicates with a warning |
+| Duplicate option `id` | **2.1+ (Companion 5.0+)** drops duplicates with a warning |
 
 ## References
 

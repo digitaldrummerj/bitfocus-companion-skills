@@ -1,6 +1,6 @@
 ---
 name: companion-v2-feedbacks
-description: '(@companion-module/base v2.x) Reference for Companion v2 feedback definitions: typed feedback schemas with type boolean/value/advanced, CompanionFeedbackDefinitions, checkFeedbacks(id, …) vs checkAllFeedbacks(), the callback/unsubscribe lifecycle with previousOptions, base64 imageBuffer, learn, and 2.1 affectedProperties and abort signals. Use when asked to add or fix a feedback, change button colours based on state, expose a value feedback, or trigger feedback re-evaluation in a v2 module. Does NOT apply to v1 modules — use companion-feedbacks; for the split-file wiring use companion-v2-feedback-file-pattern.'
+description: '(@companion-module/base v2.x) API reference for v2 feedback definitions: boolean/value/advanced types, typed feedback schemas, checkFeedbacks(id, …) vs checkAllFeedbacks(), the callback/unsubscribe lifecycle with previousOptions, base64 imageBuffer, learn, and (2.1+) affectedProperties and abort signals. Use when choosing a feedback type, triggering re-evaluation, or debugging feedback lifecycle behaviour in a v2 module. For the file edits use companion-v2-add-feedback-to-category-file (existing category file) or companion-v2-feedback-file-pattern (new category file). Does NOT apply to v1 modules (use companion-feedbacks).'
 license: MIT
 ---
 
@@ -8,7 +8,9 @@ license: MIT
 
 The API reference for **feedbacks** in `@companion-module/base` **v2.x**. The file layout is covered in **`companion-v2-feedback-file-pattern`**.
 
-> **API level:** examples target base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not in base 2.0.x.
+> **API level:** examples target base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x.
+>
+> Examples call module-specific members on `ModuleInstance` (`sendCommand`, `state`, `query`). Define your own equivalents as public class members (see **companion-v2-module-scaffold**).
 
 ## When to Use This Skill
 
@@ -33,7 +35,7 @@ export type FeedbacksSchemaMixer = {
 }
 ```
 
-The schema `type` must match the definition's `type`. It also controls what presets may attach. For example, a preset's `style` override is only allowed (and is required) on boolean feedbacks.
+The schema `type` must match the definition's `type`. It also controls what presets may attach: a preset's `style` is **required** on boolean feedbacks and **forbidden** on value and advanced feedbacks.
 
 ### Feedback types
 
@@ -62,6 +64,17 @@ instance.checkFeedbacksById(feedbackInstanceId) // specific placed instances
 ```
 
 `checkFeedbacks()` with **no arguments was removed**. Its parameters are typed as keys of `ModuleSchema['feedbacks']`, so pass enum members. A raw string literal like `'transport_playing'` does **not** type-check against an enum-keyed schema.
+
+When the ids to re-check are collected at runtime, type the collection with the union of your feedback enums, and split off the first element, because the signature requires at least one id:
+
+```typescript
+// feedbacks.ts, next to FeedbacksSchema
+export type AnyFeedbackId = FeedbackIdTransport | FeedbackIdMixer
+
+// wherever ids are collected
+const [first, ...rest] = changedIds // Set<AnyFeedbackId> or AnyFeedbackId[]
+if (first !== undefined) instance.checkFeedbacks(first, ...rest)
+```
 
 ---
 
@@ -112,11 +125,13 @@ instance.checkFeedbacksById(feedbackInstanceId) // specific placed instances
 	type: 'value',
 	name: 'Channel level',
 	options: [{ id: 'channel', type: 'number', label: 'Channel', default: 1, min: 1, max: 64 }],
-	callback: async (feedback, context) => instance.query(`/ch/${feedback.options.channel}/level`, context.signal),
+	callback: async (feedback) => instance.query(`/ch/${feedback.options.channel}/level`),
 },
 ```
 
-Value feedbacks drive preset local variables (`variableType: 'feedback'`, 2.1+) and layered-preset graphics, such as a gauge bound to `$(local:level)`.
+On **2.1+ (Companion 5.0+)**, pass the abort signal through: `callback: async (feedback, context) => instance.query(path, context.signal)` (see "Abort signal" below).
+
+Value feedbacks drive preset local variables (`variableType: 'feedback'`, **2.1+ (Companion 5.0+)**) and layered-preset graphics, such as a gauge bound to `$(local:level)` (**2.1+ (Companion 5.0+)**). On 2.0.x, use them in expressions.
 
 ### Advanced feedback
 
@@ -125,7 +140,7 @@ Value feedbacks drive preset local variables (`variableType: 'feedback'`, 2.1+) 
 	type: 'advanced',
 	name: 'Status colour',
 	options: [{ id: 'showText', type: 'checkbox', label: 'Show text', default: true }],
-	affectedProperties: ['bgcolor', 'text'],
+	affectedProperties: ['bgcolor', 'text'], // 2.1+ (Companion 5.0+): required key. Delete this line on 2.0.x
 	callback: (feedback) => ({
 		bgcolor: instance.state.playing ? combineRgb(0, 200, 0) : combineRgb(200, 0, 0),
 		text: feedback.options.showText ? 'PLAY' : undefined,
@@ -142,7 +157,7 @@ Value feedbacks drive preset local variables (`variableType: 'feedback'`, 2.1+) 
 	type: 'advanced',
 	name: 'Meter image',
 	options: [{ id: 'channel', type: 'number', label: 'Channel', default: 1, min: 1, max: 64 }],
-	affectedProperties: ['imageBuffer'],
+	affectedProperties: ['imageBuffer'], // 2.1+ (Companion 5.0+): required key. Delete this line on 2.0.x
 	callback: (feedback) => {
 		if (!feedback.image) return {}
 		const { width, height } = feedback.image
@@ -156,7 +171,7 @@ Value feedbacks drive preset local variables (`variableType: 'feedback'`, 2.1+) 
 },
 ```
 
-Before generating bitmaps, consider a **value feedback plus a layered preset**, or a **composite element** (2.1+). Both scale better and are editable by users.
+Before generating bitmaps, consider a **value feedback plus a layered preset**, or a **composite element** (**2.1+ (Companion 5.0+)**). Both scale better and are editable by users.
 
 ### Abort signal
 
@@ -185,6 +200,8 @@ instance.checkAllFeedbacks()
 | `context.parseVariablesInString(...)` in a callback | Removed. Options arrive parsed. Use `useVariables: true` on `textinput` fields |
 | `imageBuffer: buffer` (a Buffer) | Must be `buffer.toString('base64')` |
 | Advanced feedback without `affectedProperties` on 2.1 | Compile error / debug warning. Declare the properties you set |
+| `affectedProperties` on base 2.0.x | Not in the 2.0 types (excess-property error). Only add it on **2.1+ (Companion 5.0+)** |
+| `checkFeedbacks(...ids)` with a runtime `string[]` | Type the list as `AnyFeedbackId[]` and split off the first id |
 | `learn` returns every option | Return only learned keys, so user expressions survive |
 | Schema `type` doesn't match the definition `type` | They must match. Presets rely on it |
 

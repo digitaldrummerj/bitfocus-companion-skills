@@ -1,10 +1,12 @@
 ---
 name: companion-v2-feedback-file-pattern
-description: '(@companion-module/base v2.x) Creates a new v2 feedback category file (src/feedbacks/feedback-{category}.ts with an enum of feedback IDs, an enum-keyed FeedbacksSchema{Category} type and a GetFeedbacks{Category}() factory) and wires it into the feedbacks.ts aggregator whose FeedbacksSchema feeds ModuleSchema. Use when no feedback category file exists yet for the category in a v2 module. Does NOT apply when the category file already exists — use companion-v2-add-feedback-to-category-file; for v1 modules use companion-feedback-file-pattern.'
+description: '(@companion-module/base v2.x) Creates a new v2 feedback category file (src/feedbacks/feedback-{category}.ts with an enum of feedback IDs, an enum-keyed FeedbacksSchema{Category} type and a GetFeedbacks{Category}() factory) and wires it into the feedbacks.ts aggregator whose FeedbacksSchema feeds ModuleSchema. Use when asked to add a feedback category, create a feedback file, or split feedbacks.ts into category files in a v2 module, i.e. when no feedback category file exists yet for the category. Does NOT apply when the category file already exists — use companion-v2-add-feedback-to-category-file; for v1 modules use companion-feedback-file-pattern.'
 license: MIT
 ---
 
 # Companion v2 Feedback File Pattern
+
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x. The file template below is 2.0-compatible.
 
 The feedback version of **`companion-v2-action-file-pattern`**. Each feedback category gets its own file that exports an enum of IDs, a schema type and a factory. `feedbacks.ts` combines the schemas with `&` and spreads the factories into one `setFeedbackDefinitions()` call.
 
@@ -96,7 +98,7 @@ export function GetFeedbacksTransport(
 			type: 'advanced',
 			name: 'Status colour',
 			options: [{ id: 'showText', type: 'checkbox', label: 'Show text', default: true }],
-			affectedProperties: ['bgcolor', 'text'], // 2.1+: required key on advanced feedbacks
+			affectedProperties: ['bgcolor', 'text'], // 2.1+ (Companion 5.0+): required key. Delete this line on 2.0.x
 			callback: (feedback) => ({
 				bgcolor: instance.state.playing ? combineRgb(0, 200, 0) : combineRgb(200, 0, 0),
 				text: feedback.options.showText ? 'PLAY' : undefined,
@@ -165,7 +167,7 @@ export function GetFeedbacks{Category}(instance: ModuleInstance): CompanionFeedb
 			name: 'Is active',
 			defaultStyle: { bgcolor: combineRgb(0, 200, 0), color: combineRgb(255, 255, 255) },
 			options: [{ id: 'index', type: 'number', label: 'Index', default: 1, min: 1, max: 100 }],
-			callback: (feedback) => instance.isActive(feedback.options.index),
+			callback: (feedback) => instance.isActive(feedback.options.index), // isActive: your own helper on ModuleInstance
 		},
 	}
 }
@@ -214,7 +216,7 @@ yarn lint
 | `checkFeedbacks('raw_id')` | Use the enum member. Raw strings don't satisfy an enum-keyed schema |
 | `checkFeedbacks()` with no args | Use `checkAllFeedbacks()` |
 | `subscribe` on a feedback | Removed in v2. Use `callback` + `previousOptions`, and `unsubscribe` for cleanup |
-| Advanced feedback without `affectedProperties` (2.1) | Add it, e.g. `['bgcolor', 'color']` |
+| Advanced feedback without `affectedProperties` (**2.1+ (Companion 5.0+)**) | Add it, e.g. `['bgcolor', 'color']` |
 | Value import of `ModuleInstance` | Use `import type` |
 | Moved feedbacks out of an old single file but left their ids there too | Remove them from the old enum or schema, otherwise duplicate keys conflict |
 
