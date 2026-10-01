@@ -62,6 +62,8 @@ Copy this directory to `.github/skills/companion-v1-api-compliance/` in your pro
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
 
+- `.claude-plugin/plugin.json` provides the Claude Code plugin manifest (same content as `plugin.json`).
+
 ## License
 
 MIT.

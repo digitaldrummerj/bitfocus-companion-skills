@@ -70,6 +70,8 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migrate-definitions/` 
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
 
+- `.claude-plugin/plugin.json` provides the Claude Code plugin manifest (same content as `plugin.json`).
+
 ## License
 
 MIT.

@@ -59,6 +59,8 @@ Copy this directory to `.github/skills/companion-v2-add-feedback-to-category-fil
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
 
+- `.claude-plugin/plugin.json` provides the Claude Code plugin manifest (same content as `plugin.json`).
+
 ## License
 
 MIT.

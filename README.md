@@ -95,6 +95,7 @@ Each plugin directory includes:
 - `SKILL.md` — the core agent-facing knowledge document
 - `manifest.json` — machine-readable metadata for marketplaces and discovery
 - `plugin.json` — Copilot CLI plugin metadata
+- `.claude-plugin/plugin.json` — Claude Code plugin manifest (a copy of `plugin.json`; keep the two in sync when changing name, description, version or keywords)
 - `README.md` — a short human-readable guide for the plugin
 
 This mirrors the marketplace-friendly structure used by `squad-skills`, while keeping the Bitfocus Companion guidance self-contained per plugin.
