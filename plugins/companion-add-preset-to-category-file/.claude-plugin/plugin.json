@@ -1,0 +1,16 @@
+{
+  "name": "companion-add-preset-to-category-file",
+  "description": "Add new presets to an existing enum-based Companion preset category file.",
+  "version": "1.0.1",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "add preset to existing file",
+    "extend preset enum",
+    "preset-{category}.ts",
+    "existing preset category"
+  ],
+  "skills": "./"
+}

@@ -1,0 +1,16 @@
+{
+  "name": "companion-v1-to-v2-migrate-presets",
+  "description": "Migrate Companion presets from v1 button/category definitions to v2 sections, groups, and simple presets while keeping enum-per-category files.",
+  "version": "1.0.1",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "migrate presets to v2",
+    "preset category to sections",
+    "setPresetDefinitions structure",
+    "preset template group"
+  ],
+  "skills": "./"
+}

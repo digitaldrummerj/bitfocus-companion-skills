@@ -1,0 +1,16 @@
+{
+  "name": "companion-action-file-pattern",
+  "description": "Create and wire a new split-file actions category for a Bitfocus Companion module.",
+  "version": "1.0.1",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "new action category",
+    "action file pattern",
+    "actions.ts aggregator",
+    "split-file actions"
+  ],
+  "skills": "./"
+}

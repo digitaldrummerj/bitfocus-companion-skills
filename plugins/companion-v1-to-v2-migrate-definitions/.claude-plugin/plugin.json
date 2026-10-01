@@ -1,0 +1,16 @@
+{
+  "name": "companion-v1-to-v2-migrate-definitions",
+  "description": "Before/after transforms for migrating Companion actions, feedbacks, variables, config, and instance typing from base v1.x to v2.",
+  "version": "1.0.1",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "migrate actions to v2",
+    "remove parseVariablesInString",
+    "InstanceBaseExt to ModuleSchema",
+    "setVariableDefinitions object form"
+  ],
+  "skills": "./"
+}

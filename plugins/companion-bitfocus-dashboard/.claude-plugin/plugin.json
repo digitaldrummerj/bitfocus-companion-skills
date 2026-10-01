@@ -1,0 +1,16 @@
+{
+  "name": "companion-bitfocus-dashboard",
+  "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "what's pending",
+    "pending review queue",
+    "Bitfocus dashboard",
+    "clone module for review"
+  ],
+  "skills": "./"
+}
