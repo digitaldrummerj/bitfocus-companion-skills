@@ -25,6 +25,8 @@ This skill holds the **code-level transforms** used in Phases 2–4 and 6 of **c
 
 **The rule:** in v2 the **schema type is the contract**. Every action and feedback id maps to a typed `options` object. Option values arrive with variables already parsed and expressions already evaluated and validated. Remove **casts and manual parsing** (`as string`, `String(x)`, `Number(x)`, `parseVariablesInString`). **Keep `?? default` null guards** for option keys that can be missing from stored data: options added to a definition after users saved buttons, and v1 presets that shipped `options: {}`. The schema types those keys as always present, and Companion does not guarantee to back-fill defaults.
 
+**Preserve v1 behaviour by default.** Typing exposes things v1 hid: casts that lied about the runtime type, members that never existed, parsing that only worked because v1 parsed any string. Anything that changes runtime behaviour is a separate, flagged decision. The judgement calls are in **`references/behaviour.md`**.
+
 ---
 
 ## Part A — Instance Typing
@@ -54,9 +56,14 @@ export type ZoomConfig = {
 
 Every value must be JSON-safe: no `Date`, `Map`, class instances or functions. Keeping the old type name keeps the diff small.
 
-### A.2 `InstanceBaseExt` → `import type ModuleInstance`
+### A.2 `InstanceBaseExt` (or any hand-written instance type) → `import type ModuleInstance`
 
-v1 split-file modules usually declared a structural interface so that category files wouldn't import the class:
+v1 split-file modules usually declared a structural interface so that category files wouldn't import the class. The same procedure applies to **every** hand-written instance type:
+- `InstanceBaseExt<TConfig>` with `[x: string]: any`
+- a narrow `interface XInstance extends InstanceBase<Config>` (with or without `implements` on the class)
+- a per-file structural type literal (`type ActionInstance = { setActionDefinitions(…): void; … }`)
+
+Under v2 these fail with TS2344 or confusing generic-variance errors. Replace them, drop the `implements`, and delete the interface. If the interface was named after the module (`ZoomRoomsInstance`), reusing that name for the default-exported class means only the import lines change. Test mocks typed against the old interface must be retyped too.
 
 ```ts
 // Before (v1) — src/utils.ts
@@ -92,7 +99,8 @@ Procedure:
    	// ...
    }
    ```
-5. Type `OSC: any`-style fields properly if you can. Otherwise leave them `any` with a TODO; don't block the migration on it.
+   - If tsc reports a member that **doesn't exist on the class at all**, or is a typo (`zoomUserData` vs `ZoomUserData`), that is a pre-existing v1 bug. Don't invent an implementation. Preserve the behaviour (cast plus a comment, or drop a dead path) and flag the fix: **`references/behaviour.md`** §4.
+5. Type `OSC: any`-style fields properly if you can. Otherwise leave them `any` with a TODO; don't block the migration on it. A field that becomes precise (`socket: any` → `TCPHelper | null`) can expose null paths that threw in v1. Preserve them with a cast, or make a flagged `?.` fix.
 
 ---
 
@@ -101,6 +109,8 @@ Procedure:
 ### B.1 Add a schema type per category file
 
 For each `src/actions/action-{category}.ts`:
+
+> **No enums?** A single-file `actions.ts` keyed by plain string ids (`actions.timer_start = …`) can stay a single file with one `ActionsSchema` keyed by those strings (`timer_start: { options: … }`). Don't introduce enums during a migration. The same applies to feedbacks, where `checkFeedbacks('State')` keeps type-checking.
 
 1. Keep the existing `enum ActionId{Category}` **unchanged**. The string values are the saved action ids, so renaming them breaks users' buttons.
 2. Add `export type ActionsSchema{Category}`, with one key per enum member mapping to `{ options: {...} }`.
@@ -119,6 +129,8 @@ For each `src/actions/action-{category}.ts`:
 | no options | `Record<string, never>` |
 
 4. Change the factory's return type to `CompanionActionDefinitions<ActionsSchema{Category}>`.
+
+Option keys are the field **`id`s** (not the key in a shared options map), and they are plain string literals even when an id equals an enum value.
 
 **Before (v1):**
 
@@ -213,6 +225,9 @@ What changed:
 | `action.options.x as string`, `String(action.options.x)`, `Number(action.options.x)` | Remove |
 | `String(action.options.title ?? '')` where the key may be missing in saved buttons | Keep the guard and drop the conversion: `(action.options.title ?? '').trim()` |
 | `action.options.bus ?? MUTE_MAIN` for an option added after release | Keep it as is |
+| `Number(action.options.x)` / `parseInt` where `x` **stays a `textinput`** | Keep it. That is parsing (often with an `isNaN` skip), not a cast. |
+| Parse-and-fallback helpers (`optionNumber(x, 100)`) | `x ?? 100`, then delete the helper |
+| `x as number` on a dropdown whose choice ids are **strings** | Not a pure cast removal: see **`references/behaviour.md`** §3 |
 
 ### B.2 Shared options, option factories and definition helpers need literal ids
 
@@ -225,7 +240,7 @@ v1 modules kept reusable fields typed with wide field types, e.g. `options.userN
 | Factory returning several fields | Return `Field<'useVariable' \| 'id' \| 'idVariable'>[]` and export the matching option-values type (`DeviceIdOptions`) for the schemas |
 | Helper returning a whole definition (`const simple = (…): CompanionActionDefinition => …`) | Give it the schema-entry generic: `CompanionActionDefinition<{ options: Record<string, never> }>` on 2.1 (`<Record<string, never>>` on 2.0.x); `CompanionFeedbackDefinition<{ type: 'boolean'; options: … }>` |
 
-Full examples, and how to handle the v1 "Use variable" checkbox idiom, are in **`references/shared-options.md`**.
+Full examples are in **`references/shared-options.md`**. They also cover the v1 "Use variable" checkbox idiom, shared field arrays spread into many actions, callback-returning factories, composed `isVisibleExpression` strings, and helpers generic over the option key.
 
 ### B.3 `parseVariablesInString` removal semantics
 
@@ -239,10 +254,16 @@ v2 removed `parseVariablesInString` from both the instance and the callback `con
 
 Procedure for each call site:
 
-1. **Option-backed string** (`await instance.parseVariablesInString(action.options.x as string)`): delete the call, use `action.options.x` directly, and make sure the field has `useVariables: true`.
+1. **Option-backed string** (`await instance.parseVariablesInString(action.options.x as string)`): delete the call, use `action.options.x` directly, and **add `useVariables: true` to field `x`** if it isn't there.
+   - **This is mandatory, not cosmetic.** v1 parsed any string you passed it, but v2 parses only fields marked `useVariables`. Without the flag, users' `$(…)` in that field silently stops working.
+   - This covers shared field definitions too. v1 feedback textinputs very often lack the flag.
+   - If a shared field is parsed in only **some** actions, use a same-id variant with `useVariables` for those call sites.
+   - Add a guard test that asserts the flag on every field v1 parsed (**`references/behaviour.md`** §1).
 2. **Number parsed from a variable-enabled text field** (`parseInt(await instance.parseVariablesInString(...))`): convert the field to `type: 'number'` and read `action.options.x` as a number. Ship the `FixupNumericOrVariablesValueToExpressions` upgrade script from **companion-v1-to-v2-expression-upgrades** for it.
+   - **Exception:** don't convert when an empty value means "not provided" or drives either/or validation. Keep the `textinput` with `useVariables: true` and the in-code parse instead.
+   - Choosing `min` / `max`, v1 `parseInt` leniency, and sentinel values are covered in **`references/behaviour.md`** §2.
 3. **String assembled at runtime and then parsed** (a template stored in config or built in code): there is **no v2 replacement API**. Move the variable-bearing part into an action option with `useVariables: true` so Companion parses it before the callback runs. Don't write your own `$(...)` parser.
-4. **Feedback `context.parseVariablesInString`**: same as 1 and 3. The callback becomes synchronous where possible:
+4. **Feedback `context.parseVariablesInString`**: same as 1 and 3, **including adding `useVariables: true`** to the feedback's field. The callback becomes synchronous where possible:
    ```ts
    // Before (v1)
    callback: async (feedback, context) => {
@@ -264,6 +285,10 @@ Procedure for each call site:
 | `context.setCustomVariableValue(name, value)` | Still compiles but is deprecated. **2.1+ (Companion 5.0+)**: use `hasResult: true` and return the value (see below and **companion-v1-to-v2-expression-upgrades**) |
 | Callback ignores cancellation | **2.1+ (Companion 5.0+)**: `context.signal` is optional to honour. Pass it to `fetch` or other long-running work. |
 | `required: true` on `textinput` | `minLength: 1` |
+| `required: true` on `number`, `dropdown`, `checkbox`, … | Delete it (TS2353 otherwise). These fields always hold a value; validate in code if "empty" matters. |
+| `await tcp.send(msg)` / code relying on the promise rejecting | `await tcp.sendAsync(msg)`. In v2, `TCPHelper.send()` is **synchronous** and returns `boolean` (`false` when not connected). `tsc` doesn't flag the old `await`; only lint's `await-thenable` does. |
+| Fire-and-forget `tcp.send(msg)` (not awaited) | Keep `send()`. Write errors now reach the socket's `'error'` listener instead of becoming unhandled rejections, and a destroyed socket throws synchronously. |
+| `await udp.send(msg)` | `await udp.sendAsync(msg)`. `UDPHelper.send()` now returns `void`, and errors go to the `'error'` event. |
 | `isVisible: (opts) => opts.mode === 'x'` | `isVisibleExpression: '$(options:mode) == "x"'`. The referenced field needs `disableAutoExpression: true`. |
 | **Existing** `isVisibleExpression` (allowed since v1.12) | Still valid, but in actions and feedbacks every field it references now needs `disableAutoExpression: true`. Find them with `grep -rn "isVisibleExpression" src`. Config fields have no expression mode, so they are exempt. |
 | `InputValue` type imports | `JsonValue`, or the precise option type from the schema |
@@ -414,8 +439,9 @@ A single-file v1 `feedback.ts` (one `FeedbackId` enum, one `GetFeedbacks`) can s
 |---|---|
 | `subscribe: (fb) => startPolling(fb)` | Removed. `callback` runs when the feedback is added **and** on every options change. Move setup into `callback` and use `feedback.previousOptions` to detect changes. Keep `unsubscribe` for cleanup (it runs only on delete or disable). |
 | `imageBuffer: buffer` (a `Buffer`) | `imageBuffer: buffer.toString('base64')` |
+| `imageBuffer: rgba` (a `Uint8Array`) | `imageBuffer: Buffer.from(rgba).toString('base64')` |
 | Advanced feedback with no `affectedProperties` | **2.1+ (Companion 5.0+)**: required key. List the style keys you return (`'text' \| 'size' \| 'color' \| 'bgcolor' \| 'alignment' \| 'pngalignment' \| 'png64' \| 'imageBuffer'`), or set it to `undefined`. On 2.0.x the key does not exist; leave it out. |
-| `async (feedback, context)` + `context.parseVariablesInString` | See B.3. Usually becomes a synchronous `(feedback) => ...` |
+| `async (feedback, context)` + `context.parseVariablesInString(feedback.options.x)` | `feedback.options.x`, **and add `useVariables: true` to field `x`** (B.3). Usually becomes a synchronous `(feedback) => ...` |
 | Dropdown option compared via `feedback.options.type as number` | Schema type `type: feedbackType` (the numeric enum), no cast |
 | `InputValue` parameters in helpers (`feedbackResults(type: InputValue \| undefined, ...)`) | The exact schema type (`feedbackType`), or `JsonValue` |
 
@@ -440,7 +466,11 @@ export function recheck(instance: ModuleInstance, changed: Set<AnyFeedbackId>): 
 }
 ```
 
+Put `recheck` in `feedbacks.ts` next to `AnyFeedbackId` when several files collect ids. `Object.values(SomeStringEnum)` is already typed as the enum, so `AnyFeedbackId[]` groups can be derived from enums without casts. With a string-keyed schema (no enums), the existing string ids already type-check, so leave them.
+
 `checkFeedbacksById(...)` is unchanged.
+
+A module with **no feedbacks** keeps `FeedbacksSchema = Record<string, never>`.
 
 ---
 
@@ -458,10 +488,11 @@ Procedure:
 
 1. Add every static `variableId` to `VariablesSchema` with its value type.
 2. Add template-literal keys for each dynamic family.
-3. Convert array or `Set` building into `definitions[id] = { name }`. Keep variable ids **byte-identical**, because users reference them as `$(module:id)`. Ids may only contain `[a-zA-Z0-9_-]`.
+3. Convert array or `Set` building into `definitions[id] = { name }`. Keep variable ids **byte-identical**, because users reference them as `$(module:id)`. New ids should use only `[a-zA-Z0-9_-]`. Released ids that contain dots are kept as they are and flagged (**`references/behaviour.md`** §7).
 4. Keep the existing function names (`initVariableDefinitions`, …) if tests or other code call them.
+5. Variables that v1 **wrote but never defined** still need schema keys. Make them optional.
 
-For a literal before/after conversion, and for **catalog- or list-driven** modules (optional static keys, one shared value type for union-key writes, template literals derived from const tables), see **`references/variables.md`**. The API details are in **companion-v2-variable-definition** and **companion-v2-variable-set-value**.
+Writing values with computed keys, numeric-id families, overlapping families and modules with no variables are covered in **`references/variables.md`** → "Writing values". For a literal before/after conversion, and for **catalog- or list-driven** modules (optional static keys, one shared value type for union-key writes, template literals derived from const tables), see **`references/variables.md`**. The API details are in **companion-v2-variable-definition** and **companion-v2-variable-set-value**.
 
 ---
 
@@ -495,6 +526,10 @@ Part E may be a no-op. That happens when the module already uses `isVisibleExpre
 | Leaving `[x: string]: any` on the instance type | Delete `InstanceBaseExt` and add the missing members to the class |
 | An `isVisibleExpression` referencing a field without `disableAutoExpression` | Add `disableAutoExpression: true` to the referenced field |
 | Converting a `textinput` to `number` without an upgrade script | Saved string values will fail validation. Add a `FixupNumericOrVariablesValueToExpressions` script. |
+| Converting a `textinput` to `number` where "empty" meant "not provided" | Keep the textinput and the in-code parse (`references/behaviour.md` §2) |
+| Removing `parseVariablesInString` but not adding `useVariables: true` | Users' variables silently stop resolving. Add the flag and a guard test. |
+| `await` on the now-synchronous `TCPHelper` / `UDPHelper` `send()` | `sendAsync()` (B.4) |
+| Inventing an implementation for a member tsc says is missing | It's a v1 bug. Preserve the behaviour and flag it (`references/behaviour.md` §4). |
 | Feedback setup still in `subscribe` | It is never called in v2. Move it into `callback` and use `previousOptions`. |
 
 ## Related Skills
@@ -508,6 +543,7 @@ Part E may be a no-op. That happens when the module already uses `isVisibleExpre
 ## References
 
 - `references/shared-options.md`: shared fields, option factories, definition helpers, the "Use variable" idiom
-- `references/variables.md`: literal conversion example, catalog-driven variables
+- `references/variables.md`: literal conversion example, catalog-driven variables, writing values
+- `references/behaviour.md`: behaviour-preserving judgement calls (useVariables, textinput→number, lying casts, hidden members, omitted preset options, dotted ids)
 - [API 2.0 changes](https://companion.free/for-developers/module-development/api-changes/v2.0)
 - [API 2.1 changes](https://companion.free/for-developers/module-development/api-changes/v2.1)

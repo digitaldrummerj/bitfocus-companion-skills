@@ -62,6 +62,8 @@ Copy this directory to `.github/skills/companion-v1-to-v2-migrate-definitions/` 
 
 - `SKILL.md` contains the full agent-facing guidance.
 
+- `references/behaviour.md` lists the behaviour-preserving judgement calls (useVariables, textinput→number, casts, hidden members, dotted ids).
+
 - `references/shared-options.md` holds shared option fields, option factories, definition helpers and the "Use variable" idiom.
 
 - `references/variables.md` holds literal variable conversion and catalog-driven variable typing.

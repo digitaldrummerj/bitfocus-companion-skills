@@ -101,3 +101,42 @@ export function valuesFromCatalog(): Partial<VariablesSchema> {
 ## Families with no fixed shape
 
 If a family of ids has no stable pattern, the last resort is `[k: string]: string | number | undefined`. It keeps the code compiling but gives up typo checking for every key.
+
+## Writing values
+
+```ts
+type SlotPrefix = 'scene' | 'overlay'
+
+export type VariablesSchema = {
+	channel_count: number
+	isStreaming?: boolean // written by v1 code but never defined: an optional key
+	[mediaStatus: `media_status_${string}`]: string
+	[perSlot: `${SlotPrefix}_${string}_${string}`]: string // the extra segment avoids swallowing static ids
+	[zoomId: `${number}`]: string
+	studio_timer1_hh: number
+	studio_timer2_hh: number
+}
+
+export function writeVariables(
+	setVariableValues: (values: Partial<VariablesSchema>) => void,
+	name: string,
+	zoomId: number,
+	slot: '1' | '2',
+): void {
+	const changed: Partial<VariablesSchema> = {}
+	changed[`media_status_${name}`] = 'Playing'
+	changed[`${zoomId}`] = 'Alice' // not zoomId.toString(), which is just `string`
+	const timerKey = `studio_timer${slot}_hh` as const
+	changed[timerKey] = 12
+	changed.isStreaming = true
+	setVariableValues(changed)
+}
+```
+
+- **Don't mix a computed key with other keys in one object literal.** `setVariableValues({ channel_count: 1, [`media_status_${name}`]: 'x' })` widens the computed key to `[x: string]` and fails (TS2345). Build a `Partial<VariablesSchema>` bag and assign each key, as above.
+- **A key built from a `string` part** (`` `studio_timer${s}_hh` `` with `s: string`) can't index explicit keys (TS7053). Type the part as its literal union (`'1' | '2'`), and use `as const` if the key is stored in a variable first.
+- **Variables written but never defined** (allowed in v1 by `disableVariableValidation`) must still be schema keys, or the writes don't compile. Make them optional. Adding definitions for them is a separate, user-visible decision.
+- **Numeric ids** (per-user zoom ids such as `'12345'`) need a `` `${number}` `` family, and the write key should be a template literal. Integer-like keys are reordered (ascending) in a JavaScript object, so the definitions list order may change. That only affects display order.
+- **Overlapping families:** `` `${SlotPrefix}_${string}` `` also matches static ids such as `scene_count`, which silently removes their typo protection. Add a fixed suffix (`_name`), a suffix union, or an extra `_${string}` segment.
+- **No variables at all:** `VariablesSchema = Record<string, never>` and `setVariableDefinitions({})` compile and work.
+- **Dotted ids** already shipped (e.g. `light.ip`): keep them byte-identical and flag them. See `behaviour.md` §7.
