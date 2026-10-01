@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-variable-set-value",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Set and read @companion-module/base v2.x variable values with typed setVariableValues and getVariableValue.",
   "author": "Justin James",
   "license": "MIT",

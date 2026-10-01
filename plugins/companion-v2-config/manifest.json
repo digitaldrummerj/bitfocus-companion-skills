@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-config",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Reference for @companion-module/base v2.x configuration fields, typed config and secrets, isVisibleExpression and the config lifecycle.",
   "author": "Justin James",
   "license": "MIT",

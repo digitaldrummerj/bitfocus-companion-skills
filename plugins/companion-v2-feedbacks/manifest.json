@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-feedbacks",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Reference for @companion-module/base v2.x feedback definitions, typed schemas, checkFeedbacks, the callback/unsubscribe lifecycle and 2.1 affectedProperties.",
   "author": "Justin James",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "companion-v2-variable-definition",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Declare @companion-module/base v2.x variables with a typed VariablesSchema and the object form of setVariableDefinitions.",
   "author": "Justin James",
   "license": "MIT",

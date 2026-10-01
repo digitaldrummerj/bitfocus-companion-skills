@@ -1,7 +1,7 @@
 {
   "name": "companion-v1-to-v2-expression-upgrades",
   "description": "Retype historical upgrade scripts and add the expression-aware upgrade scripts that ship with a Companion v1 to v2 migration.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "Justin James"
   },
