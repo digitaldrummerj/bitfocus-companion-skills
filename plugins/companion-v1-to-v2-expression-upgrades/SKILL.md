@@ -21,7 +21,7 @@ This is Phase 7 of **companion-v1-to-v2-migration**. Every snippet here compiles
 - A `textinput` that held numbers or booleans "so variables could be used" became `number` / `checkbox`
 - Dropdown IDs are being renamed to user-friendly values (now is the best time)
 - Numbering changes from 0-based to 1-based
-- Actions wrote to custom variables via `context.setCustomVariableValue` (**2.1+**)
+- Actions wrote to custom variables via `context.setCustomVariableValue` (**2.1+ (Companion 5.0+)**)
 
 ### ❌ Do NOT use this skill when:
 
@@ -81,7 +81,7 @@ export function addPollingConfigOptions(
 
 - Use `ModuleConfig` (a `type`, not an `interface`; see **companion-v1-to-v2-migrate-definitions** A.1).
 - Use `import type { ... }` for these types (`verbatimModuleSyntax`).
-- Config-only scripts usually need nothing else.
+- Config-only scripts usually need nothing else. When **retyping** a historical script, keep its logic: if it built `updatedConfig` from `context.currentConfig`, leave it that way. In **new** scripts, prefer `props.config`, as **companion-v2-upgrades** does. `props.config` is the config to upgrade and is `null` when there is none (e.g. only imported buttons are being upgraded), so return `updatedConfig: null` in that case.
 
 ### A.2 Scripts that read or write `options`
 
@@ -230,74 +230,13 @@ What `FixupNumericOrVariablesValueToExpressions` does:
 
 `FixupBooleanOrVariablesValueToExpressions` does the same for checkbox values (`'true'`, `'1'`, variables). Run the same loop over `props.feedbacks` for feedback options. The field definition change (to `type: 'number'` with `min` / `max`, or `type: 'checkbox'`) happens in the action file. See **companion-v1-to-v2-migrate-definitions**.
 
-### B.2 Friendly dropdown IDs
+### B.2 Friendly dropdown ids
 
-Expressions make users type dropdown IDs, so cryptic IDs like `ch1=0` become painful. If you rename them, rewrite the stored literal values:
-
-```ts
-// rename cryptic dropdown ids to friendly ones
-const MODE_RENAMES: Record<string, string> = { 'ch1=0': 'off', 'ch1=1': 'on' }
-
-export const friendlyDropdownIds: CompanionStaticUpgradeScript<ModuleConfig> = (_context, props) => {
-	const result: CompanionStaticUpgradeResult<ModuleConfig, undefined> = {
-		updatedConfig: null,
-		updatedActions: [],
-		updatedFeedbacks: [],
-	}
-	for (const action of props.actions) {
-		if (action.actionId !== 'set_mode') continue
-		const mode = action.options.mode
-		if (!mode || mode.isExpression) continue // never rewrite a user expression
-		const renamed = MODE_RENAMES[String(mode.value)]
-		if (renamed === undefined) continue
-		action.options.mode = { isExpression: false, value: renamed }
-		result.updatedActions.push(action)
-	}
-	return result
-}
-```
-
-Update the `choices` IDs **and** the `default` in the definition, the schema option type, any preset that sets this option, and the code that maps the ID to a device command.
+Expressions make users type dropdown ids, which turns cryptic ids such as `ch1=0` into a real pain. If you rename them, append a script that rewrites only the **literal** stored values (`if (!opt || opt.isExpression) continue`). Then update the `choices` ids **and** the `default`, the schema option type, every preset that sets this option, and the code that maps the id to a device command. Full script: **`references/scripts.md`** → B.2.
 
 ### B.3 0-based → 1-based numbers
 
-Users write expressions such as `$(local:input)` in human (1-based) terms. If v1 stored 0-based indexes, convert them, and convert the device mapping in code (`value - 1`):
-
-```ts
-import type { CompanionMigrationOptionValues } from '@companion-module/base'
-
-// 0-based -> 1-based numbers
-function offsetValue(options: CompanionMigrationOptionValues, key: string): void {
-	const opt = options[key]
-	if (!opt) return
-	if (opt.isExpression) {
-		options[key] = { isExpression: true, value: `(${opt.value}) + 1` }
-	} else {
-		options[key] = { isExpression: false, value: Number(opt.value) + 1 }
-	}
-}
-
-export const makeIndexesOneBased: CompanionStaticUpgradeScript<ModuleConfig> = (_context, props) => {
-	const result: CompanionStaticUpgradeResult<ModuleConfig, undefined> = {
-		updatedConfig: null,
-		updatedActions: [],
-		updatedFeedbacks: [],
-	}
-	for (const action of props.actions) {
-		if (action.actionId !== 'level_set') continue
-		offsetValue(action.options, 'channel')
-		result.updatedActions.push(action)
-	}
-	for (const feedback of props.feedbacks) {
-		if (feedback.feedbackId !== 'transport_level') continue
-		offsetValue(feedback.options, 'channel')
-		result.updatedFeedbacks.push(feedback)
-	}
-	return result
-}
-```
-
-This is the one case where wrapping an expression is safe: `(<expr>) + 1` keeps the user's intent.
+Users write expressions such as `$(local:input)` in human (1-based) terms. If v1 stored 0-based indexes, append a script that adds 1 to literal values and wraps expressions as `(<expr>) + 1`, which is safe because it keeps the user's intent. Then convert the device mapping in code (`value - 1`). Full script: **`references/scripts.md`** → B.3.
 
 ### B.4 Built-in invert for boolean feedbacks
 
@@ -324,15 +263,23 @@ The map key is the feedback ID, and the value is the option ID of the old invert
 
 ### B.6 Final array
 
+The historical array from A.3, **unchanged**, followed by the new scripts:
+
 ```ts
 export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig>[] = [
+	// --- historical v1 scripts: exact order, duplicates kept (A.3) ---
+	UpgradeV2ToV3,
+	UpgradeV2ToV3,
+	addNewConfigFieldsForSocialStreamAndPerformanceTweaks,
+	fixWrongPinCommands,
+	addNewConfigFieldsForSocialStreamChatMessagesToSend,
 	addPollingConfigOptions,
-	addPollingConfigOptions, // duplicates from v1 history are kept — scripts are positional
+	// --- appended with the v2 migration ---
 	convertTextInputsToTypedFields,
 	friendlyDropdownIds,
 	makeIndexesOneBased,
 	CreateUseBuiltinInvertForFeedbacksUpgradeScript<ModuleConfig>({ transport_playing: 'invert' }),
-	// 2.1.1+: action that used setCustomVariableValue(option 'targetVariable') now returns a result
+	// 2.1+ (Companion 5.0+), base >= 2.1.1: action that used setCustomVariableValue(option 'targetVariable') now returns a result
 	CreateUseActionResultStoreUpgradeScript<ModuleConfig>({ level_read: 'targetVariable' }),
 ]
 ```
@@ -341,22 +288,14 @@ export const UpgradeScripts: CompanionStaticUpgradeScript<ModuleConfig>[] = [
 
 ## Testing Upgrade Scripts
 
-Upgrade scripts are pure functions, so unit-test them with wrapped input:
+Upgrade scripts are pure functions, so unit-test them with **wrapped** input. Cover these cases:
+- a literal value
+- a single variable
+- a mixed string
+- an expression the user already set (must be left alone)
+- an action the script should not touch (must not appear in `updatedActions`)
 
-```ts
-const props = {
-	config: null,
-	secrets: null,
-	actions: [
-		{ id: 'a1', controlId: 'c1', actionId: 'level_set', options: { channel: { isExpression: false as const, value: '3' } } },
-	],
-	feedbacks: [],
-}
-const out = convertTextInputsToTypedFields({ currentConfig: config }, props)
-expect(out.updatedActions[0].options.channel).toEqual({ isExpression: false, value: 3 })
-```
-
-Cover: a literal value, a single variable, a mixed string, an expression the user already set (must be left alone), and an action the script should not touch (must not appear in `updatedActions`).
+Example: **`references/scripts.md`** → Testing.
 
 ## Common Mistakes
 
@@ -379,5 +318,6 @@ Cover: a literal value, a single variable, a mixed string, an expression the use
 
 ## References
 
+- `references/scripts.md`: full friendly-dropdown-id and 1-based scripts, upgrade-script unit tests
 - [API 2.0 changes — Expression handling in upgrade scripts](https://companion.free/for-developers/module-development/api-changes/v2.0)
 - [Upgrade scripts](https://companion.free/for-developers/module-development/connection-basics/upgrade-scripts)
