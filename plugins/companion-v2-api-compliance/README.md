@@ -22,7 +22,7 @@ Companion module work.
 
 ### GitHub Copilot CLI
 ```bash
-copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skill
+copilot plugin marketplace add digitaldrummerj/bitfocus-companion-skills
 copilot plugin install companion-v2-api-compliance@bitfocus-companion-skills
 ```
 

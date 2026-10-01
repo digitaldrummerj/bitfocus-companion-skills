@@ -1,6 +1,6 @@
 {
   "name": "companion-upgrades",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Write Companion upgrade scripts that safely migrate config, actions, and feedbacks across breaking changes.",
   "author": "Justin James",
   "license": "MIT",

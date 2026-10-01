@@ -1,7 +1,7 @@
 {
   "name": "companion-preset-category-file",
   "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Justin James"
   },

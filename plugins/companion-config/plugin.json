@@ -1,7 +1,7 @@
 {
   "name": "companion-config",
   "description": "Define and validate Bitfocus Companion configuration fields, defaults, and configUpdated behavior.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Justin James"
   },
