@@ -287,6 +287,6 @@ import type {
 ## Related Skills
 
 - **companion-actions** — Actions often trigger feedback updates
-- **companion-variables** — Variables can be displayed via advanced feedbacks
+- **companion-variable-definition** / **companion-variable-set-value** — Variables can be displayed via advanced feedbacks
 - **companion-config** — Feedback options use the same field types as config
 - **companion-v2-feedbacks** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **companion-v1-to-v2-migration**

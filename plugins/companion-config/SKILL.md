@@ -148,11 +148,11 @@ import { combineRgb } from '@companion-module/base'
 }
 ```
 
-### `secret` — Password/Masked Input
+### `secret-text` — Password/Masked Input (base 1.13+)
 
 ```typescript
 {
-  type: 'secret',
+  type: 'secret-text',
   id: 'api_key',
   label: 'API Key',
   width: 8,
@@ -160,11 +160,11 @@ import { combineRgb } from '@companion-module/base'
 }
 ```
 
-### `bonjourdevice` — Network Device Discovery
+### `bonjour-device` — Network Device Discovery (base 1.7+)
 
 ```typescript
 {
-  type: 'bonjourdevice',
+  type: 'bonjour-device',
   id: 'device',
   label: 'Device',
   width: 12,
@@ -268,7 +268,7 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 			default: 'admin',
 		},
 		{
-			type: 'secret',
+			type: 'secret-text',
 			id: 'password',
 			label: 'Password',
 			width: 6,
