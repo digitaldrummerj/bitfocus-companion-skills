@@ -6,6 +6,8 @@ license: MIT
 
 # Companion v2 Add Preset to Category File
 
+> **API level:** base ~2.1.x. Items marked **2.1+ (Companion 5.0+)** are not available in base 2.0.x. Steps 1–3 are 2.0-compatible.
+
 Add a preset to an **existing** v2 preset category file. v2 needs **three** edits, where v1 needed two. The extra step exists because a preset only appears in the UI once a group in the section references it.
 
 ## When to Use This Skill
@@ -48,7 +50,11 @@ Add it to the `presets` map in `GetPresets{Category}()`:
 },
 ```
 
+This example assumes you added a `paused` boolean feedback with **`companion-v2-add-feedback-to-category-file`**.
+
 Because the map is typed `{ [id in PresetIdTransport]: … }`, forgetting this step after Step 1 is a compile error.
+
+**Every option of each step action must be set.** Preset option types map over the action's schema, so `options: {}` only compiles for actions that have no options. Fill in the field defaults, e.g. `{ fadeMs: 0 }`. Feedback options work the same way.
 
 ### Step 3 — Reference it from the section
 
@@ -113,6 +119,8 @@ If the new preset is one of a numbered family ("Input 1…16"), don't add 16 pre
 | Preset added but not listed in any group | Add its id to a group's `presets` (or as a template `presetId`) |
 | `type: 'button'` / `category` | v1 shape. Use `type: 'simple'` and the section/group |
 | Boolean feedback without `style` | Required |
+| `style` on a value or advanced feedback | Forbidden. Remove it |
+| `options: {}` for an action that has options | Every schema option is required in a preset. Fill in the defaults |
 | Action option name doesn't match the action schema | Compile error. Fix the name |
 | Duplicate preset id across categories | Preset ids must be unique module-wide. Prefix them with the category |
 | `relativeDelay` | Removed. `delay` is relative |

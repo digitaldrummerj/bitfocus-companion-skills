@@ -55,6 +55,8 @@ Copy this directory to `.github/skills/companion-v2-preset-category-file/` in yo
 
 - `SKILL.md` contains the full agent-facing guidance.
 
+- `references/v2.1-presets.md` holds 2.1+ preset features: internal actions/feedbacks, layered and alternatives presets, feedback local variables, composite elements.
+
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
