@@ -1,7 +1,7 @@
 {
   "name": "companion-v2-actions",
   "description": "Reference for @companion-module/base v2.x action definitions, typed schemas, expression-parsed options, subscribe, learn and 2.1 results.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "Justin James"
   },

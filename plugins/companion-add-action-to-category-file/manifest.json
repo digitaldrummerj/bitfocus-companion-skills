@@ -1,6 +1,6 @@
 {
   "name": "companion-add-action-to-category-file",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
   "author": "Justin James",
   "license": "MIT",

@@ -1,7 +1,7 @@
 {
   "name": "companion-v2-api-compliance",
   "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "author": {
     "name": "Justin James"
   },

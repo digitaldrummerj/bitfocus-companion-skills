@@ -1,7 +1,7 @@
 {
   "name": "companion-v1-api-compliance",
   "description": "Review @companion-module/base v1.x modules for required lifecycle behavior and version-specific compliance.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "Justin James"
   },

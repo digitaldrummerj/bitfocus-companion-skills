@@ -12,37 +12,37 @@
     {
       "name": "companion-action-file-pattern",
       "description": "Create and wire a new split-file actions category for a Bitfocus Companion module.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-action-file-pattern"
     },
     {
       "name": "companion-actions",
       "description": "Implement Bitfocus Companion actions with typed definitions, options, callbacks, and lifecycle hooks.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-actions"
     },
     {
       "name": "companion-add-action-to-category-file",
       "description": "Add new actions to an existing Companion action category file without changing the aggregator.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-add-action-to-category-file"
     },
     {
       "name": "companion-add-feedback-to-category-file",
       "description": "Add new feedbacks to an existing Companion feedback category file without creating a new category.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-add-feedback-to-category-file"
     },
     {
       "name": "companion-add-preset-to-category-file",
       "description": "Add new presets to an existing enum-based Companion preset category file.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-add-preset-to-category-file"
     },
     {
       "name": "companion-bitfocus-dashboard",
       "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-bitfocus-dashboard"
     },
     {
@@ -54,13 +54,13 @@
     {
       "name": "companion-feedback-file-pattern",
       "description": "Create and wire a new split-file feedback category for a Bitfocus Companion module.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-feedback-file-pattern"
     },
     {
       "name": "companion-feedbacks",
       "description": "Implement Bitfocus Companion feedbacks for boolean styling, advanced rendering, and state-driven updates.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-feedbacks"
     },
     {
@@ -72,13 +72,13 @@
     {
       "name": "companion-preset-category-file",
       "description": "Create and wire a new enum-based preset category file for a split-file Companion module.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-preset-category-file"
     },
     {
       "name": "companion-template-compliance",
       "description": "Review Companion modules against the official JavaScript and TypeScript template requirements.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./plugins/companion-template-compliance"
     },
     {
@@ -90,7 +90,7 @@
     {
       "name": "companion-v1-api-compliance",
       "description": "Review @companion-module/base v1.x modules for required lifecycle behavior and version-specific compliance.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-v1-api-compliance"
     },
     {
@@ -126,7 +126,7 @@
     {
       "name": "companion-v2-actions",
       "description": "Reference for @companion-module/base v2.x action definitions, typed schemas, expression-parsed options, subscribe, learn and 2.1 results.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-v2-actions"
     },
     {
@@ -150,7 +150,7 @@
     {
       "name": "companion-v2-api-compliance",
       "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "source": "./plugins/companion-v2-api-compliance"
     },
     {
