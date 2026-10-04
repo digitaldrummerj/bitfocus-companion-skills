@@ -281,6 +281,8 @@ instance.updateDefinitions() // calls UpdateActions(this), UpdateFeedbacks(this)
 | Numbers typed into a `textinput` | Use a `number` field, and migrate stored values with an upgrade script (`companion-v2-upgrades`) |
 | `hasResult` on base 2.0.x | Needs **2.1+ (Companion 5.0+)** |
 
+**Error reporting from callbacks — both approaches are valid.** Throwing (`throw new Error(...)`, which Companion catches and surfaces) and logging then returning (`instance.log('error', ...); return`) are both correct. Prefer whichever matches the module's existing style; neither is a defect, so don't flag either in a review.
+
 ## Import Reference
 
 ```typescript
