@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-variable-definition",
+  "version": "1.0.2",
+  "description": "Declare @companion-module/base v2.x variables with a typed VariablesSchema and the object form of setVariableDefinitions.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 variable definition",
+    "VariablesSchema",
+    "setVariableDefinitions object",
+    "dynamic variables v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "variables",
+    "typescript"
+  ],
+  "capabilities": [
+    "Declare typed v2 variables",
+    "Type dynamic variable families with template-literal keys",
+    "Re-register variables when capabilities change"
+  ]
+}

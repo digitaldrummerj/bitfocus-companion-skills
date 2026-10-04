@@ -1,0 +1,16 @@
+{
+  "name": "companion-v2-upgrades",
+  "description": "Reference for @companion-module/base v2.x upgrade scripts with expression-wrapped options, secrets and the built-in fixup helpers.",
+  "version": "1.0.2",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "v2 upgrade script",
+    "isExpression upgrade",
+    "FixupNumericOrVariablesValueToExpressions",
+    "UpgradeScripts export"
+  ],
+  "skills": "./"
+}

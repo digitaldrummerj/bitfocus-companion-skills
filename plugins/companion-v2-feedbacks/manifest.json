@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-feedbacks",
+  "version": "1.0.2",
+  "description": "Reference for @companion-module/base v2.x feedback definitions, typed schemas, checkFeedbacks, the callback/unsubscribe lifecycle and 2.1 affectedProperties.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 feedback definition",
+    "CompanionFeedbackDefinitions",
+    "checkAllFeedbacks",
+    "value feedback"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "feedbacks",
+    "typescript"
+  ],
+  "capabilities": [
+    "Define typed boolean, value and advanced feedbacks",
+    "Trigger feedback re-evaluation correctly",
+    "Apply the v2 lifecycle and 2.1 affectedProperties"
+  ]
+}

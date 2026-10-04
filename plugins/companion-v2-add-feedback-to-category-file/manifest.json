@@ -1,0 +1,29 @@
+{
+  "name": "companion-v2-add-feedback-to-category-file",
+  "version": "1.0.1",
+  "description": "Add feedbacks to an existing v2 feedback category file by extending the enum, the schema and the definitions, then triggering them.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 add feedback",
+    "extend feedback category v2",
+    "add feedback to category file v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "feedbacks",
+    "typescript"
+  ],
+  "capabilities": [
+    "Add a feedback to an existing v2 category file",
+    "Keep the enum, schema and definition in sync",
+    "Trigger the new feedback with checkFeedbacks"
+  ]
+}

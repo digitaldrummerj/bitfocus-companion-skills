@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-action-file-pattern",
+  "version": "1.0.1",
+  "description": "Create a new v2 action category file with an enum, an enum-keyed schema type and a factory, and wire it into the actions.ts aggregator.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 new action category",
+    "v2 action file pattern",
+    "ActionsSchema aggregator",
+    "split-file actions v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "actions",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create a typed v2 action category file",
+    "Compose category schemas into ActionsSchema",
+    "Avoid common v2 split-file action mistakes"
+  ]
+}

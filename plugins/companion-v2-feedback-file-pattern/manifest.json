@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-feedback-file-pattern",
+  "version": "1.0.1",
+  "description": "Create a new v2 feedback category file with an enum, an enum-keyed schema type and a factory, and wire it into the feedbacks.ts aggregator.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 new feedback category",
+    "v2 feedback file pattern",
+    "FeedbacksSchema aggregator",
+    "split-file feedbacks v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "feedbacks",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create a typed v2 feedback category file",
+    "Compose category schemas into FeedbacksSchema",
+    "Share feedback styles and options safely"
+  ]
+}

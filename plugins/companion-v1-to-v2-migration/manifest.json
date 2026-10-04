@@ -1,0 +1,29 @@
+{
+  "name": "companion-v1-to-v2-migration",
+  "version": "1.0.2",
+  "description": "Step-by-step procedure for migrating a Companion module from @companion-module/base v1.x to the v2 API (2.0/2.1).",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "migrate to v2",
+    "upgrade to companion api v2",
+    "remove runEntrypoint",
+    "base 1.x to 2.x"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "migration",
+    "v2-api"
+  ],
+  "capabilities": [
+    "Inventory v1 API usage with grep checks",
+    "Convert tooling to ESM, tools v3, and base 2.x",
+    "Sequence the migration into small verified commits"
+  ]
+}

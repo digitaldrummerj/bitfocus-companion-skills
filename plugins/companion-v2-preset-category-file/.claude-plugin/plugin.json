@@ -1,0 +1,16 @@
+{
+  "name": "companion-v2-preset-category-file",
+  "description": "Create a v2 preset category file returning a section and its presets, and aggregate them into setPresetDefinitions(structure, presets).",
+  "version": "1.0.1",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "v2 preset category",
+    "v2 preset file",
+    "setPresetDefinitions structure",
+    "preset template group"
+  ],
+  "skills": "./"
+}

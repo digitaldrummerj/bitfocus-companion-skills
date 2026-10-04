@@ -1,6 +1,6 @@
 ---
 name: companion-config
-description: 'Reference for Bitfocus Companion module configuration fields using @companion-module/base. Use when asked to add config fields, define connection settings (host, port, credentials), create module options, or validate user input. Also use when user needs help with config field types, regex validation, or the configUpdated lifecycle.'
+description: '(@companion-module/base v1.x) Reference for Bitfocus Companion module configuration fields using @companion-module/base. Use when asked to add config fields, define connection settings (host, port, credentials), create module options, or validate user input. Also use when user needs help with config field types, regex validation, or the configUpdated lifecycle. For v2 modules use companion-v2-config instead.'
 license: MIT
 ---
 
@@ -148,11 +148,11 @@ import { combineRgb } from '@companion-module/base'
 }
 ```
 
-### `secret` — Password/Masked Input
+### `secret-text` — Password/Masked Input (base 1.13+)
 
 ```typescript
 {
-  type: 'secret',
+  type: 'secret-text',
   id: 'api_key',
   label: 'API Key',
   width: 8,
@@ -160,11 +160,11 @@ import { combineRgb } from '@companion-module/base'
 }
 ```
 
-### `bonjourdevice` — Network Device Discovery
+### `bonjour-device` — Network Device Discovery (base 1.7+)
 
 ```typescript
 {
-  type: 'bonjourdevice',
+  type: 'bonjour-device',
   id: 'device',
   label: 'Device',
   width: 12,
@@ -268,7 +268,7 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 			default: 'admin',
 		},
 		{
-			type: 'secret',
+			type: 'secret-text',
 			id: 'password',
 			label: 'Password',
 			width: 6,
@@ -420,6 +420,7 @@ import {
 - **companion-actions** — Action options use the same field type system
 - **companion-feedbacks** — Feedback options use the same field type system
 - **companion-upgrades** — Config structure changes require upgrade scripts
+- **companion-v2-config** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **companion-v1-to-v2-migration**
 
 ## Regex Constants Reference
 

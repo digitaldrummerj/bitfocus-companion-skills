@@ -1,6 +1,6 @@
 {
   "name": "companion-add-feedback-to-category-file",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add new feedbacks to an existing Companion feedback category file without creating a new category.",
   "author": "Justin James",
   "license": "MIT",

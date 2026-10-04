@@ -1,6 +1,6 @@
 ---
 name: companion-action-file-pattern
-description: 'Teaches the multi-file action pattern used in split-file Companion modules. Use when asked to add a new action category, create an action file, register actions in an aggregator, or extend the actions layer of a Companion module that splits actions across multiple files with a GetActions aggregator.'
+description: '(@companion-module/base v1.x) Teaches the multi-file action pattern used in split-file Companion modules. Use when asked to add a new action category, create an action file, register actions in an aggregator, or extend the actions layer of a Companion module that splits actions across multiple files with a GetActions aggregator. For v2 modules use companion-v2-action-file-pattern instead.'
 license: MIT
 ---
 
@@ -368,3 +368,4 @@ Zero TypeScript errors means your new file is properly typed and wired.
 - `src/actions/action-social-stream.ts` — example showing non-OSC side effects (HTTP API call, config mutation)
 - `src/actions/action-global.ts` — example with more complex callbacks and state access
 - **companion-actions** skill — covers the `@companion-module/base` API types in depth
+- **companion-v2-action-file-pattern** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **companion-v1-to-v2-migration**

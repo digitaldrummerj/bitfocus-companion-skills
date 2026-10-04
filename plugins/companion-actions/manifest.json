@@ -1,6 +1,6 @@
 {
   "name": "companion-actions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Implement Bitfocus Companion actions with typed definitions, options, callbacks, and lifecycle hooks.",
   "author": "Justin James",
   "license": "MIT",

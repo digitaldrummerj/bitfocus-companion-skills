@@ -62,6 +62,8 @@ Copy this directory to `.github/skills/companion-osc-integration/` in your proje
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
 
+- `.claude-plugin/plugin.json` provides the Claude Code plugin manifest (same content as `plugin.json`).
+
 ## License
 
 MIT.

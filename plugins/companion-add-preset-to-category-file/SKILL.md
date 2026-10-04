@@ -1,6 +1,6 @@
 ---
 name: companion-add-preset-to-category-file
-description: 'Add one or more presets to an existing enum-based preset category file in a Companion module. Use when you need to add preset, extend preset enum, add preset to an existing src/presets/preset-{category}.ts file, or grow the preset list of an existing preset category file. Does NOT apply when no preset category file exists yet — use companion-preset-category-file instead.'
+description: '(@companion-module/base v1.x) Add one or more presets to an existing enum-based preset category file in a Companion module. Use when you need to add preset, extend preset enum, add preset to an existing src/presets/preset-{category}.ts file, or grow the preset list of an existing preset category file. Does NOT apply when no preset category file exists yet — use companion-preset-category-file instead. For v2 modules use companion-v2-add-preset-to-category-file instead.'
 license: MIT
 ---
 
@@ -157,3 +157,4 @@ Add a matching entry in the `presets` object inside `GetPresets{Category}()`.
 ## References
 
 - **`companion-preset-category-file`** skill — use this when creating a brand-new preset category file (includes aggregator wiring)
+- **`companion-v2-add-preset-to-category-file`** — the @companion-module/base v2.x version of this skill; for migrating a v1 module see **`companion-v1-to-v2-migration`**

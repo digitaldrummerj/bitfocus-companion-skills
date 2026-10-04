@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-preset-category-file",
+  "version": "1.0.1",
+  "description": "Create a v2 preset category file returning a section and its presets, and aggregate them into setPresetDefinitions(structure, presets).",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 preset category",
+    "v2 preset file",
+    "setPresetDefinitions structure",
+    "preset template group"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "presets",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create a typed v2 preset category file",
+    "Build sections, simple groups and template groups",
+    "Use 2.1 layered presets, alternatives and internal actions"
+  ]
+}

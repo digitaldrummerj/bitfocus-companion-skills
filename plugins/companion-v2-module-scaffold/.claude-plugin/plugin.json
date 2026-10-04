@@ -1,0 +1,16 @@
+{
+  "name": "companion-v2-module-scaffold",
+  "description": "Scaffold a new @companion-module/base v2.x module in the split-file layout with ESM, a typed ModuleSchema and a v2 manifest.",
+  "version": "1.0.2",
+  "author": {
+    "name": "Justin James"
+  },
+  "license": "MIT",
+  "keywords": [
+    "v2 module scaffold",
+    "new companion module v2",
+    "ModuleSchema",
+    "companion module template v2"
+  ],
+  "skills": "./"
+}

@@ -1,0 +1,30 @@
+{
+  "name": "companion-v1-to-v2-expression-upgrades",
+  "version": "1.0.2",
+  "description": "Retype historical upgrade scripts and add the expression-aware upgrade scripts that ship with a Companion v1 to v2 migration.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "upgrade scripts for v2 migration",
+    "isExpression upgrade script",
+    "FixupNumericOrVariablesValueToExpressions",
+    "textinput to number upgrade"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "migration",
+    "upgrades",
+    "expressions"
+  ],
+  "capabilities": [
+    "Retype v1 upgrade scripts for wrapped option values",
+    "Convert textinput fields to number/checkbox safely",
+    "Rename dropdown IDs, offset indexes, and move to action results"
+  ]
+}

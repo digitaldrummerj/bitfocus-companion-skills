@@ -1,0 +1,30 @@
+{
+  "name": "companion-v2-module-scaffold",
+  "version": "1.0.2",
+  "description": "Scaffold a new @companion-module/base v2.x module in the split-file layout with ESM, a typed ModuleSchema and a v2 manifest.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 module scaffold",
+    "new companion module v2",
+    "ModuleSchema",
+    "companion module template v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "scaffold",
+    "typescript"
+  ],
+  "capabilities": [
+    "Create package.json, tsconfig and manifest.json for a v2 module",
+    "Wire main.ts, ModuleSchema and the split-file aggregators",
+    "Avoid template placeholder and ESM setup mistakes"
+  ]
+}

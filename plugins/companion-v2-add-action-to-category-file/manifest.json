@@ -1,0 +1,29 @@
+{
+  "name": "companion-v2-add-action-to-category-file",
+  "version": "1.0.1",
+  "description": "Add actions to an existing v2 action category file by extending the enum, the schema and the definitions.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "v2 add action",
+    "extend action category v2",
+    "add action to category file v2"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "v2-api",
+    "actions",
+    "typescript"
+  ],
+  "capabilities": [
+    "Add an action to an existing v2 category file",
+    "Keep the enum, schema and definition in sync",
+    "Pick correct option types and callback forms"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "companion-v1-to-v2-migrate-presets",
+  "version": "1.0.2",
+  "description": "Migrate Companion presets from v1 button/category definitions to v2 sections, groups, and simple presets while keeping enum-per-category files.",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "github-copilot",
+    "claude",
+    "any-llm"
+  ],
+  "triggers": [
+    "migrate presets to v2",
+    "preset category to sections",
+    "setPresetDefinitions structure",
+    "preset template group"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "migration",
+    "presets"
+  ],
+  "capabilities": [
+    "Convert button+category presets to sections/groups/simple",
+    "Replace v1 preset type helpers with schema-typed definitions",
+    "Turn loop-generated preset families into template groups"
+  ]
+}
