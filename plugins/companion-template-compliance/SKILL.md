@@ -186,6 +186,24 @@ The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution"
 
 Not a finding, as long as every value the template sets is still present and unchanged. A different `extends`, any other added or changed compiler option, or a removed template `include` entry is still a divergence.
 
+**Accepted divergence: `eslint.config.mjs` with test-only overrides.** To relax rules for tests (e.g. `n/no-unpublished-import`, `@typescript-eslint/unbound-method`), a module may change the template's `export default generateEslintConfig({…})` into:
+
+```js
+const baseConfig = await generateEslintConfig({ enableTypescript: true })
+export default [
+	...baseConfig,
+	{ files: ['tests/**/*.ts', 'vitest.config.ts'], rules: { 'n/no-unpublished-import': 'off' } },
+]
+```
+
+Not a finding, provided all of these hold:
+- The imports are the template's.
+- The `generateEslintConfig` options are unchanged.
+- `...baseConfig` comes first.
+- Every extra block is scoped by `files:` to test or tooling paths (`tests/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*`, root `*.config.*`).
+
+A block that targets `src/**`, has no `files:`, or adds plugins, imports or changed options is still a divergence.
+
 ---
 
 ## 5. `package.json` Rules
