@@ -76,6 +76,8 @@ All JS files above, **plus**:
 
 **All source code files must be in the `src/` directory.** No `.js` or `.ts` source files may exist at the module root or in any directory other than `src/` (and its subdirectories).
 
+> **Exempt: tool config files.** Files named `<tool>.config.(js|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) are configuration, not module source. The tools look for them at the repo root, so that is where they belong. Don't flag them.
+
 **Check:**
 - For JS modules: `src/main.js` must exist; `main.js` at the root is a Critical violation
 - For TS modules: `src/main.ts` must exist; `main.ts` at the root is a Critical violation
@@ -176,6 +178,13 @@ The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution"
 ```
 
 `"types": ["node"]` without the commented-out jest hint is an **accepted** divergence, not a finding — ignore inline comments and bracket spacing when comparing tsconfig lines.
+
+**Accepted divergence: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is only the editor/typecheck config; the build uses `tsconfig.build.json`, which must still match exactly. A module that ships tests may add:
+- extra `include` / `exclude` entries (`tests/**/*.ts`, `scripts/**/*.ts`, `vitest.config.ts`, …)
+- extra `compilerOptions.types` entries (`vitest/globals`, `jest`, …)
+- `compilerOptions.rootDir` (e.g. `"./"`, so `tests/` sits inside it) and `compilerOptions.noEmit: true`
+
+Not a finding, as long as every value the template sets is still present and unchanged. A different `extends`, any other added or changed compiler option, or a removed template `include` entry is still a divergence.
 
 ---
 
