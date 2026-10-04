@@ -92,4 +92,5 @@ End the report with: resolved version, rule files applied, counts per severity, 
 - [v2.0 API Changes](https://companion.free/for-developers/module-development/api-changes/v2.0) (Companion 4.3+)
 - [v2.1 API Changes](https://companion.free/for-developers/module-development/api-changes/v2.1) (Companion 5.0+)
 - [All API Changes](https://companion.free/for-developers/module-development/api-changes/)
+- [Presets](https://companion.free/for-developers/module-development/connection-basics/presets)
 - **companion-v1-api-compliance**: for modules on `@companion-module/base` 1.x
