@@ -11,10 +11,9 @@ Enables the team to autonomously discover which Companion modules need review, d
 ## When to Use This Skill
 
 - User asks "what's pending", "what needs reviewing", "show the queue", "check the dashboard"
-- Coordinator needs to discover modules before starting reviews
-- Ralph is checking work health and wants to compare what's pending vs. what's already cloned
+- The reviewer needs to discover modules before starting a review
+- Comparing what's pending vs. what's already cloned locally
 - User says "clone {module}" or "set up {module} for review"
-- User says "review all pending" (triggers Ralph loop)
 
 ## Authentication
 
@@ -140,14 +139,16 @@ pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
 ### Workflow 1: Show Pending Queue
 
 ```powershell
-$token   = gh auth token
-$headers = @{ Authorization = "Bearer $token" }
-$data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
-$now     = [DateTimeOffset]::UtcNow
+$token      = gh auth token
+$headers    = @{ Authorization = "Bearer $token" }
+$reviewRoot = (git rev-parse --show-toplevel)  # the companion-module-review repo root
+$modulesDir = if ($env:COMPANION_MODULES_DIR) { $env:COMPANION_MODULES_DIR } else { Join-Path $reviewRoot "companion-modules-reviewing" }
+$data       = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
+$now        = [DateTimeOffset]::UtcNow
 
 $data.versions | Sort-Object createdAt | ForEach-Object {
     $days  = [math]::Floor(($now - [DateTimeOffset]::FromUnixTimeMilliseconds($_.createdAt)).TotalDays)
-    $cloned = Test-Path (Join-Path $workspace "companion-module-$($_.moduleName)")
+    $cloned = Test-Path (Join-Path $modulesDir "companion-module-$($_.moduleName)")
     [PSCustomObject]@{
         Module  = $_.moduleName
         Tag     = $_.gitTag
@@ -199,14 +200,17 @@ https://developer.bitfocus.io/modules/companion-connection/{moduleName}
 ### Workflow 4: Clone a Module
 
 ```powershell
-$workspace  = "/Users/lynbh/Development/companion-module-review"
+# Modules live in companion-modules-reviewing/ inside the review repo (gitignored).
+# $modulesDir is derived from the repo root; override with $env:COMPANION_MODULES_DIR.
+$reviewRoot = (git rev-parse --show-toplevel)  # the companion-module-review repo root
+$modulesDir = if ($env:COMPANION_MODULES_DIR) { $env:COMPANION_MODULES_DIR } else { Join-Path $reviewRoot "companion-modules-reviewing" }
 $moduleName = "softouch-easyworship"  # substitute target module
-$cloneDir   = Join-Path $workspace "companion-module-$moduleName"
+$cloneDir   = Join-Path $modulesDir "companion-module-$moduleName"
 
 if (Test-Path $cloneDir) {
     Write-Host "Already cloned at $cloneDir"
 } else {
-    Push-Location $workspace
+    Push-Location $modulesDir
     git clone "https://github.com/bitfocus/companion-module-$moduleName"
     Pop-Location
 }
@@ -237,18 +241,18 @@ if ($entry.status -ne 'PENDING') {
 }
 ```
 
-## Ralph's Queue Check
+## Queue Check
 
-When Ralph checks work health, run the queue script:
+To see work health, run the queue script:
 
 ```powershell
 pwsh scripts/bitfocus-queue.ps1
 ```
 
-Ralph should report:
+Report:
 1. Total pending count
 2. How many are already cloned (awaiting review)
-3. The oldest pending module (rank 1 in the table) as the next-up recommendation
+3. The "Next up" module (oldest `needs-review`, dedup-aware) as the next-up recommendation
 
 ## Troubleshooting
 
