@@ -71,6 +71,8 @@ Copy this directory to `.github/skills/companion-v2-api-compliance/` in your pro
 
 - `references/v2.1.md` holds only the API 2.1 deltas (loaded when base ≥ 2.1.0).
 
+- `references/api-scan-hints.md` explains the `apiScan` hints that a companion-module-review fact sheet provides.
+
 - `manifest.json` exposes searchable metadata for marketplaces and tooling.
 
 - `plugin.json` provides Copilot CLI plugin metadata for installation.
