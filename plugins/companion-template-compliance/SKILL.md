@@ -8,16 +8,24 @@ license: MIT
 
 **Description:** Full checklist for verifying that a Companion module matches the official JS or TS template. Covers required files, config file content, package.json rules, manifest.json rules, HELP.md validation, and husky hooks.  
 **Confidence:** high  
-**Last-updated:** 2026-04-02
+**Last-updated:** 2026-10-04
+
+> **In a companion-module-review workspace**, don't run this checklist by hand: the
+> **`companion-module-review:review-template-check`** skill runs `validate-template.ps1`, which
+> checks everything below deterministically, and tells you how to interpret each finding id.
 
 ## Template Source Directories
 
-When in doubt, compare directly against the authoritative templates in the workspace:
+When in doubt, compare directly against the authoritative templates — clones of the official repos, wherever you keep them:
 
-| Type | Directory |
-|------|-----------|
-| **JavaScript** | `companion-module-template-js/` (workspace root) |
-| **TypeScript** | `companion-module-template-ts/` (workspace root) |
+| Type | Template repo | Typical local clone |
+|------|---------------|---------------------|
+| **JavaScript** | `bitfocus/companion-module-template-js` | `companion-module-template-js/` (a companion-module-review workspace keeps it under `companion-module-templates/`) |
+| **TypeScript** | `bitfocus/companion-module-template-ts` | `companion-module-template-ts/` (same) |
+
+**Pick the template by API version × language.** A module on `@companion-module/base` 2.x is compared with the current templates above. A module on 1.x is compared with the template **as it stood at its last v1.x commit** (`git checkout` that commit in a separate clone), so it is never flagged for v2-only differences such as the manifest `type` field. The template repo is the authority: when this checklist and the template disagree, the template wins.
+
+Use an **up-to-date** template clone. A clone that is behind upstream produces false findings against a correct module (e.g. flagging the template's current `.yarnrc.yml` hardening as "extra keys").
 
 ---
 
@@ -25,9 +33,9 @@ When in doubt, compare directly against the authoritative templates in the works
 
 A module is **TypeScript** if either of these is true:
 - `tsconfig.json` exists at the module root
-- `package.json` contains `"type": "module"`
+- it has `.ts` source files under `src/`
 
-Otherwise treat it as **JavaScript**.
+Otherwise treat it as **JavaScript**. Do **not** use `package.json` `"type": "module"` (plain-JS modules can be ESM too) or a `typescript` devDependency (it can be a typescript-eslint peer on a JS module) as the signal.
 
 ---
 
@@ -62,11 +70,17 @@ All JS files above, **plus**:
 
 > **Note:** `package-lock.json` must **NOT** be present in either module type — presence is an automatic rejection.
 
+> **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
+
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences are usually GitHub Action pin churn (`actions/checkout@v4` vs the template's newer pin) — report them at 🟡 Medium, non-blocking, and don't tell a maintainer to overwrite a workflow they deliberately extended.
+
 ---
 
 ## 3. Source Code Directory Rule
 
 **All source code files must be in the `src/` directory.** No `.js` or `.ts` source files may exist at the module root or in any directory other than `src/` (and its subdirectories).
+
+> **Exempt: tool config files.** Files named `<tool>.config.(js|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) are configuration, not module source. The tools look for them at the repo root, so that is where they belong. Don't flag them.
 
 **Check:**
 - For JS modules: `src/main.js` must exist; `main.js` at the root is a Critical violation
@@ -104,6 +118,8 @@ DEBUG-*
 /.vscode
 ```
 
+**Subset rule:** every template entry must be present. **Extra** module entries are allowed and are not a finding.
+
 ### `.prettierignore`
 
 **JS and TS (identical):**
@@ -112,12 +128,22 @@ package.json
 /LICENSE.md
 ```
 
+### `LICENSE`
+
+Must match the template **exactly**, including `Copyright (c) 2022 Bitfocus AS - Open Source`. The template's LICENSE is the licence Bitfocus ships for every module, not a scaffold to personalise — a maintainer's own name or year is a divergence (🟠 High). Line endings and trailing whitespace are not. A module that genuinely needs different terms should raise it with Bitfocus.
+
 ### `.yarnrc.yml`
 
-**JS and TS (identical):**
+**JS and TS (identical), current template:**
 ```yaml
 nodeLinker: node-modules
+enableScripts: false
+npmMinimalAgeGate: 3d
+npmPreapprovedPackages:
+  - "@companion-module/*"
 ```
+
+Compare **by key**, not as raw text: key order, quote style and blank lines are not divergences; a missing key, an extra key, or a conflicting value is. `.yarnrc.yml` is repo tooling, not API surface, and Bitfocus only updates it on the current template — so compare **v1 modules against the current template's** `.yarnrc.yml` too, not the pinned v1 copy. Never tell a maintainer to delete `enableScripts: false` or the age gate: that is the template's supply-chain hardening.
 
 ### `eslint.config.mjs` (TS only)
 
@@ -128,22 +154,21 @@ export default generateEslintConfig({ enableTypescript: true })
 
 ### `tsconfig.build.json` (TS only)
 
+**v2 template (base 2.x):**
 ```json
 {
-  "extends": "@companion-module/tools/tsconfig/node22/recommended",
+  "extends": "@companion-module/tools/tsconfig/node22/recommended-esm.json",
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules/**", "src/**/*spec.ts", "src/**/__tests__/*", "src/**/__mocks__/*"],
-  "compilerOptions": {
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "paths": {"*": ["./node_modules/*"]},
-    "module": "Node16",
-    "moduleResolution": "Node16"
-  }
+  "compilerOptions": { "outDir": "./dist", "rootDir": "./src", "verbatimModuleSyntax": true }
 }
 ```
 
-> Deviations (e.g. `nodenext` instead of `Node16`) must be justified in the review.
+The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution": "Node16"`; compare a v1 module against that one.
+
+> Deviations must be justified in the review. Two are accepted without justification:
+> - a module on base **≥ 2.1** with `runtime.type: "node26"` may extend `@companion-module/tools/tsconfig/node26/recommended(.json)` instead of the node22 preset;
+> - removing the template's commented-out jest hint from `compilerOptions.types` (see below).
 
 ### `tsconfig.json` (TS only)
 
@@ -152,9 +177,36 @@ export default generateEslintConfig({ enableTypescript: true })
   "extends": "./tsconfig.build.json",
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules/**"],
-  "compilerOptions": {"types": ["node"]}
+  "compilerOptions": {"types": ["node" /* , "jest" ] // uncomment this if using jest */]}
 }
 ```
+
+`"types": ["node"]` without the commented-out jest hint is an **accepted** divergence, not a finding — ignore inline comments and bracket spacing when comparing tsconfig lines.
+
+**Accepted divergence: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is only the editor/typecheck config; the build uses `tsconfig.build.json`, which must still match exactly. A module that ships tests may add:
+- extra `include` / `exclude` entries (`tests/**/*.ts`, `scripts/**/*.ts`, `vitest.config.ts`, …)
+- extra `compilerOptions.types` entries (`vitest/globals`, `jest`, …)
+- `compilerOptions.rootDir` (e.g. `"./"`, so `tests/` sits inside it) and `compilerOptions.noEmit: true`
+
+Not a finding, as long as every value the template sets is still present and unchanged. A different `extends`, any other added or changed compiler option, or a removed template `include` entry is still a divergence.
+
+**Accepted divergence: `eslint.config.mjs` with test-only overrides.** To relax rules for tests (e.g. `n/no-unpublished-import`, `@typescript-eslint/unbound-method`), a module may change the template's `export default generateEslintConfig({…})` into:
+
+```js
+const baseConfig = await generateEslintConfig({ enableTypescript: true })
+export default [
+	...baseConfig,
+	{ files: ['tests/**/*.ts', 'vitest.config.ts'], rules: { 'n/no-unpublished-import': 'off' } },
+]
+```
+
+Not a finding, provided all of these hold:
+- The imports are the template's.
+- The `generateEslintConfig` options are unchanged.
+- `...baseConfig` comes first.
+- Every extra block is scoped by `files:` to test or tooling paths (`tests/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*`, root `*.config.*`).
+
+A block that targets `src/**`, has no `files:`, or adds plugins, imports or changed options is still a divergence.
 
 ---
 
@@ -244,14 +296,15 @@ All JS rules above, **plus**:
 | Field | Rule |
 |-------|------|
 | `id` | must equal the module name **without** the `companion-module-` prefix |
-| `name` | must equal `id` |
+| `name` | the human-facing module name — **expected to differ** from `id` (e.g. `id: fblab-bpm2osc` / `name: BPM2OSC`). Don't flag it |
 | `maintainers[].name` | must NOT be `"Your name"` or any obvious placeholder |
 | `maintainers[].email` | must NOT be `"Your email"` or any obvious placeholder |
 | `maintainers` | must NOT be empty array `[]` |
 | `repository` | must be `"git+https://github.com/bitfocus/companion-module-{module-name}.git"` |
-| `runtime.type` | `"node22"` |
+| `type` | `"connection"` on base 2.x (required since 2.0.4); absent on v1 manifests — don't flag a v1 module for it |
+| `runtime.type` | `"node22"`. `"node26"` is also valid when base resolves to **≥ 2.1** (Companion 5.0+); on a 2.0.x module it is 🔴 |
 | `runtime.api` | `"nodejs-ipc"` |
-| `runtime.entrypoint` | JS: `"../src/main.js"` — TS: `"../dist/main.js"` |
+| `runtime.entrypoint` | Must reference a file that exists (build outputs under `dist/` are produced by the build) and resolve to the same file as `package.json` `main`. It does not have to be the template's filename |
 | `keywords` | see below |
 | `$schema` | should reference `../node_modules/@companion-module/base/assets/manifest.schema.json` |
 
@@ -295,7 +348,7 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 
 ## 9. Severity Table
 
-> **⚠️ All template compliance violations are CRITICAL severity — they always block approval.**
+> **⚠️ Template compliance violations are CRITICAL — they block approval — unless the row says otherwise.**
 
 | Violation | Severity |
 |-----------|----------|
@@ -312,10 +365,13 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | Missing required `scripts` (TS) | **🔴 Critical** (blocks) |
 | Missing required `devDependencies` | **🔴 Critical** (blocks) |
 | `.husky` missing or not committed (TS) | **🔴 Critical** (blocks) |
-| `manifest.json` id or name doesn't match module name | **🔴 Critical** (blocks) |
+| `manifest.json` `id` doesn't match the module name | **🔴 Critical** (blocks) |
 | Config file content differs from template | **🔴 Critical** (blocks) |
-| Extra `.gitignore` entries beyond template | **🔴 Critical** (blocks) |
+| Missing template `.gitignore` entries (extra module entries are fine) | **🔴 Critical** (blocks) |
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
+| `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
+| `LICENSE` differs from the template (including the `Copyright (c) 2022 Bitfocus AS - Open Source` line) | **🟠 High** |
+| `.github/**` workflow / issue-template divergence | **🟡 Medium** (non-blocking) |
 
 ---
 

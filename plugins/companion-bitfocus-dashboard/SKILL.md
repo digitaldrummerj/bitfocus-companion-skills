@@ -11,10 +11,9 @@ Enables the team to autonomously discover which Companion modules need review, d
 ## When to Use This Skill
 
 - User asks "what's pending", "what needs reviewing", "show the queue", "check the dashboard"
-- Coordinator needs to discover modules before starting reviews
-- Ralph is checking work health and wants to compare what's pending vs. what's already cloned
+- The reviewer needs to discover modules before starting a review
+- Comparing what's pending vs. what's already cloned locally
 - User says "clone {module}" or "set up {module} for review"
-- User says "review all pending" (triggers Ralph loop)
 
 ## Authentication
 
@@ -44,7 +43,11 @@ OpenAPI spec: `https://developer.bitfocus.io/openapi.yaml`
 $token   = gh auth token
 $headers = @{ Authorization = "Bearer $token" }
 $data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
+# Connection modules only. The API returns every module type and ignores ?type=, so filter here.
+$pending = @($data.versions | Where-Object moduleType -eq 'companion-connection')
 ```
+
+Browser view of the same queue: `https://developer.bitfocus.io/modules/review?type=companion-connection`. The `type` filter works on that **web page** only, not on the API.
 
 **Response shape:**
 ```json
@@ -63,7 +66,7 @@ $data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-
 **Notes:**
 - `createdAt` is an **epoch millisecond timestamp per `{moduleName, gitTag}` pair** — the date that specific version was submitted for review, NOT the module's original creation date
 - `moduleName` is lowercase kebab-case, no `companion-module-` prefix
-- `moduleType` is always `companion-connection` for this workspace
+- `moduleType` is `companion-connection`, `companion-surface`, … The endpoint returns **all** types; a `?type=` query parameter is ignored (verified 2026-10-04). The review workspace only handles connection modules, so always filter on `moduleType -eq 'companion-connection'`
 - `gitTag` is the tag submitted for review — some have `v` prefix, some don't
 - `/modules-pending-review` may include both `PENDING` and `WITHDRAWN` entries — always verify status via `/versions` before acting
 
@@ -107,15 +110,15 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ## Scripts
 
-All workflows are implemented as PowerShell scripts in `scripts/`. Agents and Justin both run them the same way.
+All workflows are implemented as PowerShell scripts shipped in the **companion-module-review** plugin's `scripts/` directory (install `companion-module-review@bitfocus-companion-skills`). Run them from your companion-module-review workspace — usually via `/review-module`, or directly as `pwsh <companion-module-review plugin>/scripts/<name>.ps1`; the workspace's `setup.ps1` prints the installed path.
 
 ### Show the Pending Queue (read-only)
 
 ```powershell
-pwsh scripts/bitfocus-queue.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-queue.ps1
 ```
 
-- Fetches `/modules-pending-review`, sorts by `createdAt` ascending (oldest first)
+- Fetches `/modules-pending-review`, keeps only `companion-connection` modules (and reports how many of other types it skipped), sorts by `createdAt` ascending (oldest first)
 - Cross-references workspace for already-cloned modules
 - Prints a ranked table: rank, module, tag, days waiting, clone status
 - **Never clones anything** — purely informational
@@ -124,10 +127,10 @@ pwsh scripts/bitfocus-queue.ps1
 
 ```powershell
 # Auto-selects the oldest pending module:
-pwsh scripts/bitfocus-setup-module.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-setup-module.ps1
 
 # Or specify a module explicitly:
-pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
+pwsh <companion-module-review plugin>/scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
 ```
 
 - Validates the target version has status `PENDING` (not `WITHDRAWN` or other)
@@ -140,14 +143,16 @@ pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
 ### Workflow 1: Show Pending Queue
 
 ```powershell
-$token   = gh auth token
-$headers = @{ Authorization = "Bearer $token" }
-$data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
-$now     = [DateTimeOffset]::UtcNow
+$token      = gh auth token
+$headers    = @{ Authorization = "Bearer $token" }
+$reviewRoot = (git rev-parse --show-toplevel)  # the companion-module-review repo root
+$modulesDir = if ($env:COMPANION_MODULES_DIR) { $env:COMPANION_MODULES_DIR } else { Join-Path $reviewRoot "companion-modules-reviewing" }
+$data       = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
+$now        = [DateTimeOffset]::UtcNow
 
-$data.versions | Sort-Object createdAt | ForEach-Object {
+$data.versions | Where-Object moduleType -eq 'companion-connection' | Sort-Object createdAt | ForEach-Object {
     $days  = [math]::Floor(($now - [DateTimeOffset]::FromUnixTimeMilliseconds($_.createdAt)).TotalDays)
-    $cloned = Test-Path (Join-Path $workspace "companion-module-$($_.moduleName)")
+    $cloned = Test-Path (Join-Path $modulesDir "companion-module-$($_.moduleName)")
     [PSCustomObject]@{
         Module  = $_.moduleName
         Tag     = $_.gitTag
@@ -199,14 +204,17 @@ https://developer.bitfocus.io/modules/companion-connection/{moduleName}
 ### Workflow 4: Clone a Module
 
 ```powershell
-$workspace  = "/Users/lynbh/Development/companion-module-review"
+# Modules live in companion-modules-reviewing/ inside the review repo (gitignored).
+# $modulesDir is derived from the repo root; override with $env:COMPANION_MODULES_DIR.
+$reviewRoot = (git rev-parse --show-toplevel)  # the companion-module-review repo root
+$modulesDir = if ($env:COMPANION_MODULES_DIR) { $env:COMPANION_MODULES_DIR } else { Join-Path $reviewRoot "companion-modules-reviewing" }
 $moduleName = "softouch-easyworship"  # substitute target module
-$cloneDir   = Join-Path $workspace "companion-module-$moduleName"
+$cloneDir   = Join-Path $modulesDir "companion-module-$moduleName"
 
 if (Test-Path $cloneDir) {
     Write-Host "Already cloned at $cloneDir"
 } else {
-    Push-Location $workspace
+    Push-Location $modulesDir
     git clone "https://github.com/bitfocus/companion-module-$moduleName"
     Pop-Location
 }
@@ -237,18 +245,18 @@ if ($entry.status -ne 'PENDING') {
 }
 ```
 
-## Ralph's Queue Check
+## Queue Check
 
-When Ralph checks work health, run the queue script:
+To see work health, run the queue script:
 
 ```powershell
-pwsh scripts/bitfocus-queue.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-queue.ps1
 ```
 
-Ralph should report:
+Report:
 1. Total pending count
 2. How many are already cloned (awaiting review)
-3. The oldest pending module (rank 1 in the table) as the next-up recommendation
+3. The "Next up" module (oldest `needs-review`, dedup-aware) as the next-up recommendation
 
 ## Troubleshooting
 

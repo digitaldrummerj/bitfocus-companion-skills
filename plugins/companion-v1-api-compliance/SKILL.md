@@ -1,6 +1,6 @@
 ---
 name: companion-v1-api-compliance
-description: 'Checklist for reviewing Bitfocus Companion modules that use @companion-module/base v1.x, including required lifecycle methods, deprecated patterns, version-specific compliance checks, and upgrade recommendations.'
+description: 'Compliance checks for Companion modules on @companion-module/base v1.x (v1.5–v1.14, Companion 3.1–4.2): required lifecycle methods, deprecated patterns, version-specific checks and upgrade recommendations. Use only when @companion-module/base resolves to ^1.x or ~1.x. For 2.x modules use companion-v2-api-compliance instead.'
 license: MIT
 ---
 
@@ -93,12 +93,16 @@ Apply checks for the module's version AND all versions below it (a v1.13 module 
 
 ### API v1.8 (Companion 3.3+)
 
-**Local/button-scoped variables (`$(this:*)` and `$(local:*)`):**
-- If the module's action/feedback callbacks use variables, check how `parseVariablesInString` is called:
-  - ✅ Correct: `context.parseVariablesInString(str)` using the **second callback parameter** (`context`)
-  - ❌ Wrong: `self.parseVariablesInString(str)` — `$(this:*)` and `$(local:*)` variables will NOT resolve correctly
-- If using `context.parseVariablesInString`, the option field MUST declare `useVariables: { local: true }` to signal support to Companion's UI
-- Calling `self.parseVariablesInString()` instead of `context.parseVariablesInString()` for local variable fields: flag as 🟡 Medium
+**`parseVariablesInString` — `self` vs `context`:**
+
+`self.parseVariablesInString()` (the `InstanceBase` method) is **valid and not deprecated** in v1.x — it resolves **global and custom** variables correctly. Modules idiomatically pass the instance into their definitions (`GetActions(this)` / `GetFeedbacks(this)`), so calling `self.parseVariablesInString(...)` inside a callback is a real, working call. There are two distinct reasons to use the callback's `context.parseVariablesInString()` (the **second callback parameter**) instead:
+
+1. **Inside a feedback callback (any variables, global included):** use `context.parseVariablesInString()`. `self.parseVariablesInString()` does **not** track variable usage, so the feedback won't re-evaluate when the parsed variables change — this is stated in the `InstanceBase.parseVariablesInString` JSDoc ("you must not use this for feedbacks…"). Using `self.` to parse variables in a feedback callback: flag as 🟡 Medium.
+2. **Local/button-scoped variables (`$(this:*)` / `$(local:*)`) — in actions OR feedbacks:** these resolve **only** through `context.parseVariablesInString()` (the instance method sends `controlId: undefined`, so `$(this:*)`/`$(local:*)` will NOT resolve), and the option field MUST declare `useVariables: { local: true }` to signal support to Companion's UI. Using `self.` for a field that relies on local variables: flag as 🟡 Medium.
+
+**Do NOT flag** `self.parseVariablesInString()` in an **action** callback that only handles global/custom variables — that is correct and idiomatic. Gate the local-variable check on the module *actually* using local variables: grep the module source for literal `$(this:` / `$(local:`, or a field declaring `useVariables: { local: true }`. If neither is present, `self.parseVariablesInString(...)` with `useVariables: true` in an action is fine — this is a common false positive.
+
+(See also the v1.13 section below: in v1.13+, variables in `textinput` fields with `useVariables` are auto-parsed before the callback runs, making `self.parseVariablesInString()` on such a field a redundant no-op — a separate concern from the two above.)
 
 **Shared UDP listeners:**
 - If the module opens a UDP port that might conflict (hardcoded well-known port), and multiple connections could be added: flag as 🟡 Medium
@@ -159,7 +163,7 @@ Example manifest:
 
 **`isVisible` function deprecation:**
 - Option fields using `isVisible: (options) => boolean` are deprecated in favor of `isVisibleExpression`
-- ⚠️ Any use of the `isVisible` function form: flag as 🟡 Medium
+- Still works in v1.x — flag as 🟢 Low / **non-blocking** (deprecated, not removed)
 
 **Bonjour port-based filtering:**
 - Bonjour queries in the manifest can now filter by port number — useful when multiple device types share the same mDNS service type

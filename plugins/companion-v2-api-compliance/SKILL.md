@@ -1,6 +1,6 @@
 ---
 name: companion-v2-api-compliance
-description: 'Version-gated checklist for reviewing Bitfocus Companion modules built on @companion-module/base v2.x (API 2.0 for Companion 4.3+, API 2.1 for Companion 5.0+). Use when reviewing or auditing a v2 module for entrypoint, manifest, ESM, expression, variable, feedback, preset, and upgrade-script compliance. It resolves the installed base version first and applies only the rules for that version, so a 2.0 module is never asked for 2.1-only features. Does NOT apply to v1.x modules — use companion-v1-api-compliance instead.'
+description: 'Version-gated checklist for reviewing Bitfocus Companion modules built on @companion-module/base v2.x (API 2.0 for Companion 4.3+, API 2.1 for Companion 5.0+). Use when reviewing or auditing a v2 module for entrypoint, manifest, ESM, expression, variable, feedback, preset, and upgrade-script compliance. It resolves the installed base version first (or takes it from a companion-module-review fact sheet) and applies only the rules for that version, so a 2.0 module is never asked for 2.1-only features. Does NOT apply to v1.x modules — use companion-v1-api-compliance instead.'
 license: MIT
 ---
 
@@ -23,7 +23,18 @@ The detailed rules are kept in one reference file per minor version. Load only t
 
 ## Step 1 — Resolve the installed `@companion-module/base` version
 
-Use the first source that gives an exact version:
+**If you were given a review fact sheet, use it.** In a companion-module-review workspace, `module-facts.ps1` (companion-module-review plugin) has already resolved the version with these same rules:
+
+| Fact-sheet field | Use |
+|---|---|
+| `apiLevel` | `2.0`, `2.1`, … — the rule set to apply |
+| `baseVersion` / `baseVersionSource` | e.g. `2.1.3` from `yarn.lock` — state this at the top of your findings |
+| `apiAmbiguous` | `true` when only a caret range was available — add the 🟡 "pin the version" note below |
+| `minCompanion` | the Companion version the module requires (4.3 for 2.0, 5.0 for 2.1) |
+| `apiReferences` | the exact reference files to load, relative to this skill's directory (`apiSkillDir`), e.g. `references/v2.0.md`, `references/v2.1.md` |
+| `apiScan` | deterministic grep hints — leads to verify, see [references/api-scan-hints.md](references/api-scan-hints.md) |
+
+Load **only** the files listed in `apiReferences`. Without a fact sheet, use the first source that gives an exact version:
 
 1. `yarn.lock`:
    - Yarn 2+ (Berry): the `"@companion-module/base@npm:…"` entry → its `version:` line
@@ -92,4 +103,5 @@ End the report with: resolved version, rule files applied, counts per severity, 
 - [v2.0 API Changes](https://companion.free/for-developers/module-development/api-changes/v2.0) (Companion 4.3+)
 - [v2.1 API Changes](https://companion.free/for-developers/module-development/api-changes/v2.1) (Companion 5.0+)
 - [All API Changes](https://companion.free/for-developers/module-development/api-changes/)
+- [Presets](https://companion.free/for-developers/module-development/connection-basics/presets)
 - **companion-v1-api-compliance**: for modules on `@companion-module/base` 1.x

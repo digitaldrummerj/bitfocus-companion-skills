@@ -1,7 +1,7 @@
 {
   "name": "companion-bitfocus-dashboard",
   "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "author": {
     "name": "Justin James"
   },

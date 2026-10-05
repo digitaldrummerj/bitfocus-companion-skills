@@ -167,13 +167,13 @@ export function UpdateActions(self: ModuleInstance): void {
 			options: [],
 			callback: async (event) => {
 				// Access module state via 'self'
-				const currentMute = self.deviceState.muted
+				const currentMute = self.state.muted
 				const newMute = !currentMute
 
 				await self.connection.setMute(newMute)
 
 				// Update internal state
-				self.deviceState.muted = newMute
+				self.state.muted = newMute
 
 				// Trigger feedback updates
 				self.checkFeedbacks('is_muted')
@@ -204,24 +204,35 @@ async function onDeviceConnected(self: ModuleInstance): Promise<void> {
 ## Common Pitfalls
 
 1. **Forgetting to call `setActionDefinitions` on update**
-
    - Always call `UpdateActions(self)` after module state changes that affect available actions
 
 2. **Not typing event.options correctly**
-
    - TypeScript doesn't enforce option types — cast them: `event.options.num as number`
 
 3. **Blocking the callback**
-
    - Mark callbacks as `async` and use `await` for device commands
    - Don't use long synchronous operations
 
 4. **Mutating options directly**
-
    - `event.options` is read-only — don't attempt to modify it
 
 5. **Not handling errors**
    - Wrap device calls in try/catch and log errors via `self.log('error', ...)`
+
+6. **Error reporting from callbacks — both approaches are valid**
+   - When a callback encounters an invalid input or unexpected state, either throwing or logging is acceptable:
+   ```typescript
+   // ✅ Option A — throw (Companion will catch and surface the error)
+   if (!valid) throw new Error(`Invalid value: ${value}`)
+
+   // ✅ Option B — log + return (reports gracefully without an exception)
+   if (!valid) {
+       self.log('error', `Invalid value: ${value}`)
+       return
+   }
+   ```
+   - Both patterns are correct. `throw` causes Companion to catch and surface the error; `self.log('error', ...)` + `return` reports it without raising an exception. Prefer whichever is consistent with the existing style in the module.
+   - Do **not** flag either approach as a defect in reviews.
 
 ## Import Reference
 

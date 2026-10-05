@@ -1,6 +1,6 @@
 {
   "name": "companion-template-compliance",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Review Companion modules against the official JavaScript and TypeScript template requirements.",
   "author": "Justin James",
   "license": "MIT",
