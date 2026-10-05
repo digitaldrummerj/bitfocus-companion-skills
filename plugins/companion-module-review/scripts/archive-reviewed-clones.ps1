@@ -18,8 +18,8 @@
 
     Dry run by default; pass -Apply to actually move.
 .EXAMPLE
-    pwsh scripts/archive-reviewed-clones.ps1
-    pwsh scripts/archive-reviewed-clones.ps1 -Apply
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/archive-reviewed-clones.ps1
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/archive-reviewed-clones.ps1 -Apply
 #>
 
 param(

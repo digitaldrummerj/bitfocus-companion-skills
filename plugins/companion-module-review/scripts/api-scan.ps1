@@ -39,8 +39,8 @@
 .PARAMETER Json
     Emit JSON instead of the human-readable list.
 .EXAMPLE
-    pwsh scripts/api-scan.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo
-    pwsh scripts/api-scan.ps1 -ModuleDir ./mod -Json
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/api-scan.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/api-scan.ps1 -ModuleDir ./mod -Json
 #>
 
 param(

@@ -25,8 +25,8 @@
 .PARAMETER Json
     Emit the annotated queue as JSON (no console formatting) for automation.
 .EXAMPLE
-    pwsh scripts/bitfocus-queue.ps1
-    pwsh scripts/bitfocus-queue.ps1 -Json | ConvertFrom-Json
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-queue.ps1
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-queue.ps1 -Json | ConvertFrom-Json
 #>
 
 param(
@@ -126,8 +126,8 @@ Write-Host ""
 if ($nextUp) {
     $suffix = if ($nextUp.state -eq 're-review') { "  (re-review — previously submitted)" } else { "" }
     Write-Host "Next up: $($nextUp.moduleName) @ $($nextUp.gitTag)$suffix" -ForegroundColor Yellow
-    Write-Host "To set up:  pwsh scripts/bitfocus-setup-module.ps1" -ForegroundColor DarkGray
-    Write-Host "            pwsh scripts/bitfocus-setup-module.ps1 -ModuleName <name>" -ForegroundColor DarkGray
+    Write-Host "To set up:  pwsh $PSScriptRoot/bitfocus-setup-module.ps1" -ForegroundColor DarkGray
+    Write-Host "            pwsh $PSScriptRoot/bitfocus-setup-module.ps1 -ModuleName <name>" -ForegroundColor DarkGray
 } else {
     Write-Host "Nothing to review — every pending module is reviewed with feedback still to send." -ForegroundColor Green
 }

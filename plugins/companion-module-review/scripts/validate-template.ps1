@@ -55,8 +55,8 @@
     Exit codes: 0 clean · 1 one or more Critical findings · 2 unusable -ModuleDir or no
     template found · 3 the template clone is stale or could not be verified.
 .EXAMPLE
-    pwsh scripts/validate-template.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo
-    pwsh scripts/validate-template.ps1 -ModuleDir ./mod -ExpectedVersion v1.2.0 -RunBuild -Json
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir ./mod -ExpectedVersion v1.2.0 -RunBuild -Json
 #>
 
 param(
@@ -199,7 +199,7 @@ foreach ($dir in $freshnessTargets) {
         Add-Finding 'TEMPLATE-STALE' 'Critical' $fr.leaf (
             "Local template clone is behind upstream — this review would be judged against an " +
             "outdated template. $($fr.message) Refresh explicitly (templates are NEVER " +
-            "auto-updated): pwsh scripts/update-templates.ps1 — do this between review " +
+            "auto-updated): pwsh $PSScriptRoot/update-templates.ps1 — do this between review " +
             "sessions, not during one, then re-run the review.")
     } elseif ($fr.status -eq 'unverified') {
         Add-Finding 'TEMPLATE-UNVERIFIED' 'Critical' $fr.leaf (
@@ -1092,7 +1092,7 @@ if ($Json) {
         Write-Host ("    {0,-38} {1}" -f $c.leaf, $c.message) -ForegroundColor $cColor
     }
     if ($freshnessOverall -in @('stale','unverified')) {
-        Write-Host "  >> Refresh first:  pwsh scripts/update-templates.ps1  (templates are never auto-updated)" -ForegroundColor $frColor
+        Write-Host "  >> Refresh first:  pwsh $PSScriptRoot/update-templates.ps1  (templates are never auto-updated)" -ForegroundColor $frColor
     }
     Write-Host ("─" * 70)
     if ($findings.Count -eq 0) {

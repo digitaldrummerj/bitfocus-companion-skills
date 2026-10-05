@@ -8,7 +8,7 @@
     exercises Get-TrackerRows / Get-ReviewState across every state and the known
     edge cases, and exits non-zero on any failure.
 
-    Run:  pwsh scripts/tests/ReviewState.Tests.ps1
+    Run:  pwsh plugins/companion-module-review/scripts/tests/ReviewState.Tests.ps1
 #>
 
 $ErrorActionPreference = 'Stop'

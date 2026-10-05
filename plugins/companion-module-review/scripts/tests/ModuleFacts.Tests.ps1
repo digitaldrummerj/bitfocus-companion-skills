@@ -8,7 +8,7 @@
     selected api-compliance skill / protocol detection. Uses -SkipTemplateCheck so the test
     doesn't depend on template repos.
 
-    Run:  pwsh scripts/tests/ModuleFacts.Tests.ps1
+    Run:  pwsh plugins/companion-module-review/scripts/tests/ModuleFacts.Tests.ps1
 #>
 
 $ErrorActionPreference = 'Stop'

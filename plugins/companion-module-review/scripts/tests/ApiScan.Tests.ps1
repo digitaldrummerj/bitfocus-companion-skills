@@ -9,7 +9,7 @@
     v2 module, 2.1-only features flagged ONLY on 2.0 modules, the 2.1 typing rules ONLY on 2.1
     modules, and nothing at all on v1 modules. Comments must never produce a hint.
 
-    Run:  pwsh scripts/tests/ApiScan.Tests.ps1
+    Run:  pwsh plugins/companion-module-review/scripts/tests/ApiScan.Tests.ps1
 #>
 
 $ErrorActionPreference = 'Stop'

@@ -26,8 +26,8 @@
 .PARAMETER Json
     Emit JSON instead of the human-readable fact sheet.
 .EXAMPLE
-    pwsh scripts/module-facts.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo -GitTag v1.2.0
-    pwsh scripts/module-facts.ps1 -ModuleDir ./mod -Json
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/module-facts.ps1 -ModuleDir ../companion-modules-reviewing/companion-module-foo -GitTag v1.2.0
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/module-facts.ps1 -ModuleDir ./mod -Json
 #>
 
 param(
@@ -260,7 +260,7 @@ if ($templateCheck -and $templateCheck.error) {
     if ($templateCheck.criticalIds) { Write-Host ("                   {0}" -f ($templateCheck.criticalIds -join ', ')) -ForegroundColor Red }
     if ($templateFreshness -in @('stale', 'unverified')) {
         Write-Host ("  TEMPLATE $($templateFreshness.ToUpper()) — findings above are judged against the wrong reference.") -ForegroundColor Red
-        Write-Host  "  Run: pwsh scripts/update-templates.ps1   then re-run the review." -ForegroundColor Red
+        Write-Host  "  Run: pwsh $PSScriptRoot/update-templates.ps1   then re-run the review." -ForegroundColor Red
     }
 } else {
     Write-Host "  Template check:  (skipped)"

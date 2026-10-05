@@ -33,10 +33,10 @@
 .PARAMETER Json
     Emit the coordinator summary as JSON instead of the console banner.
 .EXAMPLE
-    pwsh scripts/bitfocus-setup-module.ps1
-    pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
-    pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq -ReviewTag v2.1.0
-    pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq -Force
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq -ReviewTag v2.1.0
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq -Force
 #>
 
 param(

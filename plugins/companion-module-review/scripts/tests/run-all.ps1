@@ -13,8 +13,8 @@
 .PARAMETER Quiet
     Print only each suite's summary line, not its individual assertions.
 .EXAMPLE
-    pwsh scripts/tests/run-all.ps1
-    pwsh scripts/tests/run-all.ps1 -Quiet
+    pwsh plugins/companion-module-review/scripts/tests/run-all.ps1
+    pwsh plugins/companion-module-review/scripts/tests/run-all.ps1 -Quiet
 #>
 
 param([switch]$Quiet)

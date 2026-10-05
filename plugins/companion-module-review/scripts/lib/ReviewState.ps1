@@ -5,7 +5,8 @@
     Shared helpers for the BitFocus review scripts: workspace path resolution,
     tag normalization, TRACKER.md parsing, and local review-state lookup.
 .DESCRIPTION
-    Dot-source this file from a script in the scripts/ directory:
+    Ships in the companion-module-review plugin (scripts/lib/). Dot-source it from a script in
+    the plugin's scripts/ directory (or from the workspace's setup.ps1 via the installed path):
 
         . "$PSScriptRoot/lib/ReviewState.ps1"
 

@@ -35,8 +35,8 @@
 .PARAMETER Json
     Emit a machine-readable result instead of a console report. Implies -Yes.
 .EXAMPLE
-    pwsh scripts/update-templates.ps1
-    pwsh scripts/update-templates.ps1 -DryRun
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1
+    pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1 -DryRun
 #>
 
 param(

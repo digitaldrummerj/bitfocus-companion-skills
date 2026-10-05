@@ -9,7 +9,7 @@
     asserts on the -Json findings. Expectations are derived from the template, so the
     fixture template ships a package.json, manifest.json, LICENSE, and devDependencies.
 
-    Run:  pwsh scripts/tests/ValidateTemplate.Tests.ps1
+    Run:  pwsh plugins/companion-module-review/scripts/tests/ValidateTemplate.Tests.ps1
 #>
 
 $ErrorActionPreference = 'Stop'
