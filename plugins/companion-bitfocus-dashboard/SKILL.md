@@ -43,7 +43,11 @@ OpenAPI spec: `https://developer.bitfocus.io/openapi.yaml`
 $token   = gh auth token
 $headers = @{ Authorization = "Bearer $token" }
 $data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
+# Connection modules only. The API returns every module type and ignores ?type=, so filter here.
+$pending = @($data.versions | Where-Object moduleType -eq 'companion-connection')
 ```
+
+Browser view of the same queue: `https://developer.bitfocus.io/modules/review?type=companion-connection`. The `type` filter works on that **web page** only, not on the API.
 
 **Response shape:**
 ```json
@@ -62,7 +66,7 @@ $data    = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-
 **Notes:**
 - `createdAt` is an **epoch millisecond timestamp per `{moduleName, gitTag}` pair** — the date that specific version was submitted for review, NOT the module's original creation date
 - `moduleName` is lowercase kebab-case, no `companion-module-` prefix
-- `moduleType` is always `companion-connection` for this workspace
+- `moduleType` is `companion-connection`, `companion-surface`, … The endpoint returns **all** types; a `?type=` query parameter is ignored (verified 2026-10-04). The review workspace only handles connection modules, so always filter on `moduleType -eq 'companion-connection'`
 - `gitTag` is the tag submitted for review — some have `v` prefix, some don't
 - `/modules-pending-review` may include both `PENDING` and `WITHDRAWN` entries — always verify status via `/versions` before acting
 
@@ -114,7 +118,7 @@ All workflows are implemented as PowerShell scripts shipped in the **companion-m
 pwsh <companion-module-review plugin>/scripts/bitfocus-queue.ps1
 ```
 
-- Fetches `/modules-pending-review`, sorts by `createdAt` ascending (oldest first)
+- Fetches `/modules-pending-review`, keeps only `companion-connection` modules (and reports how many of other types it skipped), sorts by `createdAt` ascending (oldest first)
 - Cross-references workspace for already-cloned modules
 - Prints a ranked table: rank, module, tag, days waiting, clone status
 - **Never clones anything** — purely informational
@@ -146,7 +150,7 @@ $modulesDir = if ($env:COMPANION_MODULES_DIR) { $env:COMPANION_MODULES_DIR } els
 $data       = Invoke-RestMethod -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" -Headers $headers
 $now        = [DateTimeOffset]::UtcNow
 
-$data.versions | Sort-Object createdAt | ForEach-Object {
+$data.versions | Where-Object moduleType -eq 'companion-connection' | Sort-Object createdAt | ForEach-Object {
     $days  = [math]::Floor(($now - [DateTimeOffset]::FromUnixTimeMilliseconds($_.createdAt)).TotalDays)
     $cloned = Test-Path (Join-Path $modulesDir "companion-module-$($_.moduleName)")
     [PSCustomObject]@{
