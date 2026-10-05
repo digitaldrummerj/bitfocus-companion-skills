@@ -106,12 +106,12 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ## Scripts
 
-All workflows are implemented as PowerShell scripts in `scripts/`. Agents and Justin both run them the same way.
+All workflows are implemented as PowerShell scripts shipped in the **companion-module-review** plugin's `scripts/` directory (install `companion-module-review@bitfocus-companion-skills`). Run them from your companion-module-review workspace — usually via `/review-module`, or directly as `pwsh <companion-module-review plugin>/scripts/<name>.ps1`; the workspace's `setup.ps1` prints the installed path.
 
 ### Show the Pending Queue (read-only)
 
 ```powershell
-pwsh scripts/bitfocus-queue.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-queue.ps1
 ```
 
 - Fetches `/modules-pending-review`, sorts by `createdAt` ascending (oldest first)
@@ -123,10 +123,10 @@ pwsh scripts/bitfocus-queue.ps1
 
 ```powershell
 # Auto-selects the oldest pending module:
-pwsh scripts/bitfocus-setup-module.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-setup-module.ps1
 
 # Or specify a module explicitly:
-pwsh scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
+pwsh <companion-module-review plugin>/scripts/bitfocus-setup-module.ps1 -ModuleName allenheath-sq
 ```
 
 - Validates the target version has status `PENDING` (not `WITHDRAWN` or other)
@@ -246,7 +246,7 @@ if ($entry.status -ne 'PENDING') {
 To see work health, run the queue script:
 
 ```powershell
-pwsh scripts/bitfocus-queue.ps1
+pwsh <companion-module-review plugin>/scripts/bitfocus-queue.ps1
 ```
 
 Report:
