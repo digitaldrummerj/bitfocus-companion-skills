@@ -1,6 +1,6 @@
 ---
-name: project-conventions
-description: 'Core conventions and file layout for the companion-module-review project. Read this before writing any review output files.'
+name: review-workspace-conventions
+description: 'Core conventions and file layout of a companion-module-review workspace (where clones, templates and reviews live; review file naming; TRACKER rows). Read this before writing any review output files.'
 ---
 
 ## Context

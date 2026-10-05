@@ -1,9 +1,13 @@
 ---
-name: companion-template-compliance
-description: Verify a Companion module matches the official JS/TS template — required files, config-file parity, package.json/manifest.json fields, LICENSE, HELP.md, husky. Run scripts/validate-template.ps1 for the deterministic checks, then use this skill to interpret findings and judge the non-deterministic items. Use at the start of every module review.
+name: review-template-check
+description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (node26 on 2.1, test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
 ---
 
-# Skill: companion-template-compliance
+# Skill: review-template-check (validate-template.ps1)
+
+The template rules themselves (what the official template contains and why) are in the
+**`companion-template-compliance:companion-template-compliance`** skill. This skill is the review
+workspace's deterministic runner for them.
 
 Template compliance is almost entirely **deterministic** — file presence, exact config-file
 content, package.json/manifest.json fields, LICENSE text, banned keywords. Do **not** check
@@ -14,12 +18,12 @@ list. Then apply judgment to the handful of items the script can't decide.
 ## 1. Run the validator
 
 ```powershell
-pwsh scripts/validate-template.ps1 -ModuleDir <module path> -ExpectedVersion <git tag> [-RunBuild]
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <module path> -ExpectedVersion <git tag> [-RunBuild]
 ```
 
 - `-ExpectedVersion` (the submitted git tag, e.g. `v2.1.0`) enables the `package.json` version-match check. Pass it whenever you know the tag.
 - `-RunBuild` additionally runs `yarn install --immutable`, `yarn package` (build) and, for TS, `yarn lint`, and gates on success. Use it to satisfy the "build runs / lint runs" review gates. It is slower and needs network.
-- Add `-Json` for machine-readable output. Templates are auto-selected from `companion-module-templates/` inside the repo (override with `COMPANION_TEMPLATES_DIR`) or pass `-TemplateDir`.
+- Add `-Json` for machine-readable output. Templates are auto-selected from `companion-module-templates/` in the workspace (override with `COMPANION_TEMPLATES_DIR`; the workspace itself with `COMPANION_REVIEW_ROOT`) or pass `-TemplateDir`.
 
 **Every `Critical` finding blocks approval.** Each finding already states the file, expected value, and what was found — drop those straight into the review's side-by-side report.
 
@@ -44,7 +48,7 @@ the maintainer's module — the maintainer cannot act on them. When either appea
 **aborts**: refresh and start over, so no report is produced from untrustworthy expectations.
 
 ```powershell
-pwsh scripts/update-templates.ps1     # the ONLY thing that ever moves a template
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1     # the ONLY thing that ever moves a template
 ```
 
 Templates are never refreshed automatically, and `setup.ps1` does not pull either. Several
@@ -65,7 +69,7 @@ meta table.
 | Required files present; no `package-lock.json` | `FILE-MISSING`, `NPM-LOCK` |
 | Config-file parity vs template — exact match for `.gitattributes`, `.prettierignore`, TS `eslint.config.mjs`/`tsconfig*.json`, and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
 | **(Medium — visible, not blocking)** `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**` parity. Usually GitHub Action pin churn (`actions/checkout@v4` vs the template's `@v7`), which the maintainer didn't cause and shouldn't be blocked on | `CONFIG-DIFF`, `FILE-MISSING` |
-| **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
+| **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in this plugin's `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
 | Gitignored artifacts not committed (`node_modules`, `/pkg`, `*.tgz`, `/dist`, `/.yarn`, …) | `GITIGNORED-COMMITTED` |
 | **(High)** `LICENSE` matches the template **exactly** — the copyright line included (see below) | `LICENSE-DIFF` |
 | All source under `src/` (none at module root). Tool config files named `<tool>.config.(js|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
@@ -168,6 +172,6 @@ Findings addressed to *you* rather than the maintainer — `TEMPLATE-STALE`,
 
 If the script cannot run (templates unavailable), fall back to comparing the module directly
 against the matching template repo in `companion-module-templates/` (run `setup.ps1` to clone
-them, `pwsh scripts/update-templates.ps1` to refresh an existing clone) — but prefer fixing
+them, `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1` to refresh an existing clone) — but prefer fixing
 the environment so the deterministic path runs every time. Never `git pull` a template by
 hand, and never mid-review: other sessions are diffing against the same clone.

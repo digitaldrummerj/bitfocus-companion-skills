@@ -7,7 +7,7 @@ description: Review a Bitfocus Companion module for release approval and produce
 
 You are the review **coordinator**. Run the pipeline below **in order**, then assemble one review file. This is **REPORT ONLY**: never modify the module's code, create fix branches, or push to its repo. The maintainer applies the fixes. Your only output is the review markdown under `reviews/` (plus a `TRACKER.md` row).
 
-All commands run from the review repo root (`/Users/lynbh/Development/companion-module-review`). Scripts are PowerShell — invoke with `pwsh`.
+All commands run from the root of the current workspace — the companion-module-review repo you're running in (it holds `reviews/`, `companion-modules-reviewing/` and `companion-module-templates/`). The scripts ship with this plugin: invoke them as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`. They find the workspace from the current directory (override with `COMPANION_REVIEW_ROOT`). If a script reports that no workspace or no templates were found, tell the user to run `pwsh setup.ps1` in the workspace.
 
 ## Step 0 — Determine the review scope
 
@@ -22,21 +22,21 @@ State the chosen scope to the user before proceeding.
 
 - If the user named a module (e.g. "allenheath-sq"), use it (strip any `companion-module-` prefix).
 - If the user also named a **version/tag** (e.g. "v2.1.0" / "2.1.0"), capture it — it selects which pending version to review when a module has more than one queued. A version only applies alongside a named module; without one, the **oldest** pending version is reviewed.
-- Otherwise: `pwsh scripts/bitfocus-queue.ps1 -Json` → the target is the first entry whose `state` is `needs-review` (the script excludes `feedback-pending`). If all are `feedback-pending`, tell the user there's nothing new and stop.
+- Otherwise: `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-queue.ps1 -Json` → the target is the first entry whose `state` is `needs-review` (the script excludes `feedback-pending`). If all are `feedback-pending`, tell the user there's nothing new and stop.
 
 ## Step 2 — Set up the module
 
 ```
-pwsh scripts/bitfocus-setup-module.ps1 -ModuleName <name> -Json
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName <name> -Json
 ```
 Add `-ReviewTag <version>` when the user specified a version (omit it otherwise — the oldest pending version is used). Clones into `companion-modules-reviewing/` **and checks out the resolved tag**, so the fact sheet (Step 3), the validate-template build (Step 4), and the `previousTag..reviewTag` diff (Step 5) all reflect that exact version. Returns `{ module, reviewTag, previousTag, directory }`; `previousTag` is needed for `tag`/`both`, not for `module` scope. If a specified version isn't pending, the script errors and lists the module's pending versions — relay that. If it errors that the module is already reviewed with feedback pending, surface that; only re-run with `-Force` if the user confirms.
 
 ## Step 3 — Generate the shared fact sheet
 
 ```
-pwsh scripts/module-facts.ps1 -ModuleDir <directory> -GitTag <reviewTag> -Json
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/module-facts.ps1 -ModuleDir <directory> -GitTag <reviewTag> -Json
 ```
-Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` or `companion-v2-api-compliance`), `protocols`, `srcFiles`, `templateCheck`, **`templateFreshness`**, and the API-level fields:
+Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` or `companion-v2-api-compliance` — a plugin from the bitfocus-companion-skills marketplace, invoked as `<apiSkill>:<apiSkill>`), **`apiSkillInstalled`**, `protocols`, `srcFiles`, `templateCheck`, **`templateFreshness`**, and the API-level fields:
 
 | Field | Meaning |
 |---|---|
@@ -45,7 +45,9 @@ Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` 
 | `apiAmbiguous` | `true` when only a caret range (`^2.x`) was available, so the minor version had to be assumed |
 | `minCompanion` | the Companion version the module needs (4.3 for API 2.0, 5.0 for API 2.1) |
 | `apiReferences` | the reference files of `apiSkill` the compliance reviewer must load (e.g. `references/v2.0.md`, `references/v2.1.md`) |
-| `apiScan` | deterministic version-specific hints from `scripts/api-scan.ps1` (leads for the compliance reviewer, not findings) |
+| `apiScan` | deterministic version-specific hints from `api-scan.ps1` (leads for the compliance reviewer, not findings) |
+
+If **`apiSkillInstalled`** is `false`, stop and tell the user to run `pwsh setup.ps1` in the workspace (or `claude plugin install <apiSkill>@bitfocus-companion-skills`): the compliance reviewer can't apply the version rules without that plugin.
 
 ### Step 3a — Template freshness gate (STOP here if it fails)
 
@@ -56,7 +58,7 @@ The reason to stop rather than report: with an out-of-date template every `CONFI
 Tell the user the local and upstream SHAs from `templateCheck` / the validator output and:
 
 ```
-pwsh scripts/update-templates.ps1     # then re-run the review
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1     # then re-run the review
 ```
 
 Templates are never refreshed automatically because concurrent review sessions share these clones. If the user explicitly wants an offline run, re-invoke Step 3 **and** Step 4 with `-SkipTemplateFreshness` (threading it to only one still aborts) and record `Template freshness: skipped (offline)` in the meta table.
@@ -64,9 +66,9 @@ Templates are never refreshed automatically because concurrent review sessions s
 ## Step 4 — Deterministic compliance + build/lint
 
 ```
-pwsh scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> -RunBuild -Json
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> -RunBuild -Json
 ```
-Every `Critical` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) `Medium` findings (currently `.github/**` parity) are reported but non-blocking.
+Interpret the output with the **`companion-module-review:review-template-check`** skill (invoke it with the Skill tool: finding ids, accepted deviations, environment findings). Every `Critical` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) `Medium` findings (currently `.github/**` parity) are reported but non-blocking.
 
 `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED`, and `TEMPLATE-COVERAGE` are **environment** findings about your workspace, not the module — they never appear in the review markdown. The first two should have already stopped you at Step 3a; `TEMPLATE-COVERAGE` means the template gained a file the validator has no rule for, so mention it to the user and move on.
 
@@ -76,20 +78,20 @@ Every `Critical` finding is **blocking** — carry each into the review verbatim
 - **`module`:** no diff; the whole current `src/` is the surface; findings are reported flat (no classification).
 - **`both`:** whole module is the surface AND each finding is classified NEW / REGRESSION / PRE-EXISTING via the same diff (only NEW/REGRESSION block; pre-existing medium-and-lower are non-blocking notes).
 - **First release** (`previousTag` = "(none — first release)") under `tag`/`both`: there's no diff, so fall back to a full review and note it in the report.
-- **Re-review:** if a prior review for this module exists under `reviews/<name>/`, read `.claude/skills/review-follow-up-same-tag/SKILL.md` and frame this as a follow-up that *verifies the maintainer's fixes* — still report-only.
+- **Re-review:** if a prior review for this module exists under `reviews/<name>/`, invoke the **`companion-module-review:review-follow-up-same-tag`** skill and frame this as a follow-up that *verifies the maintainer's fixes* — still report-only.
 
 ## Step 6 — Dispatch the review subagents (in parallel)
 
-Launch all three with the Agent tool in one message. Give each: the **scope** (Step 0), the **fact sheet**, the clone `directory`, the `previousTag`, and the `apiSkill` name. Give the compliance reviewer also `apiLevel`, `baseVersion`, `apiReferences`, and `apiScan`. Each returns findings (severity, `file:line`, classification when scope ≠ module, description, suggested fix **for the maintainer**) — they never edit the module.
+Launch all three with the Agent tool in one message, using the plugin's namespaced agent types (`companion-module-review:companion-protocol-reviewer`, `companion-module-review:companion-qa-reviewer`, `companion-module-review:companion-compliance-reviewer`). Give each: the **scope** (Step 0), the **fact sheet**, the clone `directory`, the `previousTag`, and the `apiSkill` name. Give the compliance reviewer also `apiLevel`, `baseVersion`, `apiSkillDir`, `apiReferences`, and `apiScan`. Each returns findings (severity, `file:line`, classification when scope ≠ module, description, suggested fix **for the maintainer**) — they never edit the module.
 - `companion-protocol-reviewer` — connection lifecycle, sockets, OSC/TCP/UDP/HTTP/Bonjour, timeouts, `destroy()` cleanup, `InstanceStatus`.
 - `companion-qa-reviewer` — bugs, edge cases, error handling, performance, async correctness, silent failures.
-- `companion-compliance-reviewer` — reads `.claude/skills/<apiSkill>/SKILL.md`; actions/feedbacks/presets/variables/config structure, upgrade scripts, test detection (absence is non-blocking).
+- `companion-compliance-reviewer` — invokes the `<apiSkill>:<apiSkill>` skill (and only the listed `apiReferences`); actions/feedbacks/presets/variables/config structure, upgrade scripts, test detection (absence is non-blocking).
 
 (Template/build/lint already came from Step 4 — don't duplicate it.)
 
 ## Step 7 — Assemble the review
 
-Read `.claude/skills/review-scorecard/SKILL.md` for the 📊 Scorecard and 📋 Issues format. Merge the Step-4 deterministic findings + the subagents' findings into ONE file, deduped by file+line. Header meta table includes a **`Scope:`** line (`tag` / `module` / `both`) and a **`Template`** row naming the exact revision the verdict was rendered against, so a disputed finding can be re-checked at that commit later:
+Invoke the **`companion-module-review:review-scorecard`** skill for the 📊 Scorecard and 📋 Issues format. Merge the Step-4 deterministic findings + the subagents' findings into ONE file, deduped by file+line. Header meta table includes a **`Scope:`** line (`tag` / `module` / `both`) and a **`Template`** row naming the exact revision the verdict was rendered against, so a disputed finding can be re-checked at that commit later:
 
 ```markdown
 | **Template** | `companion-module-template-js-v1` @ `9e222b4` (2026-03-26, pinned) · `.yarnrc.yml` from `companion-module-template-js` @ `0f916f9` (2026-06-24) |
@@ -108,7 +110,7 @@ Scope adjusts the presentation:
 - **`module`:** omit `⚠️ Pre-existing Notes`; present scorecard counts by severity only and add the note "whole-module scope — new vs pre-existing not assessed."
 - **`both`:** full New/Existing scorecard + pre-existing notes.
 
-Write to `reviews/<name>/review-<name>-<reviewTag>-<YYYYMMDD-HHMMSS>.md` (`mkdir -p reviews/<name>/` first; timestamp from `date -u +"%Y%m%d-%H%M%S"`). Append to `reviews/TRACKER.md`:
+Write to `reviews/<name>/review-<name>-<reviewTag>-<YYYYMMDD-HHMMSS>.md` in the workspace (layout and naming: **`companion-module-review:review-workspace-conventions`**) (`mkdir -p reviews/<name>/` first; timestamp from `date -u +"%Y%m%d-%H%M%S"`). Append to `reviews/TRACKER.md`:
 ```
 | ⬜ | <name> | <reviewTag> | <YYYY-MM-DD> | [review](<name>/review-<name>-<reviewTag>-<stamp>.md) |
 ```

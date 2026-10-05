@@ -18,7 +18,7 @@ Defines the standard format for the two sections inserted immediately after the 
 
 ## ⚠️ CRITICAL: Review File Output Location
 
-**Read `project-conventions` skill before writing the review file.**
+**Invoke the `companion-module-review:review-workspace-conventions` skill before writing the review file.**
 
 Final review files MUST be written to this repo's `reviews/` directory — NOT the module's folder.
 

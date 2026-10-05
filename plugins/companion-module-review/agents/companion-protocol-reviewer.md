@@ -1,7 +1,7 @@
 ---
 name: companion-protocol-reviewer
 description: Reviews a Bitfocus Companion module's protocol and networking layer (TCP/UDP/OSC/HTTP/Bonjour) — connection lifecycle, socket hygiene, error handling, status transitions. Read-only, report-only. Dispatched by the review-companion-module orchestrator with a scope, module fact sheet, clone directory, and previous tag.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Skill
 model: inherit
 ---
 
@@ -17,6 +17,8 @@ The orchestrator gives you: the **scope**, the **fact sheet** (language, API ver
 - Protocol specifics: OSC address/arg validation and malformed-message handling; HTTP via `got`/`axios`/`node-fetch`/`http` with no blocking calls; Bonjour/mDNS service lifecycle cleanup; defensive parsing of data from real hardware.
 
 ## Method (scope-driven)
+For OSC modules, the **`companion-osc-integration:companion-osc-integration`** skill (Skill tool, on demand) has the expected OSC client patterns.
+
 Find the networking layer (`net`, `dgram`, `osc`, `axios`, `got`, `bonjour`, `ws`, `http`/`https`) via the fact sheet's protocol list + grep, then review per the **scope** the orchestrator gave you:
 - **`tag`** — review only the release diff: `git -C <dir> diff <previousTag>..<reviewTag>`. Every finding is **🆕 NEW** or **🔙 REGRESSION**.
 - **`module`** — review the whole current transport layer; report all findings by severity, no classification.
