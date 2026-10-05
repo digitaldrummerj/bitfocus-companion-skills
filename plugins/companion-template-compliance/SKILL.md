@@ -10,14 +10,18 @@ license: MIT
 **Confidence:** high  
 **Last-updated:** 2026-10-04
 
+> **In a companion-module-review workspace**, don't run this checklist by hand: the
+> **`companion-module-review:review-template-check`** skill runs `validate-template.ps1`, which
+> checks everything below deterministically, and tells you how to interpret each finding id.
+
 ## Template Source Directories
 
-When in doubt, compare directly against the authoritative templates in the workspace:
+When in doubt, compare directly against the authoritative templates — clones of the official repos, wherever you keep them:
 
-| Type | Directory |
-|------|-----------|
-| **JavaScript** | `companion-module-template-js/` (workspace root) |
-| **TypeScript** | `companion-module-template-ts/` (workspace root) |
+| Type | Template repo | Typical local clone |
+|------|---------------|---------------------|
+| **JavaScript** | `bitfocus/companion-module-template-js` | `companion-module-template-js/` (a companion-module-review workspace keeps it under `companion-module-templates/`) |
+| **TypeScript** | `bitfocus/companion-module-template-ts` | `companion-module-template-ts/` (same) |
 
 **Pick the template by API version × language.** A module on `@companion-module/base` 2.x is compared with the current templates above. A module on 1.x is compared with the template **as it stood at its last v1.x commit** (`git checkout` that commit in a separate clone), so it is never flagged for v2-only differences such as the manifest `type` field. The template repo is the authority: when this checklist and the template disagree, the template wins.
 
