@@ -55,7 +55,7 @@ $ErrorActionPreference = 'Stop'
 
 . "$PSScriptRoot/lib/ReviewState.ps1"
 
-$workspace   = Split-Path -Parent $PSScriptRoot
+$workspace   = Resolve-ReviewWorkspace   # the companion-module-review repo you run this from
 $modulesDir  = Resolve-ModulesDir $workspace
 $reviewsDir  = Resolve-ReviewsDir $workspace
 $trackerPath = Join-Path $reviewsDir "TRACKER.md"

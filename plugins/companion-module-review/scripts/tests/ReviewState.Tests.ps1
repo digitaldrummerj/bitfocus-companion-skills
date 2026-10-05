@@ -197,6 +197,77 @@ try {
     $p = Get-CompanionApiProfile -ApiLevel '2.2' -SkillsDir $skills
     Assert-Equal 'references/v2.2.md' (@($p.referencesMissing) -join ',') "2.2 with no v2.2.md => reported missing"
     Assert-Equal $null $p.minCompanion "unknown future level => no guessed Companion version"
+    $p = Get-CompanionApiProfile -ApiLevel '2.1' -SkillDir (Join-Path $skills 'companion-v2-api-compliance')
+    Assert-Equal 0 @($p.referencesMissing).Count "-SkillDir (the plugin's own dir) checks references there"
+
+    # ── Resolve-ReviewWorkspace ──────────────────────────────────────────────
+    # The scripts ship in a plugin, so the workspace is wherever they're run from.
+    Write-Host "Resolve-ReviewWorkspace"
+    $prevRoot = $env:COMPANION_REVIEW_ROOT
+    try {
+        $env:COMPANION_REVIEW_ROOT = $null
+        $ws = Join-Path $root 'ws'
+        New-Item -ItemType Directory -Path (Join-Path $ws 'reviews') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $ws 'companion-modules-reviewing/companion-module-x/src') -Force | Out-Null
+        $wsReal = (Resolve-Path $ws).Path
+        Assert-Equal $wsReal (Resolve-ReviewWorkspace -StartDir $ws) "a directory with reviews/ is the workspace"
+        Assert-Equal $wsReal (Resolve-ReviewWorkspace -StartDir (Join-Path $ws 'companion-modules-reviewing/companion-module-x/src')) "found from a nested directory (nearest ancestor with reviews/)"
+
+        # A module clone is its own git repo without reviews/: the search continues upward.
+        & git -C (Join-Path $ws 'companion-modules-reviewing/companion-module-x') init -q 2>$null
+        Assert-Equal $wsReal (Resolve-ReviewWorkspace -StartDir (Join-Path $ws 'companion-modules-reviewing/companion-module-x')) "from inside a module clone (its own git repo) the workspace is still found"
+
+        # Outside the fixture root (which itself holds a reviews/ folder).
+        $other = Join-Path ([System.IO.Path]::GetTempPath()) "not-a-workspace-$([System.IO.Path]::GetRandomFileName())"
+        New-Item -ItemType Directory -Path $other -Force | Out-Null
+        Assert-Equal $null (Resolve-ReviewWorkspace -StartDir $other -Optional) "-Optional returns `$null outside a workspace"
+        $msg = try { Resolve-ReviewWorkspace -StartDir $other; '' } catch { $_.Exception.Message }
+        Assert-Equal $true ($msg -match 'COMPANION_REVIEW_ROOT' -and $msg -match 'reviews/') "outside a workspace the error says how to fix it"
+
+        $env:COMPANION_REVIEW_ROOT = $ws
+        Assert-Equal $wsReal (Resolve-ReviewWorkspace -StartDir $other) "COMPANION_REVIEW_ROOT overrides the current directory"
+        $env:COMPANION_REVIEW_ROOT = (Join-Path $root 'missing-dir')
+        $msg = try { Resolve-ReviewWorkspace; '' } catch { $_.Exception.Message }
+        Assert-Equal $true ($msg -match 'does not exist') "a COMPANION_REVIEW_ROOT that doesn't exist is an error"
+    } finally {
+        $env:COMPANION_REVIEW_ROOT = $prevRoot
+        if ($other -and (Test-Path $other)) { Remove-Item -Recurse -Force $other }
+    }
+
+    # ── Resolve-SkillDir ─────────────────────────────────────────────────────
+    Write-Host "Resolve-SkillDir"
+    $prevSkills = $env:COMPANION_SKILLS_DIR
+    try {
+        function New-Skill($dir) { New-Item -ItemType Directory -Path $dir -Force | Out-Null; Set-Content -LiteralPath (Join-Path $dir 'SKILL.md') -Value '---' ; (Resolve-Path $dir).Path }
+        $fakeClaude = Join-Path $root 'claude'
+        $noRoot = Join-Path $root 'nowhere/plugin'   # a PluginRoot whose siblings don't exist
+        $env:COMPANION_SKILLS_DIR = $null
+
+        Assert-Equal $null (Resolve-SkillDir -Plugin 'companion-v2-api-compliance' -ClaudeDir $fakeClaude -PluginRoot $noRoot) "not installed anywhere => `$null"
+
+        $cacheBase = Join-Path $fakeClaude 'plugins/cache/bitfocus-companion-skills/companion-v2-api-compliance'
+        $old = New-Skill (Join-Path $cacheBase '1.1.2')
+        $new = New-Skill (Join-Path $cacheBase '1.1.10')
+        New-Item -ItemType Directory -Path (Join-Path $cacheBase '9.9.9') -Force | Out-Null   # no SKILL.md: ignored
+        Assert-Equal $new (Resolve-SkillDir -Plugin 'companion-v2-api-compliance' -ClaudeDir $fakeClaude -PluginRoot $noRoot) "plugin cache => highest version with a SKILL.md (1.1.10 > 1.1.2)"
+
+        $installedPath = New-Skill (Join-Path $fakeClaude 'elsewhere/companion-v2-api-compliance')
+        $json = @{ version = 2; plugins = @{ 'companion-v2-api-compliance@bitfocus-companion-skills' = @(@{ scope = 'user'; installPath = $installedPath; version = '1.1.3' }) } } | ConvertTo-Json -Depth 6
+        New-Item -ItemType Directory -Path (Join-Path $fakeClaude 'plugins') -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $fakeClaude 'plugins/installed_plugins.json') -Value $json
+        Assert-Equal $installedPath (Resolve-SkillDir -Plugin 'companion-v2-api-compliance' -ClaudeDir $fakeClaude -PluginRoot $noRoot) "installed_plugins.json installPath beats the cache scan"
+
+        $checkout = Join-Path $root 'checkout/plugins'
+        $sibling = New-Skill (Join-Path $checkout 'companion-v2-api-compliance')
+        Assert-Equal $sibling (Resolve-SkillDir -Plugin 'companion-v2-api-compliance' -ClaudeDir $fakeClaude -PluginRoot (Join-Path $checkout 'companion-module-review')) "a sibling plugin in a source checkout beats the installed copy"
+
+        $override = Join-Path $root 'override'
+        $envSkill = New-Skill (Join-Path $override 'companion-v2-api-compliance')
+        $env:COMPANION_SKILLS_DIR = $override
+        Assert-Equal $envSkill (Resolve-SkillDir -Plugin 'companion-v2-api-compliance' -ClaudeDir $fakeClaude -PluginRoot (Join-Path $checkout 'companion-module-review')) "COMPANION_SKILLS_DIR beats everything"
+    } finally {
+        $env:COMPANION_SKILLS_DIR = $prevSkills
+    }
 }
 finally {
     if (Test-Path $root) { Remove-Item -Recurse -Force $root }

@@ -51,7 +51,7 @@ Set-StrictMode -Version Latest
 
 . "$PSScriptRoot/lib/ReviewState.ps1"
 
-$workspace = Split-Path -Parent $PSScriptRoot
+$workspace = Resolve-ReviewWorkspace   # the companion-module-review repo you run this from
 if (-not $TemplatesDir) { $TemplatesDir = Resolve-TemplatesDir $workspace }
 if (-not (Test-Path $TemplatesDir)) {
     Write-Error "Templates directory not found: $TemplatesDir. Run setup.ps1 first."

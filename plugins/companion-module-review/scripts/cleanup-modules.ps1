@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 . "$PSScriptRoot/lib/ReviewState.ps1"
 
-$workspace    = Split-Path -Parent $PSScriptRoot
+$workspace    = Resolve-ReviewWorkspace   # the companion-module-review repo you run this from
 $reviewingDir = Resolve-ModulesDir $workspace
 $keep = @("companion-module-template-ts", "companion-module-template-js")
 

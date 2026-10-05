@@ -118,6 +118,22 @@ try {
     Ok (@($f.apiScan.hints).Count -eq 0)                     "v1 module => no api-scan hints"
     $f8 = (& pwsh -NoProfile -File $facts -ModuleDir $scanMod -SkipTemplateCheck -SkipApiScan -Json 2>$null) | ConvertFrom-Json
     Ok ($null -eq $f8.apiScan)                               "-SkipApiScan omits apiScan"
+
+    # ── Where the compliance skill plugin is installed ───────────────────────
+    # COMPANION_SKILLS_DIR wins over every other lookup, so the result is deterministic here.
+    $prevSkills = $env:COMPANION_SKILLS_DIR
+    try {
+        $fakeSkills = Join-Path $root 'skills-plugins'
+        Set-File (Join-Path $fakeSkills 'companion-v2-api-compliance/SKILL.md') '---'
+        Set-File (Join-Path $fakeSkills 'companion-v2-api-compliance/references/v2.0.md') 'x'
+        $env:COMPANION_SKILLS_DIR = $fakeSkills
+        $f9 = Facts $v21
+        Ok ($f9.apiSkillInstalled -eq $true)                 "apiSkillInstalled when the compliance plugin is found"
+        Ok ("$($f9.apiSkillDir)" -like '*skills-plugins*companion-v2-api-compliance') "apiSkillDir points at the found plugin"
+        Ok ((@($f9.apiReferencesMissing) -join ',') -eq 'references/v2.1.md') "reference files missing from that plugin are listed"
+    } finally {
+        $env:COMPANION_SKILLS_DIR = $prevSkills
+    }
 }
 finally {
     if (Test-Path $root) { Remove-Item -Recurse -Force $root }

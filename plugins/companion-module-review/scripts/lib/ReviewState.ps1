@@ -26,6 +26,108 @@ Set-StrictMode -Version Latest
 # Char that marks "feedback submitted" in the TRACKER.md first column.
 $script:SubmittedMark = [char]0x2705   # ✅
 
+function Resolve-ReviewWorkspace {
+    <# Resolve the companion-module-review WORKSPACE these scripts operate on.
+
+       The scripts ship inside the companion-module-review plugin (installed under
+       ~/.claude/plugins/cache/…), so the workspace can no longer be derived from $PSScriptRoot.
+       It is the repo you run them from — the one that holds reviews/, the gitignored
+       companion-modules-reviewing/ and companion-module-templates/.
+
+       Resolution order:
+         1. $env:COMPANION_REVIEW_ROOT (must exist)
+         2. -StartDir (default: current directory) or its nearest ancestor that has a reviews/
+            directory — so it also works from inside a clone under companion-modules-reviewing/
+       With -Optional, returns $null instead of throwing when nothing matches — for scripts
+       that only need the workspace as a fallback (e.g. template auto-detection). #>
+    param(
+        [string]$StartDir = (Get-Location).Path,
+        [switch]$Optional
+    )
+
+    if ($env:COMPANION_REVIEW_ROOT) {
+        if (Test-Path -LiteralPath $env:COMPANION_REVIEW_ROOT -PathType Container) {
+            return (Resolve-Path -LiteralPath $env:COMPANION_REVIEW_ROOT).Path
+        }
+        throw "COMPANION_REVIEW_ROOT '$($env:COMPANION_REVIEW_ROOT)' does not exist."
+    }
+
+    $start = try { (Resolve-Path -LiteralPath $StartDir -ErrorAction Stop).Path } catch { $StartDir }
+    $dir = $start
+    while ($dir) {
+        if (Test-Path -LiteralPath (Join-Path $dir 'reviews') -PathType Container) { return $dir }
+        $parent = Split-Path -Parent $dir
+        if (-not $parent -or $parent -eq $dir) { break }
+        $dir = $parent
+    }
+
+    if ($Optional) { return $null }
+    throw ("Not inside a companion-module-review workspace (no reviews/ directory found from '$start'). " +
+        "Run from your companion-module-review repo, or set COMPANION_REVIEW_ROOT.")
+}
+
+function Resolve-SkillDir {
+    <# Find the installed directory of a skill plugin from the bitfocus-companion-skills
+       marketplace (e.g. companion-v2-api-compliance), so callers can check which of its
+       bundled files (references/v2.N.md) exist. Returns $null when it can't be found.
+
+       Resolution order (first directory containing SKILL.md wins):
+         1. $env:COMPANION_SKILLS_DIR/<Plugin>   — e.g. a local skills-repo plugins/ checkout
+         2. <this plugin's root>/../<Plugin>     — running from a skills-repo source checkout
+         3. installPath of <Plugin>@<Marketplace> in <ClaudeDir>/plugins/installed_plugins.json
+         4. highest version under <ClaudeDir>/plugins/cache/<Marketplace>/<Plugin>/
+       <ClaudeDir> is $env:CLAUDE_CONFIG_DIR, else ~/.claude. #>
+    param(
+        [Parameter(Mandatory)][string]$Plugin,
+        [string]$Marketplace = 'bitfocus-companion-skills',
+        [string]$ClaudeDir,
+        [string]$PluginRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+    )
+
+    function Test-SkillDir([string]$d) { $d -and (Test-Path -LiteralPath (Join-Path $d 'SKILL.md') -PathType Leaf) }
+
+    if ($env:COMPANION_SKILLS_DIR) {
+        $c = Join-Path $env:COMPANION_SKILLS_DIR $Plugin
+        if (Test-SkillDir $c) { return (Resolve-Path -LiteralPath $c).Path }
+    }
+    if ($PluginRoot) {
+        $c = Join-Path (Split-Path -Parent $PluginRoot) $Plugin
+        if (Test-SkillDir $c) { return (Resolve-Path -LiteralPath $c).Path }
+    }
+
+    if (-not $ClaudeDir) {
+        $ClaudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
+    }
+    $installed = Join-Path $ClaudeDir 'plugins/installed_plugins.json'
+    if (Test-Path -LiteralPath $installed) {
+        try {
+            $j = Get-Content -Raw -LiteralPath $installed | ConvertFrom-Json -AsHashtable
+            $map = if ($j -is [System.Collections.IDictionary] -and $j.Contains('plugins')) { $j['plugins'] } else { $j }
+            $key = "$Plugin@$Marketplace"
+            if ($map -is [System.Collections.IDictionary] -and $map.Contains($key)) {
+                foreach ($entry in @($map[$key])) {
+                    if ($entry -is [System.Collections.IDictionary] -and (Test-SkillDir $entry['installPath'])) {
+                        return (Resolve-Path -LiteralPath $entry['installPath']).Path
+                    }
+                }
+            }
+        } catch { }
+    }
+
+    $cache = Join-Path $ClaudeDir "plugins/cache/$Marketplace/$Plugin"
+    if (Test-Path -LiteralPath $cache -PathType Container) {
+        $versions = @(Get-ChildItem -LiteralPath $cache -Directory -ErrorAction SilentlyContinue | Where-Object { Test-SkillDir $_.FullName })
+        if ($versions.Count -gt 0) {
+            $best = $versions | Sort-Object -Property @(
+                @{ Expression = { $v = $null; if ([version]::TryParse(($_.Name -replace '^v', ''), [ref]$v)) { $v } else { [version]'0.0' } }; Descending = $true },
+                @{ Expression = { $_.LastWriteTimeUtc }; Descending = $true }
+            ) | Select-Object -First 1
+            return $best.FullName
+        }
+    }
+    return $null
+}
+
 function Resolve-ModulesDir {
     <# Resolve the workspace where modules under review are cloned: companion-modules-reviewing/
        INSIDE the repo (gitignored). Honors COMPANION_MODULES_DIR. #>
@@ -521,9 +623,11 @@ function Get-CompanionApiProfile {
         The v2 compliance skill keeps one reference file per minor version
         (references/v2.0.md, references/v2.1.md, …) and a module is judged against every file
         up to its own level — never a later one. That is what stops a 2.0 module being told to
-        adopt 2.1-only features. apiReferences lists the files that SHOULD apply; when
-        -SkillsDir is given, any that don't exist there are reported in referencesMissing
-        (e.g. a 2.2 module reviewed before anyone wrote references/v2.2.md).
+        adopt 2.1-only features. apiReferences lists the files that SHOULD apply; when the
+        skill's directory is known (-SkillDir = the skill plugin's own directory, as returned by
+        Resolve-SkillDir; or -SkillsDir = a parent holding one directory per skill), any that
+        don't exist there are reported in referencesMissing (e.g. a 2.2 module reviewed before
+        anyone wrote references/v2.2.md).
 
         allowedRuntimes is $null for v1: v1 runtimes are judged against the pinned v1
         template exactly as before. For v2 the template still pins node22, but API 2.1 added
@@ -531,7 +635,8 @@ function Get-CompanionApiProfile {
     #>
     param(
         [Parameter(Mandatory)][string]$ApiLevel,
-        [string]$SkillsDir
+        [string]$SkillsDir,
+        [string]$SkillDir
     )
 
     $major = 2; $minor = 0
@@ -550,9 +655,9 @@ function Get-CompanionApiProfile {
     $skill = "companion-v$major-api-compliance"
     $refs = @(0..$minor | ForEach-Object { "references/v$major.$_.md" })
     $missing = @()
-    if ($SkillsDir) {
-        $skillDir = Join-Path $SkillsDir $skill
-        $missing = @($refs | Where-Object { -not (Test-Path -LiteralPath (Join-Path $skillDir $_)) })
+    $dirToCheck = if ($SkillDir) { $SkillDir } elseif ($SkillsDir) { Join-Path $SkillsDir $skill } else { $null }
+    if ($dirToCheck) {
+        $missing = @($refs | Where-Object { -not (Test-Path -LiteralPath (Join-Path $dirToCheck $_)) })
     }
     # Companion release that introduced each module API level. Unknown future levels report
     # $null rather than a guess.

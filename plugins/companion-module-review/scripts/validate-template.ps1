@@ -132,12 +132,17 @@ try {
 $tplSuffix = if ($apiMajor -le 1) { '-v1' } else { '' }
 $tplName   = "companion-module-template-$langLower$tplSuffix"
 if (-not $TemplateDir) {
-    $base = Resolve-TemplatesDir (Split-Path -Parent $PSScriptRoot)
-    $candidate = Join-Path $base $tplName
-    if (Test-Path $candidate) { $TemplateDir = $candidate }
+    # The scripts live in the companion-module-review plugin, so the templates are found
+    # relative to the WORKSPACE (the repo this is run from), unless COMPANION_TEMPLATES_DIR is set.
+    $ws = Resolve-ReviewWorkspace -Optional
+    $base = if ($env:COMPANION_TEMPLATES_DIR) { $env:COMPANION_TEMPLATES_DIR } elseif ($ws) { Resolve-TemplatesDir $ws } else { $null }
+    if ($base) {
+        $candidate = Join-Path $base $tplName
+        if (Test-Path $candidate) { $TemplateDir = $candidate }
+    }
 }
 if (-not $TemplateDir -or -not (Test-Path $TemplateDir)) {
-    Write-Error "Template '$tplName' ($lang $apiVer) not found. Run setup.ps1 to clone the templates into companion-module-templates/, set COMPANION_TEMPLATES_DIR, or pass -TemplateDir."
+    Write-Error "Template '$tplName' ($lang $apiVer) not found. Run this from your companion-module-review workspace after setup.ps1 has cloned the templates into companion-module-templates/ (or set COMPANION_REVIEW_ROOT / COMPANION_TEMPLATES_DIR, or pass -TemplateDir)."
     exit 2
 }
 $TemplateDir = (Resolve-Path $TemplateDir).Path
@@ -690,7 +695,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         Add-Finding 'TEMPLATE-COVERAGE' 'Info' $rel (
             "Template tracks this file but validate-template.ps1 has no explicit rule for it — " +
             "compared by exact normalized text as a fallback. Add a row to `$templateFileRules " +
-            "in scripts/validate-template.ps1 and a case to the compliance skill's finding table.")
+            "in scripts/validate-template.ps1 (companion-module-review plugin) and a row to the finding table in its review-template-check skill.")
     }
     if ($rule.Kind -eq 'yarnrc') {
         # Key-level comparison: the module must carry exactly the template's keys with

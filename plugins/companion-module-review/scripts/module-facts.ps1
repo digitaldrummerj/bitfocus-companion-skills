@@ -67,8 +67,14 @@ $baseRange = if ((Has-Prop $pkg 'dependencies') -and (Has-Prop $pkg.dependencies
 $base = Resolve-CompanionBaseVersion $ModuleDir
 $apiMajor = $base.major
 $apiVer = "v$apiMajor"
-$apiProfile = Get-CompanionApiProfile -ApiLevel $base.apiLevel -SkillsDir (Join-Path (Split-Path -Parent $PSScriptRoot) '.claude/skills')
+# The compliance skill is its own plugin in the bitfocus-companion-skills marketplace (not a
+# copy in this repo), so find where it is installed — Resolve-SkillDir checks
+# COMPANION_SKILLS_DIR, a sibling source checkout, installed_plugins.json, then the plugin
+# cache — and check which of its reference files exist there.
+$apiProfile = Get-CompanionApiProfile -ApiLevel $base.apiLevel
 $apiSkill = $apiProfile.apiSkill
+$apiSkillDir = Resolve-SkillDir -Plugin $apiSkill
+if ($apiSkillDir) { $apiProfile = Get-CompanionApiProfile -ApiLevel $base.apiLevel -SkillDir $apiSkillDir }
 
 # Protocol hints — scan deps + a shallow source grep for transport markers.
 $depNames = @()
@@ -186,6 +192,10 @@ $facts = [pscustomobject]@{
     language      = $lang
     apiVersion    = $apiVer
     apiSkill      = $apiSkill
+    # Invoke the skill as '<apiSkill>:<apiSkill>' (plugin:skill). apiSkillInstalled is false when
+    # the plugin can't be found locally — run setup.ps1 (or claude plugin install) first.
+    apiSkillInstalled = [bool]$apiSkillDir
+    apiSkillDir   = $apiSkillDir
     apiLevel      = $base.apiLevel
     baseVersion   = $base.version
     baseVersionSource = $base.source
@@ -220,7 +230,10 @@ Write-Host ""
 Write-Host "Module Fact Sheet — $($facts.module)" -ForegroundColor Cyan
 Write-Host ("─" * 64)
 Write-Host ("  Language:        {0}   API: {1}" -f $facts.language, $facts.apiVersion)
-Write-Host ("  Apply skill:     {0}  (load ONLY this api-compliance skill)" -f $facts.apiSkill) -ForegroundColor Yellow
+Write-Host ("  Apply skill:     {0}:{0}  (load ONLY this api-compliance skill)" -f $facts.apiSkill) -ForegroundColor Yellow
+if (-not $facts.apiSkillInstalled) {
+    Write-Host ("  NOT INSTALLED:   {0}@bitfocus-companion-skills — run setup.ps1, or: claude plugin install {0}@bitfocus-companion-skills" -f $facts.apiSkill) -ForegroundColor Red
+}
 $apiLine = "$(if ($facts.apiLevel -eq '1') { '1.x' } else { $facts.apiLevel }) (base $($facts.baseVersion) from $($facts.baseVersionSource))"
 if ($facts.minCompanion) { $apiLine += " -> Companion $($facts.minCompanion)+" }
 Write-Host ("  API level:       {0}" -f $apiLine) -ForegroundColor Yellow
@@ -231,7 +244,7 @@ if ($facts.apiAmbiguous) {
     Write-Host  "  API level AMBIGUOUS — no lockfile entry; the range lets the minor float. Assumed the lowest; suggest pinning ~2.N.x." -ForegroundColor DarkYellow
 }
 if ($facts.apiReferencesMissing.Count -gt 0) {
-    Write-Host ("  Not in the skill copy: {0} — review against the files that exist and say so." -f ($facts.apiReferencesMissing -join ', ')) -ForegroundColor DarkYellow
+    Write-Host ("  Not in the installed skill: {0} — review against the files that exist and say so." -f ($facts.apiReferencesMissing -join ', ')) -ForegroundColor DarkYellow
 }
 Write-Host ("  @companion/base: {0}" -f $facts.baseRange)
 Write-Host ("  package:         {0}@{1}   manifest id: {2}" -f $facts.packageName, $facts.packageVersion, $facts.manifestId)
