@@ -274,5 +274,22 @@ finally {
 }
 
 Write-Host ""
+Write-Host "Pending queue — connection modules only"
+$pending = @(
+    [pscustomobject]@{ moduleName = 'old-conn';  moduleType = 'companion-connection'; gitTag = 'v1.0.0'; createdAt = 100 }
+    [pscustomobject]@{ moduleName = 'a-surface'; moduleType = 'companion-surface';    gitTag = 'v0.1.0'; createdAt = 50 }
+    [pscustomobject]@{ moduleName = 'new-conn';  moduleType = 'companion-connection'; gitTag = 'v2.0.0'; createdAt = 200 }
+    [pscustomobject]@{ moduleName = 'no-type';   gitTag = 'v1.0.0'; createdAt = 10 }
+)
+$conn = @(Select-PendingVersionsByType -Versions $pending)
+Assert-Equal 2 $conn.Count "default keeps only companion-connection entries"
+Assert-Equal 'old-conn,new-conn' (($conn | ForEach-Object moduleName) -join ',') "…in their original order (callers sort by createdAt)"
+Assert-Equal 'a-surface' ((@(Select-PendingVersionsByType -Versions $pending -ModuleType 'companion-surface') | ForEach-Object moduleName) -join ',') "-ModuleType selects another type explicitly"
+Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $pending | Where-Object moduleName -eq 'no-type').Count) "entries without a moduleType are dropped, not guessed"
+Assert-Equal 0 (@(Select-PendingVersionsByType -Versions @()).Count) "an empty queue stays empty"
+Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $null).Count) "a null queue is treated as empty"
+Assert-Equal 'https://developer.bitfocus.io/modules/review?type=companion-connection' (Get-PendingReviewPageUrl) "review page link defaults to connection modules"
+
+Write-Host ""
 Write-Host "$($script:pass) passed, $($script:fail) failed" -ForegroundColor ($(if ($script:fail) { 'Red' } else { 'Green' }))
 if ($script:fail) { exit 1 }

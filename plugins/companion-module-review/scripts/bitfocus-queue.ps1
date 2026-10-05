@@ -22,6 +22,10 @@
 
     Status validation (PENDING vs WITHDRAWN) happens in bitfocus-setup-module.ps1
     before any action is taken.
+.PARAMETER ModuleType
+    Which module type to list (default companion-connection — the only type the review
+    skills and scripts support). The portal API returns every type and ignores a ?type=
+    filter, so entries are filtered here on their moduleType.
 .PARAMETER Json
     Emit the annotated queue as JSON (no console formatting) for automation.
 .EXAMPLE
@@ -30,6 +34,7 @@
 #>
 
 param(
+    [string]$ModuleType = 'companion-connection',
     [switch]$Json
 )
 
@@ -57,10 +62,17 @@ $data = Invoke-RestMethod `
     -Uri "https://developer.bitfocus.io/api/v1/modules-pending-review" `
     -Headers $headers
 
-$versions = @($data.versions | Sort-Object createdAt)
+$allVersions = @($data.versions)
+$versions    = @(Select-PendingVersionsByType -Versions $allVersions -ModuleType $ModuleType | Sort-Object createdAt)
+$skippedTypes = @($allVersions | Where-Object { $versions -notcontains $_ } |
+    Group-Object { if ($_.PSObject.Properties.Name -contains 'moduleType') { $_.moduleType } else { '(none)' } } |
+    ForEach-Object { "$($_.Count) $($_.Name)" })
 
 if (-not $versions -or $versions.Count -eq 0) {
-    if ($Json) { '[]' } else { Write-Host "No pending reviews found." -ForegroundColor Green }
+    if ($Json) { '[]' } else {
+        Write-Host "No pending $ModuleType reviews found." -ForegroundColor Green
+        if ($skippedTypes) { Write-Host "Skipped (other module types): $($skippedTypes -join ', ')" -ForegroundColor DarkGray }
+    }
     exit 0
 }
 
@@ -78,6 +90,7 @@ $rows = foreach ($v in $versions) {
 
     [pscustomobject]@{
         moduleName     = $v.moduleName
+        moduleType     = $v.moduleType
         gitTag         = $v.gitTag
         daysWaiting    = $days
         cloned         = Test-Path $clonePath
@@ -99,7 +112,8 @@ if (-not $nextUp) { $nextUp = $rows | Where-Object { $_.state -eq 're-review' } 
 $pendingCount = @($rows | Where-Object { $_.state -eq 'feedback-pending' }).Count
 
 Write-Host ""
-Write-Host "Pending Reviews — $($rows.Count) total, oldest first" -ForegroundColor Cyan
+Write-Host "Pending Reviews ($ModuleType) — $($rows.Count) total, oldest first" -ForegroundColor Cyan
+Write-Host "  $(Get-PendingReviewPageUrl -ModuleType $ModuleType)" -ForegroundColor DarkGray
 Write-Host ("─" * 78)
 
 $rank = 1
@@ -121,6 +135,9 @@ foreach ($r in $rows) {
 Write-Host ("─" * 78)
 if ($pendingCount -gt 0) {
     Write-Host "$pendingCount already reviewed, feedback pending — hidden from Next up" -ForegroundColor DarkYellow
+}
+if ($skippedTypes) {
+    Write-Host "Skipped (not $ModuleType — the review pipeline only handles connection modules): $($skippedTypes -join ', ')" -ForegroundColor DarkGray
 }
 Write-Host ""
 if ($nextUp) {

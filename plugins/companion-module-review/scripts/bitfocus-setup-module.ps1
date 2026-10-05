@@ -79,10 +79,12 @@ function Write-Status {
 Write-Status "Fetching pending queue..."
 
 $queueData = Invoke-RestMethod -Uri "$baseUrl/modules-pending-review" -Headers $headers
-$queue = @($queueData.versions | Sort-Object createdAt)
+# Connection modules only — the portal API returns every module type and ignores ?type=.
+$allQueue = @($queueData.versions)
+$queue    = @(Select-PendingVersionsByType -Versions $allQueue | Sort-Object createdAt)
 
 if (-not $queue -or $queue.Count -eq 0) {
-    Write-Status "No pending reviews found." 'Green'
+    Write-Status "No pending companion-connection reviews found." 'Green'
     exit 0
 }
 
@@ -99,6 +101,12 @@ function Get-EntryState {
 if ($ModuleName) {
     $candidates = @($queue | Where-Object { $_.moduleName -eq $ModuleName })
     if ($candidates.Count -eq 0) {
+        $other = @($allQueue | Where-Object { $_.moduleName -eq $ModuleName }) | Select-Object -First 1
+        if ($other) {
+            Write-Error ("Module '$ModuleName' is pending review as a '$($other.moduleType)' module. The review " +
+                "pipeline only supports companion-connection modules.")
+            exit 1
+        }
         Write-Error "Module '$ModuleName' not found in the pending queue."
         exit 1
     }

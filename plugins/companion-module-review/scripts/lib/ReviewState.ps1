@@ -800,3 +800,30 @@ function Get-ReviewStateLabel {
         default            { $State }
     }
 }
+
+# ── Pending-review queue: connection modules only ─────────────────────────────
+
+$script:ReviewableModuleType = 'companion-connection'
+
+function Get-PendingReviewPageUrl {
+    <# The developer-portal page listing pending reviews of one module type — the link to open
+       in a browser. The scripts read the JSON API instead (see Select-PendingVersionsByType). #>
+    param([string]$ModuleType = $script:ReviewableModuleType)
+    return "https://developer.bitfocus.io/modules/review?type=$ModuleType"
+}
+
+function Select-PendingVersionsByType {
+    <# Keep only the pending versions of one module type (default: companion-connection).
+
+       The review skills and scripts only handle connection modules (manifest type
+       "connection"; versions are looked up under /public/modules/companion-connection/).
+       /api/v1/modules-pending-review returns EVERY module type (companion-connection,
+       companion-surface, …) and ignores a ?type= query parameter — verified 2026-10-04 — so
+       the filter has to happen here, on each entry's moduleType field. Entries without a
+       moduleType are dropped rather than guessed. #>
+    param(
+        [AllowNull()][object[]]$Versions,
+        [string]$ModuleType = $script:ReviewableModuleType
+    )
+    return @(@($Versions) | Where-Object { $_ -and $_.PSObject.Properties.Name -contains 'moduleType' -and $_.moduleType -eq $ModuleType })
+}

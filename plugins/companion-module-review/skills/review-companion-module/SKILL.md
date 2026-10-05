@@ -22,7 +22,7 @@ State the chosen scope to the user before proceeding.
 
 - If the user named a module (e.g. "allenheath-sq"), use it (strip any `companion-module-` prefix).
 - If the user also named a **version/tag** (e.g. "v2.1.0" / "2.1.0"), capture it — it selects which pending version to review when a module has more than one queued. A version only applies alongside a named module; without one, the **oldest** pending version is reviewed.
-- Otherwise: `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-queue.ps1 -Json` → the target is the first entry whose `state` is `needs-review` (the script excludes `feedback-pending`). If all are `feedback-pending`, tell the user there's nothing new and stop.
+- Otherwise: `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-queue.ps1 -Json` → the target is the first entry whose `state` is `needs-review` (the script excludes `feedback-pending`). The queue lists **connection modules only** (`moduleType: companion-connection`): this pipeline doesn't review surface modules, and the setup script refuses one by name. If all are `feedback-pending`, tell the user there's nothing new and stop.
 
 ## Step 2 — Set up the module
 
