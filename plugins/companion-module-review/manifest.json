@@ -1,0 +1,34 @@
+{
+  "name": "companion-module-review",
+  "version": "1.0.0",
+  "description": "Companion module review workspace tooling: the /review-module orchestrator, review subagents, scorecard and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
+  "author": "Justin James",
+  "license": "MIT",
+  "platforms": [
+    "claude"
+  ],
+  "triggers": [
+    "review module",
+    "review the next module",
+    "companion module review",
+    "review-module",
+    "module fact sheet",
+    "validate-template",
+    "api-scan",
+    "review scorecard"
+  ],
+  "tags": [
+    "companion",
+    "bitfocus",
+    "review",
+    "workflow",
+    "powershell"
+  ],
+  "capabilities": [
+    "Pick the next pending module from the Bitfocus developer portal and clone it",
+    "Build a shared fact sheet (language, exact API level, protocols, template check, api-scan hints)",
+    "Run the deterministic template/build/lint check against the official template",
+    "Dispatch protocol, QA and compliance review subagents in parallel",
+    "Assemble one ranked, report-only review with a TRACKER row"
+  ]
+}
