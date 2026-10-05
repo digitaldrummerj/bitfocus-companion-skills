@@ -1,7 +1,7 @@
 # 🎛️ Companion AI Skills — Plugin Marketplace
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Plugins](https://img.shields.io/badge/Plugins-34-green.svg)](#-available-plugins)
+[![Plugins](https://img.shields.io/badge/Plugins-35-green.svg)](#-available-plugins)
 
 **AI skills for Bitfocus Companion module development.** Drop-in knowledge plugins that teach AI agents how to build, configure, and maintain Bitfocus Companion modules using `@companion-module/base`.
 
@@ -28,6 +28,7 @@ Every plugin is centered on a `SKILL.md` file, then wrapped with marketplace met
 | [`companion-config`](plugins/companion-config/) | Define and validate Bitfocus Companion configuration fields, defaults, and configUpdated behavior. | `add config field`, `connection settings`, `configUpdated` |
 | [`companion-feedback-file-pattern`](plugins/companion-feedback-file-pattern/) | Create and wire a new split-file feedback category for a Bitfocus Companion module. | `new feedback category`, `feedback file pattern`, `feedback.ts aggregator` |
 | [`companion-feedbacks`](plugins/companion-feedbacks/) | Implement Bitfocus Companion feedbacks for boolean styling, advanced rendering, and state-driven updates. | `add feedback`, `button colors`, `advanced feedback` |
+| [`companion-module-review`](plugins/companion-module-review/) | Companion module review workspace tooling: the /review-module orchestrator, review subagents, scorecard and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan). | `review module`, `review the next module`, `companion module review` |
 | [`companion-osc-integration`](plugins/companion-osc-integration/) | Integrate OSC transport, lifecycle management, and state updates into a Bitfocus Companion module. | `OSC integration`, `OSC UDP`, `OSC receive` |
 | [`companion-preset-category-file`](plugins/companion-preset-category-file/) | Create and wire a new enum-based preset category file for a split-file Companion module. | `new preset category`, `presets.ts aggregator`, `preset file pattern` |
 | [`companion-template-compliance`](plugins/companion-template-compliance/) | Review Companion modules against the official JavaScript and TypeScript template requirements. | `template compliance`, `official template`, `manifest.json rules` |
@@ -53,6 +54,16 @@ Every plugin is centered on a `SKILL.md` file, then wrapped with marketplace met
 | [`companion-v2-variable-set-value`](plugins/companion-v2-variable-set-value/) | Set and read @companion-module/base v2.x variable values with typed setVariableValues and getVariableValue. | `v2 set variable value`, `setVariableValues v2`, `getVariableValue` |
 | [`companion-variable-definition`](plugins/companion-variable-definition/) | Declare and register Bitfocus Companion variables so they appear in the variable picker. | `setVariableDefinitions`, `declare variable`, `variable picker` |
 | [`companion-variable-set-value`](plugins/companion-variable-set-value/) | Set and read Bitfocus Companion variable values at runtime after the variables are defined. | `setVariableValues`, `getVariableValue`, `update variable state` |
+
+### Module review workspace
+
+`companion-module-review` bundles the Bitfocus module-review workflow:
+- the `/review-module` orchestrator
+- the protocol, QA and compliance subagents
+- the review skills
+- the PowerShell pipeline scripts
+
+It runs inside a **companion-module-review workspace** repo: the one holding `reviews/` and the cloned modules and templates. That workspace's `.claude/settings.json` enables this plugin together with the compliance and knowledge plugins it uses, and its `setup.ps1` installs any that are missing.
 
 ### Choosing v1 or v2 skills
 

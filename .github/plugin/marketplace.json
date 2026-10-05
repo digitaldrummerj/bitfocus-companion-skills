@@ -42,7 +42,7 @@
     {
       "name": "companion-bitfocus-dashboard",
       "description": "Discover pending Companion module reviews from the Bitfocus developer portal and prepare repos for review.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-bitfocus-dashboard"
     },
     {
@@ -64,6 +64,12 @@
       "source": "./plugins/companion-feedbacks"
     },
     {
+      "name": "companion-module-review",
+      "description": "Companion module review workspace tooling: the /review-module orchestrator, review subagents, scorecard and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
+      "version": "1.0.0",
+      "source": "./plugins/companion-module-review"
+    },
+    {
       "name": "companion-osc-integration",
       "description": "Integrate OSC transport, lifecycle management, and state updates into a Bitfocus Companion module.",
       "version": "1.0.0",
@@ -78,7 +84,7 @@
     {
       "name": "companion-template-compliance",
       "description": "Review Companion modules against the official JavaScript and TypeScript template requirements.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-template-compliance"
     },
     {
@@ -90,7 +96,7 @@
     {
       "name": "companion-v1-api-compliance",
       "description": "Review @companion-module/base v1.x modules for required lifecycle behavior and version-specific compliance.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "source": "./plugins/companion-v1-api-compliance"
     },
     {
@@ -150,7 +156,7 @@
     {
       "name": "companion-v2-api-compliance",
       "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-      "version": "1.1.3",
+      "version": "1.1.4",
       "source": "./plugins/companion-v2-api-compliance"
     },
     {
