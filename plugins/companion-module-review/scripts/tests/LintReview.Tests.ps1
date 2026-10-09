@@ -4,9 +4,11 @@
 .SYNOPSIS
     Self-contained tests for scripts/lint-review.ps1 (no Pester, no network).
 .DESCRIPTION
-    Only the path guards are tested here, using -DryRun so markdownlint itself never runs:
-    files must be .md under the workspace's reviews/ directory, with no executable
-    markdownlint config beside them, and are passed as pinned, literal, no-glob arguments.
+    Only the path guards and the command shape are tested here, using -DryRun so markdownlint
+    itself never runs: files must be .md under the workspace's reviews/ directory, and the
+    pinned linter runs on sandbox copies with literal, no-glob arguments. (That a hostile
+    .markdownlint-cli2.* beside a review is never executed was verified by hand: the linter
+    only ever sees a fresh temp directory.)
 
     Run:  pwsh plugins/companion-module-review/scripts/tests/LintReview.Tests.ps1
 #>
@@ -49,7 +51,8 @@ try {
     Ok ($good.Code -eq 0)                                         "a review under reviews/ is accepted"
     Ok ($good.Out -match 'markdownlint-cli2@\d+\.\d+\.\d+ ')      "…and runs a pinned markdownlint-cli2 version"
     Ok ($good.Out -match '--no-globs')                            "…with --no-globs"
-    Ok ($good.Out -match ' :\S*review-mod-a')                     "…passing the file as a literal (':') path"
+    Ok ($good.Out -match ' :0/review-mod-a')                       "…passing a sandbox copy as a literal (':') path"
+    Ok ($good.Out -match 'temp directory')                          "…from a fresh temp directory, not the workspace"
     Ok ($good.Out -match '--config \S*config[\\/]\.markdownlint\.jsonc') "…with the plugin's own .jsonc config"
 
     $fix = Invoke-Lint @('-ReviewFile', 'reviews/mod-a/review-mod-a-v1.0.0-20261008-000000.md', '-Fix', '-DryRun')
@@ -68,7 +71,7 @@ try {
     Ok ($missing.Code -eq 2)                                       "a missing file is refused"
 
     $exec = Invoke-Lint @('-ReviewFile', 'reviews/mod-b/review-mod-b-v1.0.0-20261008-000000.md', '-DryRun')
-    Ok ($exec.Code -eq 2 -and $exec.Out -match 'executable markdownlint config') "an executable .markdownlint-cli2.cjs beside the review is refused"
+    Ok ($exec.Code -eq 0 -and $exec.Out -notmatch 'mod-b[\\/]\.markdownlint') "a .markdownlint-cli2.cjs beside the review doesn't matter: only the sandbox copy is linted"
 }
 finally {
     Pop-Location -ErrorAction SilentlyContinue

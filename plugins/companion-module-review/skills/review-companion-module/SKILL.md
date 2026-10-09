@@ -148,7 +148,7 @@ Run the plugin's lint script on the review file:
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/lint-review.ps1 -ReviewFile reviews/<name>/<review-file>.md
 ```
 
-The script runs a **pinned** `markdownlint-cli2` with the plugin's `config/.markdownlint.jsonc`, and refuses anything that isn't a `.md` file under the workspace's `reviews/` (exit 2). That keeps it from ever linting inside a module clone, where markdownlint-cli2 would execute a `.markdownlint-cli2.cjs`/`.mjs` it found. It's covered by the workspace's existing `pwsh …/companion-module-review/scripts/*` permission, so don't call `npx markdownlint-cli2` directly.
+The script refuses anything that isn't a `.md` file under the workspace's `reviews/` (exit 2). It then lints **copies** of the files in a fresh temp directory with a **pinned** `markdownlint-cli2` and the plugin's `config/.markdownlint.jsonc`. markdownlint-cli2 can execute code from config files next to what it lints (`.markdownlint-cli2.*` `customRules`/plugins, `.cjs`/`.mjs` configs, `package.json`), and `npx` prefers a local `node_modules`/`.npmrc`, so the linter never runs in the workspace or a review folder. Output shows the original file names, and `-Fix` writes the fixed copies back. It's covered by the workspace's existing `pwsh …/companion-module-review/scripts/*` permission, so don't call `npx markdownlint-cli2` directly.
 
 - **Exit 0** means clean.
 - **Exit 1** means lint errors: re-run with `-Fix` (blank lines around headings/lists/fences, table pipe spacing), then hand-fix what remains. That's typically MD036 (a bold-only line used as a heading → make it a `###` heading) and MD040 (a fence with no language → add `ts`/`js`/`json`/`bash`/`text`…). Re-run until it exits 0.
