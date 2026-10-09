@@ -38,11 +38,11 @@ reviews/{short-module-name}/review-{short-module-name}-{version}-{YYYYMMDD}-{HHm
 
 Every review must pass **markdownlint** with the plugin's config before the run finishes. The workspace's `.markdownlint.jsonc` is identical, so the VS Code markdownlint extension shows the same result:
 
-```bash
-npx --yes markdownlint-cli2@0.23.3 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc reviews/<name>/<review-file>.md
+```powershell
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/lint-review.ps1 -ReviewFile reviews/<name>/<review-file>.md   # add -Fix to auto-fix
 ```
 
-Exit code 0 = clean. Otherwise fix every reported line and re-run until it is clean (`--fix` repairs blank-line and table-spacing issues automatically; MD036 and MD040 need a hand fix). The config turns off only line length (MD013) and tabs inside code blocks (MD010, so evidence stays verbatim). Write it clean the first time:
+Exit code 0 = clean. Otherwise fix every reported line and re-run until it is clean (`-Fix` repairs blank-line and table-spacing issues automatically; MD036 and MD040 need a hand fix). The config turns off only line length (MD013) and tabs inside code blocks (MD010, so evidence stays verbatim). Write it clean the first time:
 
 | Rule | Write it like this |
 | --- | --- |
