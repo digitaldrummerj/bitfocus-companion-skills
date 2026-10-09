@@ -1,6 +1,6 @@
 // markdownlint rules for assembled module reviews (reviews/**/*.md).
 // The orchestrator lints every review with this file before finishing:
-//   npx --yes markdownlint-cli2 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc <review.md>
+//   npx --yes markdownlint-cli2@0.23.3 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc reviews/<name>/<review.md>
 // The workspace keeps an identical .markdownlint.jsonc at its root so the VS Code
 // markdownlint extension shows the same results.
 {

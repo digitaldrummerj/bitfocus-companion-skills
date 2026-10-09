@@ -145,8 +145,10 @@ The ⬜ stays until the user delivers the review and marks it ✅ — that's wha
 Run markdownlint on the review file with the plugin's config:
 
 ```bash
-npx --yes markdownlint-cli2 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc reviews/<name>/<review-file>.md
+npx --yes markdownlint-cli2@0.23.3 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc reviews/<name>/<review-file>.md
 ```
+
+Use exactly this form: the pinned version, our `.jsonc` config, and a file under `reviews/`. The workspace allowlist permits only that, plus the same command with `--fix` right after the version (`markdownlint-cli2@0.23.3 --fix --config …`). Never lint files inside a module clone: markdownlint-cli2 executes `.markdownlint-cli2.cjs`/`.mjs` config files it finds next to the files it lints.
 
 If it reports anything, re-run with `--fix` (blank lines around headings/lists/fences, table pipe spacing), then hand-fix what remains, typically MD036 (a bold-only line used as a heading → make it a `###` heading) and MD040 (a fence with no language → add `ts`/`js`/`json`/`bash`/`text`…). Re-run until it exits 0. After a `--fix`, re-check that tables with `\|` inside code spans and the 📋 Issues anchors are intact. The rules are in **`companion-module-review:review-report-format`** → Markdown Lint. Never finish with lint errors: the maintainer's editor shows every one.
 
