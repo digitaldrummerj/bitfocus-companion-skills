@@ -68,6 +68,8 @@ The skills call the scripts as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`, 
 | The clones and templates | Under the workspace | `COMPANION_MODULES_DIR`, `COMPANION_TEMPLATES_DIR` |
 | The installed compliance skill plugin | 1. a sibling source checkout<br>2. `~/.claude/plugins/installed_plugins.json`<br>3. the plugin cache | `COMPANION_SKILLS_DIR` (checked first) |
 
+Under `companion-module-templates/`, the module's `@companion-module/base` level picks the template: `companion-module-template-{js,ts}-v1` for 1.x, `…-v2.0.4` for 2.0 (pinned at the 2026-08-28 commits), and the plain `companion-module-template-{js,ts}` (`main`, base 2.1) for 2.1 and later. The pins are in `scripts/lib/ReviewState.ps1` (`Get-TemplatePins`). The pinned clones are never fetched; `update-templates.ps1` refreshes `main` only.
+
 ## Tests
 
 ```bash

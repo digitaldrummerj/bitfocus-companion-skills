@@ -153,18 +153,54 @@ function Resolve-TemplatesDir {
     return Join-Path $RepoRoot "companion-module-templates"
 }
 
-function Get-TemplateV1Pins {
-    <# The last v1.x commit of each official template, by language. The "-v1" template clones
-       are checked out here in detached HEAD and MUST stay there — v1 modules are judged
-       against the API surface as it stood at the v1/v2 boundary, not against main.
+function Get-TemplatePins {
+    <# The pinned template clones, by folder suffix and language. Each pinned clone sits in
+       detached HEAD at the last commit of an API generation and MUST stay there: a module is
+       judged against the template as it stood for its own API level, never a later one.
+
+         -v1      last v1.x commit of each template (base 1.x)
+         -v2.0.4  the Aug 2026 commits, base 2.0.4 / node22, right before the templates moved
+                  to API 2.1 (base 2.1.x / node26) on 2026-10-08
+
+       The un-suffixed clone is main, the current API level (2.1 since 2026-10-08). See
+       Get-TemplateSuffix for which suffix an API level uses.
 
        Single source of truth: setup.ps1 creates the pins, update-templates.ps1 asserts they
        haven't drifted, and validate-template.ps1 treats a detached clone as intentionally
        pinned (and therefore exempt from the upstream freshness check). #>
-    return @{
-        js = '9e222b4d0b1a68b2acda7d8adb52c9f90ee4c3d1'
-        ts = '42609d8dab515a25ec2f3b3c7adafe57aa41b7be'
+    return [ordered]@{
+        '-v1'     = @{
+            js = '9e222b4d0b1a68b2acda7d8adb52c9f90ee4c3d1'
+            ts = '42609d8dab515a25ec2f3b3c7adafe57aa41b7be'
+        }
+        '-v2.0.4' = @{
+            js = 'e4caa76231c0d73599e8163858d995e3e79335f0'
+            ts = 'd62230e88bf8aec4ea6db407106bff2a96c0fdb9'
+        }
     }
+}
+
+function Get-TemplateV1Pins {
+    <# Back-compat wrapper: the -v1 pins only. Prefer Get-TemplatePins. #>
+    return (Get-TemplatePins)['-v1']
+}
+
+function Get-TemplateSuffix {
+    <# Which template clone judges a module at the given API level ('1', '2.0', '2.1', ...):
+         1          -> '-v1'      (pinned)
+         2.0        -> '-v2.0.4'  (pinned)
+         2.1 and up -> ''         (main, the current templates)
+       A pinned folder is never replaced by main when it's missing: judging a module against
+       the wrong API generation produces false findings, so callers must fail instead. #>
+    param([Parameter(Mandatory)][string]$ApiLevel)
+    $major = 2; $minor = 0
+    if ($ApiLevel -match '^(\d+)(?:\.(\d+))?$') {
+        $major = [int]$Matches[1]
+        if ($Matches[2]) { $minor = [int]$Matches[2] }
+    }
+    if ($major -le 1) { return '-v1' }
+    if ($major -eq 2 -and $minor -eq 0) { return '-v2.0.4' }
+    return ''
 }
 
 function Invoke-GitRead {
@@ -221,7 +257,7 @@ function Get-GitRepoInfo {
     $url = Invoke-GitRead @('-C', $Dir, 'remote', 'get-url', $remote)
     if (-not [string]::IsNullOrWhiteSpace($url)) {
         $info.OriginUrl = $url
-        # A filesystem origin means a clone-of-a-clone — how the "-v1" templates are created.
+        # A filesystem origin means a clone-of-a-clone — how setup.ps1 creates the pinned templates.
         if ($url -notmatch '^[a-z][a-z0-9+.-]*://' -and $url -notmatch '^[^/]+@[^/]+:') {
             $resolved = try { (Resolve-Path -LiteralPath $url -ErrorAction Stop).Path } catch { $null }
             if ($resolved -and (Test-Path -LiteralPath $resolved -PathType Container)) {
@@ -367,7 +403,7 @@ function Test-TemplateFreshness {
           fresh      local HEAD == origin/<branch>
           stale      local HEAD != origin/<branch>            -> blocking
           unverified could not reach the remote                -> blocking
-          pinned     detached HEAD (the "-v1" clones)          -> exempt by design
+          pinned     detached HEAD ("-v1", "-v2.0.4" clones)    -> exempt by design
           unmanaged  not a git work tree (a plain copy or a test fixture)
           skipped    caller opted out
     .OUTPUTS
@@ -646,8 +682,8 @@ function Get-CompanionApiProfile {
         anyone wrote references/v2.2.md).
 
         allowedRuntimes is $null for v1: v1 runtimes are judged against the pinned v1
-        template exactly as before. For v2 the template still pins node22, but API 2.1 added
-        node26 — so the runtime check can't be a plain template comparison any more.
+        template exactly as before. For v2 the runtime check uses the level's allowed runtimes
+        (2.0: node22; 2.1: node22 or node26) plus whatever the matching template pins.
     #>
     param(
         [Parameter(Mandatory)][string]$ApiLevel,

@@ -25,6 +25,16 @@ pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <module path
 - `-RunBuild` additionally runs `yarn install --immutable`, `yarn package` (build) and, for TS, `yarn lint`, and gates on success. Use it to satisfy the "build runs / lint runs" review gates. It is slower and needs network.
 - Add `-Json` for machine-readable output. Templates are auto-selected from `companion-module-templates/` in the workspace (override with `COMPANION_TEMPLATES_DIR`; the workspace itself with `COMPANION_REVIEW_ROOT`) or pass `-TemplateDir`.
 
+**Which template.** The module's installed `@companion-module/base` version (its `apiLevel`) picks the folder under `companion-module-templates/`:
+
+| Module API level | Template folder | Pinned at |
+| --- | --- | --- |
+| 1.x | `companion-module-template-{js,ts}-v1` | last v1.x commit (js `9e222b4`, ts `42609d8`) |
+| 2.0 | `companion-module-template-{js,ts}-v2.0.4` | 2026-08-28, base 2.0.4 / `node22` (js `e4caa76`, ts `d62230e`) |
+| 2.1+ | `companion-module-template-{js,ts}` | `main` (base 2.1 / `node26`), checked for freshness |
+
+The pins live in `Get-TemplatePins` / `Get-TemplateSuffix` (`scripts/lib/ReviewState.ps1`). If the pinned folder for the module's level is missing, the validator exits `2` naming it; it never falls back to `main`, because the wrong template produces false findings. Run the workspace `setup.ps1` to create it.
+
 **Every `Critical` finding blocks approval.** Each finding already states the file, expected value, and what was found — drop those straight into the review's side-by-side report.
 
 Exit codes: `0` clean · `1` Critical findings · `2` unusable `-ModuleDir` / no template · `3` the template clone is stale or unverifiable (see §1.5).
@@ -55,9 +65,9 @@ Templates are never refreshed automatically, and `setup.ps1` does not pull eithe
 review sessions share these clones, so an automatic pull would change the reference underneath
 a review already in progress. Refresh **between** sessions, not during one.
 
-The `-v1` clones sit in detached HEAD at the last v1.x commit by design and are exempt — but
-their v2 parent, which supplies the `.yarnrc.yml` expectations for v1 modules, is still
-checked. For a deliberate offline run, pass `-SkipTemplateFreshness` (or set
+The pinned clones (`-v1`, `-v2.0.4`) sit in detached HEAD by design and are exempt — but
+their `main` parent, which supplies the `.yarnrc.yml` expectations for pinned modules, is
+still checked. For a deliberate offline run, pass `-SkipTemplateFreshness` (or set
 `COMPANION_SKIP_TEMPLATE_FRESHNESS=1`) and record `Template freshness: skipped` in the review's
 meta table.
 
@@ -80,13 +90,14 @@ meta table.
 | TS husky `pre-commit` runs `lint-staged` | `HUSKY` |
 | Build / lint (with `-RunBuild`) | `BUILD-INSTALL`, `BUILD-PACKAGE`, `LINT` |
 
-**API 2.1 allowances.** Both upstream v2 templates still pin base `2.0.x` with `runtime.type: "node22"`, but a module on base **≥ 2.1** (Companion 5.0+) may legitimately move to Node 26. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports) and adjusts:
+**API 2.1 allowances.** The 2.1 templates (`main`) use `runtime.type: "node26"`, but a module on base **≥ 2.1** (Companion 5.0+) may legitimately stay on Node 22, and a 2.0 module (judged against `-v2.0.4`, `node22`) may not move to Node 26. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports) and adjusts:
 
 | Situation | Result |
 | --- | --- |
-| base ≥ 2.1, `runtime.type: "node26"` | accepted — no `MAN-RUNTIME` |
+| base ≥ 2.1, `runtime.type: "node26"` | matches the 2.1 template — no `MAN-RUNTIME` |
+| base ≥ 2.1, `runtime.type: "node22"` | accepted — no `MAN-RUNTIME` (2.1 allows node22 or node26) |
 | base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22` |
-| base ≥ 2.1, `runtime.type: "node26"`, `tsconfig.build.json` extends `@companion-module/tools/tsconfig/node26/recommended(.json)` where the template has `node22/recommended-esm.json` | `TSCONFIG-NODE26` (Info, for you) instead of a note — any *other* tsconfig difference is a `TSCONFIG-DIFF` note |
+| base ≥ 2.1, `runtime.type: "node26"`, `tsconfig.build.json` extends `@companion-module/tools/tsconfig/node26/recommended(.json)` where the template has `node22/recommended-esm.json` | `TSCONFIG-NODE26` (Info, for you) instead of a note — any *other* tsconfig difference is a `TSCONFIG-DIFF` note. Against the 2.1 template (already node26) this never triggers. |
 
 `TSCONFIG-NODE26` is an environment note like `TEMPLATE-COVERAGE`: it does not go into the review markdown.
 
@@ -132,7 +143,7 @@ v2 templates deliberately don't commit one — that requirement is hardcoded, no
 
 **`.yarnrc.yml` is the one exception to that rule.** It is repo tooling rather than API
 surface, and Bitfocus only updates it on `main` — so it is always compared against the
-non-`-v1` template, for v1 and v2 modules alike. It is also compared **by parsed key**, not
+`main` (unsuffixed) template, for every API level. It is also compared **by parsed key**, not
 raw text: key order, quote style (`'@companion-module/*'` vs `"…"`), blank lines, and
 comments are **not** divergences and are never flagged. What *is* Critical:
 

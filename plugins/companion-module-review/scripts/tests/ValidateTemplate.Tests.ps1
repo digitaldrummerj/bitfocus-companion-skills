@@ -908,6 +908,39 @@ try {
     $r21e = Invoke-Validator $m21e $apiTpl
     $rt18 = Find-Findings $r21e 'MAN-RUNTIME' 'companion/manifest.json'
     Ok ($rt18.Count -eq 1 -and $rt18[0].message -match 'node22, node26') "node18 on API 2.1 lists the allowed runtimes"
+
+    # ── Template selection by API level (auto-detected, no -TemplateDir) ─────
+    # base 1.x → "-v1", 2.0 → pinned "-v2.0.4", 2.1+ → main. A missing pinned folder must be
+    # an error, never a silent fallback to main (wrong template = false findings).
+    Write-Host "template selection by API level"
+    $selRoot = Join-Path $root 'templates-select'
+    Copy-Item -Recurse -Force $apiTpl (Join-Path $selRoot 'companion-module-template-ts')
+    Copy-Item -Recurse -Force $apiTpl (Join-Path $selRoot 'companion-module-template-ts-v2.0.4')
+    $prevTplDir = $env:COMPANION_TEMPLATES_DIR
+    try {
+        $env:COMPANION_TEMPLATES_DIR = $selRoot
+        function Invoke-AutoTemplate($ModuleDir) {
+            $out = & pwsh -NoProfile -File $validator -ModuleDir $ModuleDir -SkipTemplateFreshness -Json 2>&1
+            $code = $LASTEXITCODE
+            $text = ($out | Out-String)
+            $json = $null
+            if ($code -ne 2) { try { $json = ($out | Where-Object { $_ -is [string] } | Out-String) | ConvertFrom-Json } catch { } }
+            return [pscustomobject]@{ Code = $code; Json = $json; Text = $text }
+        }
+        $m20s = New-ApiModule 'sel20' '~2.0.4' 'node22' $preset22 '2.0.4'
+        $s20 = Invoke-AutoTemplate $m20s
+        Ok ($s20.Json -and $s20.Json.templateRevision.leaf -eq 'companion-module-template-ts-v2.0.4') "an API 2.0 module is judged against the pinned -v2.0.4 template"
+
+        $m21s = New-ApiModule 'sel21' '~2.1.3' 'node26' $preset26 '2.1.3'
+        $s21 = Invoke-AutoTemplate $m21s
+        Ok ($s21.Json -and $s21.Json.templateRevision.leaf -eq 'companion-module-template-ts') "an API 2.1 module is judged against main"
+
+        Remove-Item -Recurse -Force (Join-Path $selRoot 'companion-module-template-ts-v2.0.4')
+        $sMissing = Invoke-AutoTemplate $m20s
+        Ok ($sMissing.Code -eq 2 -and $sMissing.Text -match 'companion-module-template-ts-v2\.0\.4') "a missing -v2.0.4 folder is an error naming it (no fallback to main)"
+    } finally {
+        $env:COMPANION_TEMPLATES_DIR = $prevTplDir
+    }
 }
 finally {
     $env:COMPANION_TEMPLATE_FRESHNESS_TTL = $script:prevTtl

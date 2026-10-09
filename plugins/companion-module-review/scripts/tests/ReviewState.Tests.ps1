@@ -291,6 +291,17 @@ Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $null).Count) "a null q
 Assert-Equal 'https://developer.bitfocus.io/modules/review?type=companion-connection' (Get-PendingReviewPageUrl) "review page link defaults to connection modules"
 
 Write-Host ""
+Write-Host "Template suffix and pins by API level"
+Assert-Equal '-v1'     (Get-TemplateSuffix '1')   "API 1 uses the pinned -v1 template"
+Assert-Equal '-v2.0.4' (Get-TemplateSuffix '2.0') "API 2.0 uses the pinned -v2.0.4 template"
+Assert-Equal ''        (Get-TemplateSuffix '2.1') "API 2.1 uses main"
+Assert-Equal ''        (Get-TemplateSuffix '2.2') "later 2.x levels use main"
+$tp = Get-TemplatePins
+Assert-Equal '-v1,-v2.0.4' (@($tp.Keys) -join ',') "pins exist for -v1 and -v2.0.4"
+Assert-Equal 4 (@($tp.Values | ForEach-Object { $_.js; $_.ts } | Where-Object { $_ -match '^[0-9a-f]{40}$' }).Count) "every pin is a full 40-character commit SHA"
+Assert-Equal $tp['-v1'].ts (Get-TemplateV1Pins).ts "Get-TemplateV1Pins still returns the -v1 pins"
+
+Write-Host ""
 Write-Host "Repo web URL (source links in reviews)"
 Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git+https://github.com/bitfocus/companion-module-x.git') "package.json git+https url → https without .git"
 Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git@github.com:bitfocus/companion-module-x.git') "scp-style ssh remote → https"

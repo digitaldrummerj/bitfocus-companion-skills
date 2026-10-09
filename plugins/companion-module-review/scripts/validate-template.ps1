@@ -14,8 +14,10 @@
     differences are reported as Info TSCONFIG-DIFF notes, never blocking.
 
     The official template repo is the authoritative reference, selected by API version ×
-    language: v2 modules use companion-module-template-{js|ts}, v1 modules use the
-    "-v1"-suffixed variant. Templates are auto-detected under COMPANION_TEMPLATES_DIR
+    language, via Get-TemplateSuffix: API 2.1+ modules use companion-module-template-{js|ts}
+    (main), API 2.0 modules the "-v2.0.4"-suffixed clone, and v1 modules the "-v1"-suffixed
+    clone. A missing pinned clone is an error (exit 2), never a silent fallback to main.
+    Templates are auto-detected under COMPANION_TEMPLATES_DIR
     (default companion-module-templates/ inside the repo), or passed via -TemplateDir.
 
     BEFORE comparing anything, the local template clone is verified against its upstream
@@ -23,8 +25,8 @@
     behind upstream would judge the module against outdated expectations and produce false
     findings, so it is a blocking TEMPLATE-STALE. Templates are NEVER auto-updated here:
     concurrent review sessions share these clones, so refreshing is a separate, deliberate
-    act (scripts/update-templates.ps1). The "-v1" clones sit in detached HEAD by design and
-    are exempt.
+    act (scripts/update-templates.ps1). The pinned clones ("-v1", "-v2.0.4") sit in detached
+    HEAD by design and are exempt.
 
     Which files get compared is derived from the template's own tracked files
     (`git ls-files`) minus module-owned paths, so a file newly added upstream is compared
@@ -33,8 +35,8 @@
     TEMPLATE-COVERAGE so the gap can't go silent.
 
     One exception: .yarnrc.yml is repo tooling rather than API surface, and Bitfocus only
-    updates it on main, so it is always compared against the non-"-v1" template when one
-    exists — and by parsed key, not raw text (key order, quote style, and blank lines are
+    updates it on main, so it is always compared against the main (unsuffixed) template when
+    one exists — and by parsed key, not raw text (key order, quote style, and blank lines are
     not divergences; a missing/extra key or a conflicting value is).
 .PARAMETER ModuleDir
     Path to the cloned module under review.
@@ -73,7 +75,7 @@ Set-StrictMode -Version Latest
 
 . "$PSScriptRoot/lib/ReviewState.ps1"
 
-if (-not (Test-Path $ModuleDir)) { Write-Error "ModuleDir not found: $ModuleDir"; exit 2 }
+if (-not (Test-Path $ModuleDir)) { Write-Error "ModuleDir not found: $ModuleDir" -ErrorAction Continue; exit 2 }
 $ModuleDir = (Resolve-Path $ModuleDir).Path
 
 # ── Findings accumulator ─────────────────────────────────────────────────────
@@ -105,10 +107,10 @@ $isTs = Test-ModuleIsTypeScript $ModuleDir
 $lang = if ($isTs) { 'TS' } else { 'JS' }
 $langLower = $lang.ToLower()
 
-# Detect the @companion-module/base version. The MAJOR still picks the template (1.x → the
-# pinned "-v1" clone, 2.x → main). The MINOR matters too since API 2.1: the v2 templates still
-# pin base 2.0.x / node22, but a 2.1 module may legitimately run on node26 — so the runtime and
-# tsconfig comparisons below need to know the level, or they'd flag a correct module.
+# Detect the @companion-module/base version. The API LEVEL picks the template (Get-TemplateSuffix):
+# 1.x → the pinned "-v1" clone, 2.0 → the pinned "-v2.0.4" clone (base 2.0.4 / node22), 2.1+ →
+# main (base 2.1 / node26 since 2026-10-08). The runtime check below also uses the level: API 2.1
+# allows node22 or node26, so a 2.1 module that stayed on node22 is not flagged.
 $baseInfo   = Resolve-CompanionBaseVersion $ModuleDir
 $apiMajor   = $baseInfo.major
 $apiVer     = "v$apiMajor"
@@ -128,8 +130,8 @@ try {
 
 # ── Resolve template dir by version × language ───────────────────────────────
 # Templates live in companion-module-templates/ inside the repo (override:
-# COMPANION_TEMPLATES_DIR). v1 templates use a "-v1" suffix; v2 templates have none.
-$tplSuffix = if ($apiMajor -le 1) { '-v1' } else { '' }
+# COMPANION_TEMPLATES_DIR). Pinned API generations use a suffix ("-v1", "-v2.0.4"); main has none.
+$tplSuffix = Get-TemplateSuffix -ApiLevel $baseInfo.apiLevel
 $tplName   = "companion-module-template-$langLower$tplSuffix"
 if (-not $TemplateDir) {
     # The scripts live in the companion-module-review plugin, so the templates are found
@@ -142,17 +144,19 @@ if (-not $TemplateDir) {
     }
 }
 if (-not $TemplateDir -or -not (Test-Path $TemplateDir)) {
-    Write-Error "Template '$tplName' ($lang $apiVer) not found. Run this from your companion-module-review workspace after setup.ps1 has cloned the templates into companion-module-templates/ (or set COMPANION_REVIEW_ROOT / COMPANION_TEMPLATES_DIR, or pass -TemplateDir)."
+    # Never fall back to main for a pinned generation: the wrong template means false findings.
+    Write-Error "Template '$tplName' ($lang, API $($baseInfo.apiLevel)) not found. Run setup.ps1 in your companion-module-review workspace to create the template clones in companion-module-templates/ (pinned ones included), or set COMPANION_REVIEW_ROOT / COMPANION_TEMPLATES_DIR, or pass -TemplateDir." -ErrorAction Continue
     exit 2
 }
 $TemplateDir = (Resolve-Path $TemplateDir).Path
 
 # .yarnrc.yml is repo tooling, not API-versioned — Bitfocus updates it on main only, so a
-# v1 module is judged against the current (main) template's yarnrc rather than the pinned
-# v1 template's stale copy. Falls back to $TemplateDir when there's no sibling to use.
+# module judged against a pinned template ("-v1", "-v2.0.4") still gets the current (main)
+# template's yarnrc rather than the pinned clone's stale copy. Falls back to $TemplateDir
+# when there's no sibling to use.
 $yarnrcTemplateDir = $TemplateDir
-if ($TemplateDir -match '-v1$') {
-    $sibling = $TemplateDir -replace '-v1$',''
+if ($TemplateDir -match '-v\d[\d.]*$') {
+    $sibling = $TemplateDir -replace '-v\d[\d.]*$',''
     if (Test-Path (Join-Path $sibling '.yarnrc.yml')) { $yarnrcTemplateDir = $sibling }
 }
 
@@ -171,9 +175,9 @@ $seenTplDirs = [System.Collections.Generic.HashSet[string]]::new()
 
 # The check set is every clone whose contents feed an expectation:
 #   - the matched template;
-#   - the yarnrc source, which for a v1 module is the *v2* sibling (see above);
-#   - one hop through a pinned clone's local origin, since the "-v1" clones are cloned from
-#     the v2 clone — that parent is the thing that can actually fall behind GitHub.
+#   - the yarnrc source, which for a pinned (v1 / 2.0) module is the main sibling (see above);
+#   - one hop through a pinned clone's local origin, since setup.ps1 clones the pinned
+#     folders from the main clone — that parent is the thing that can actually fall behind GitHub.
 $freshnessTargets = @($TemplateDir, $yarnrcTemplateDir)
 $tplInfo = Get-GitRepoInfo -Dir $TemplateDir
 if ($tplInfo.IsRepo -and $tplInfo.Detached -and $tplInfo.OriginIsLocalDir) {
@@ -799,12 +803,12 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($es.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
-        # API 2.1 allowance: the v2 templates still extend tools' node22 preset, but a 2.1
-        # module that moved its manifest runtime to node26 is expected to extend the node26
-        # preset instead. If swapping that ONE preset reference makes the file identical, it
-        # is the documented upgrade path, not a divergence — an Info note, not a Critical.
-        # Anything else that differs still raises CONFIG-DIFF, and a 2.0 module gets no
-        # allowance (node26 needs base >= 2.1; §5 flags its runtime separately).
+        # API 2.1 allowance: if the template extends tools' node22 preset (any template before
+        # the 2026-10-08 move to 2.1) and a 2.1 module on the node26 runtime extends the node26
+        # preset instead, swapping that ONE preset reference must make the file identical; then
+        # it is the documented upgrade path, reported as an Info note rather than a TSCONFIG-DIFF.
+        # Against the current 2.1 template (already node26) this simply never triggers. A 2.0
+        # module gets no allowance (node26 needs base >= 2.1; §5 flags its runtime separately).
         $node26Preset = '@companion-module/tools/tsconfig/node26/recommended(?:\.json)?'
         $tplPreset = @($tplLines | ForEach-Object { if ($_ -match '(@companion-module/tools/tsconfig/node22/[A-Za-z0-9_-]+(?:\.json)?)') { $Matches[1] } }) | Select-Object -First 1
         if ($rule.Kind -eq 'tsconfig' -and $apiAtLeast21 -and $modRuntimeType -eq 'node26' -and $tplPreset -and
@@ -990,10 +994,10 @@ if (Test-Path $manifestPath) {
         }
         # runtime.type / runtime.api must match the template (lang+version specific).
         # One exception for v2: runtime.type is judged against the API level's allowed runtimes
-        # (plus whatever the template pins), not the template alone. The v2 templates still say
-        # node22, yet API 2.1 added node26 — comparing to the template would flag every 2.1
-        # module that took the documented node26 upgrade. A 2.0 module on node26 is still a
-        # Critical, with a message that says why (node26 needs base >= 2.1, Companion 5.0+).
+        # (plus whatever the template pins), not the template alone. API 2.1 allows node22 and
+        # node26, so a 2.1 module is fine on either even though the 2.1 template (main) says
+        # node26; a 2.0 module is judged against the -v2.0.4 template (node22), and node26 there
+        # is still a Critical, with a message that says why (node26 needs base >= 2.1, Companion 5.0+).
         # v1 keeps the plain template comparison (allowedRuntimes is $null for v1).
         if ($tplMan -and (Has-Prop $tplMan 'runtime') -and (Has-Prop $man 'runtime')) {
             foreach ($rp in @('type','api')) {
