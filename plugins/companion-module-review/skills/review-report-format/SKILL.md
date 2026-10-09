@@ -69,10 +69,11 @@ Exit code 0 = clean. Otherwise fix every reported line and re-run until it is cl
 9. 💡 Nice to Have
 10. 🔮 Next Release
 11. ⚠️ Pre-existing Notes *(scope `both` only)*
-12. 🧪 Tests *(only when tests are present; omit entirely if none found)*
-13. 📝 Additional Notes *(only when there are notes)*
+12. 📝 Additional Notes *(only when there are notes)*
 
 Omit any section that has no content. Do **not** add a scorecard, a "Fix Summary", a "What's Solid" section, or summary/count lines.
+
+**No 🧪 Tests section.** When a module has tests they are run, but the report says nothing about them unless they **fail**. A failing test run is an ordinary finding in the severity section that fits its impact (name the failing test and the error). Passing tests, coverage, test quality and missing tests are never mentioned.
 
 **Blocking** = every finding in the `🔴 Critical` and `🟠 High` sections (pre-existing ones in those sections included). Everything else is non-blocking. Blocking drives the Verdict and the 📋 Issues grouping; it is never printed as a count.
 

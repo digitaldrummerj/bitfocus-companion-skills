@@ -90,7 +90,7 @@ Launch all three with the Agent tool in one message, using the plugin's namespac
 
 - `companion-protocol-reviewer` — connection lifecycle, sockets, OSC/TCP/UDP/HTTP/Bonjour, timeouts, `destroy()` cleanup, `InstanceStatus`.
 - `companion-qa-reviewer` — bugs, edge cases, error handling, performance, async correctness, silent failures.
-- `companion-compliance-reviewer` — invokes the `<apiSkill>:<apiSkill>` skill (and only the listed `apiReferences`); actions/feedbacks/presets/variables/config structure, upgrade scripts, test detection (absence is non-blocking).
+- `companion-compliance-reviewer` — invokes the `<apiSkill>:<apiSkill>` skill (and only the listed `apiReferences`); actions/feedbacks/presets/variables/config structure, upgrade scripts; runs the module's tests when present and reports **only failures**, as findings.
 
 (Template/build/lint already came from Step 4 — don't duplicate it.)
 
@@ -124,7 +124,7 @@ Take the values from the validator's `templateRevision` / `yarnrcTemplate`; v2 m
 | **API** | 2.1 (base 2.1.3, yarn.lock) — requires Companion 5.0+ |
 ```
 
-For v1 modules write e.g. `1 (base 1.14.1, yarn.lock)`. If `apiAmbiguous` is true, add a 🟡 Medium finding asking the maintainer to pin `@companion-module/base` with `~2.N.x` (or commit the lockfile) so the target API version — and the Companion version users need — is explicit. If the run used `-SkipTemplateFreshness`, append `— freshness not verified (offline run)`. Sections in order: title + meta, **Verdict**, **📋 Issues** (Blocking / Non-blocking), `🔴 Critical` → `🟠 High` → `🟡 Medium` → `🟢 Low` → `💡 Nice to Have` → `🔮 Next Release` → `⚠️ Pre-existing Notes` → `🧪 Tests` → `📝 Additional Notes`. Omit empty sections. The **Verdict** section is the status line only (`✅ Approved` / `❌ Changes Required`) — no reasoning paragraph. Include `🧪 Tests` **only if tests were found** (framework/files/`test` script present) — if none, omit the section entirely rather than writing "no tests found." Plain text (no emoji) in individual issue headings for stable anchors.
+For v1 modules write e.g. `1 (base 1.14.1, yarn.lock)`. If `apiAmbiguous` is true, add a 🟡 Medium finding asking the maintainer to pin `@companion-module/base` with `~2.N.x` (or commit the lockfile) so the target API version — and the Companion version users need — is explicit. If the run used `-SkipTemplateFreshness`, append `— freshness not verified (offline run)`. Sections in order: title + meta, **Verdict**, **📋 Issues** (Blocking / Non-blocking), `🔴 Critical` → `🟠 High` → `🟡 Medium` → `🟢 Low` → `💡 Nice to Have` → `🔮 Next Release` → `⚠️ Pre-existing Notes` → `📝 Additional Notes`. Omit empty sections. The **Verdict** section is the status line only (`✅ Approved` / `❌ Changes Required`) — no reasoning paragraph. There is **no 🧪 Tests section**: a failing test run is reported as a normal finding, and nothing else about tests (passing, quality, coverage or absence) goes in the report. Plain text (no emoji) in individual issue headings for stable anchors.
 
 Scope adjusts the presentation:
 
