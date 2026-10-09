@@ -291,5 +291,14 @@ Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $null).Count) "a null q
 Assert-Equal 'https://developer.bitfocus.io/modules/review?type=companion-connection' (Get-PendingReviewPageUrl) "review page link defaults to connection modules"
 
 Write-Host ""
+Write-Host "Repo web URL (source links in reviews)"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git+https://github.com/bitfocus/companion-module-x.git') "package.json git+https url → https without .git"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git@github.com:bitfocus/companion-module-x.git') "scp-style ssh remote → https"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'ssh://git@github.com/bitfocus/companion-module-x.git') "ssh:// remote → https"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'https://github.com/bitfocus/companion-module-x/') "plain https url is kept (trailing slash dropped)"
+Assert-Equal $null (ConvertTo-RepoWebUrl '/Users/me/clones/companion-module-x') "a local path is not a web url"
+Assert-Equal $null (ConvertTo-RepoWebUrl '') "empty input → null"
+
+Write-Host ""
 Write-Host "$($script:pass) passed, $($script:fail) failed" -ForegroundColor ($(if ($script:fail) { 'Red' } else { 'Green' }))
 if ($script:fail) { exit 1 }

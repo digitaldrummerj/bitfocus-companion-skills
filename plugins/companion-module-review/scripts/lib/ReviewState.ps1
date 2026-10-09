@@ -233,6 +233,21 @@ function Get-GitRepoInfo {
     return [pscustomobject]$info
 }
 
+function ConvertTo-RepoWebUrl {
+    <# Normalize a git remote / package.json repository URL to its browsable https form,
+       e.g. "git+https://github.com/bitfocus/companion-module-x.git" or
+       "git@github.com:bitfocus/companion-module-x.git" -> "https://github.com/bitfocus/companion-module-x".
+       Returns $null for anything that is not a recognisable host/owner/repo URL (a local path). #>
+    param([string]$Url)
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $null }
+    $u = $Url.Trim() -replace '^git\+', ''
+    if ($u -match '^[^/@\s]+@([^:/\s]+):(.+)$') { $u = "https://$($Matches[1])/$($Matches[2])" }   # scp-style ssh
+    $u = $u -replace '^(ssh|git)://([^@/]+@)?', 'https://' -replace '^http://', 'https://'
+    $u = $u -replace '\.git/?$', '' -replace '/+$', ''
+    if ($u -notmatch '^https://[^/\s]+/[^/\s]+/[^/\s]+$') { return $null }
+    return $u
+}
+
 function Get-TemplateFreshnessCachePath {
     <# One small file per remote, in the system temp dir.
 
