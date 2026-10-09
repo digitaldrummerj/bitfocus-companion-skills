@@ -15,7 +15,9 @@
 
       1. every -ReviewFile must be an existing .md file under the workspace's reviews/ directory
          (real paths, symlinks resolved, so ../ or a link can't escape);
-      2. each file is COPIED into a fresh, empty temp directory created by this script;
+      2. each file is COPIED into a fresh temp directory created by this script, which also gets
+         its own package.json so npm/npx treat it as the project root and never search the
+         (shared) temp directory above it for node_modules, package.json or .npmrc;
       3. the pinned npx runs there, with --no-globs, our --config, and literal (':') paths;
          nothing from the workspace or the review folders is visible to it;
       4. output paths are mapped back to the original file names, and with -Fix the fixed
@@ -99,6 +101,12 @@ $sandbox = Join-Path ([IO.Path]::GetTempPath()) ("lint-review-" + [guid]::NewGui
 New-Item -ItemType Directory -Path $sandbox | Out-Null
 $sandbox = Get-RealPath $sandbox
 try {
+    # Make the sandbox its own npm project root. npm/npx search UPWARD for the nearest
+    # package.json / node_modules (and read that project's .npmrc). Without this marker a
+    # node_modules/markdownlint-cli2 planted in the temp directory above the sandbox, claiming
+    # the pinned version, would be executed instead of the real package. No "markdownlint-cli2"
+    # key here: markdownlint-cli2 also reads package.json for config.
+    Set-Content -LiteralPath (Join-Path $sandbox 'package.json') -Value '{ "name": "lint-review-sandbox", "private": true }' -Encoding utf8
     foreach ($file in $files) {
         $dest = Join-Path $sandbox $file.SandboxRel
         New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
