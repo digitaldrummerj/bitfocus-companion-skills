@@ -1,7 +1,7 @@
 {
   "name": "companion-module-review",
-  "description": "Companion module review workspace tooling: the /review-module orchestrator, review subagents, scorecard and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
-  "version": "1.0.0",
+  "description": "Companion module review workspace tooling: the /review-module orchestrator, review and finding-verifier subagents, report-format and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
+  "version": "1.1.0",
   "author": {
     "name": "Justin James"
   },
@@ -14,7 +14,7 @@
     "module fact sheet",
     "validate-template",
     "api-scan",
-    "review scorecard"
+    "review report format"
   ],
   "skills": "./skills"
 }

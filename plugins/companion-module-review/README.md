@@ -50,9 +50,12 @@ claude --plugin-dir <path-to>/bitfocus-companion-skills/plugins/companion-module
 |---|---|
 | Orchestrator skill (`review-companion-module`), invoked by the `/review-module` command | `skills/review-companion-module/`, `commands/review-module.md` |
 | Review subagents: `companion-protocol-reviewer`, `companion-qa-reviewer`, `companion-compliance-reviewer` | `agents/` |
-| Scorecard / issue-list format | `skills/review-scorecard/` |
+| Finding verifier: `companion-finding-verifier` — tries to refute each AI-judgment Critical/High before it reaches the report | `agents/companion-finding-verifier.md` |
+| Report format: section order, 📋 Issues list, per-finding Source / Evidence / Confirm by, 📝 Additional Notes (no scorecard) | `skills/review-report-format/` |
+| markdownlint config every review must pass (Step 7a; the workspace keeps a matching `.markdownlint.jsonc`) | `config/.markdownlint.jsonc` |
 | Running and interpreting `validate-template.ps1` (finding ids, freshness gate, accepted deviations) | `skills/review-template-check/` |
 | Same-tag follow-up reviews | `skills/review-follow-up-same-tag/` |
+| Live-testing a finding or fix in the user's local Companion: patched test package, old-format test page, Claude in Chrome import + verify | `skills/review-live-test/` |
 | Yarn 4 lockfile follow-ups | `skills/review-yarn4-lockfile-validation/` |
 | Workspace layout, review file naming, TRACKER rows | `skills/review-workspace-conventions/` |
 | Pipeline scripts: `bitfocus-queue`, `bitfocus-setup-module`, `module-facts`, `validate-template`, `api-scan`, `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |

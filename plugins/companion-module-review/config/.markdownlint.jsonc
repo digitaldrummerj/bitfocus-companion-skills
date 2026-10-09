@@ -1,0 +1,17 @@
+// markdownlint rules for assembled module reviews (reviews/**/*.md).
+// The orchestrator lints every review with this file before finishing:
+//   npx --yes markdownlint-cli2 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc <review.md>
+// The workspace keeps an identical .markdownlint.jsonc at its root so the VS Code
+// markdownlint extension shows the same results.
+{
+  "default": true,
+
+  // Reviews are prose: one paragraph per line reads and diffs better than hard-wrapped text.
+  "MD013": false,
+
+  // Evidence blocks quote module source verbatim, and most Companion modules indent with tabs.
+  "MD010": { "code_blocks": false },
+
+  // Every table uses the same pipe style: "| a | b |" with a "| --- | --- |" divider.
+  "MD060": { "style": "compact" }
+}

@@ -12,6 +12,7 @@ All commands run from the root of the current workspace — the companion-module
 ## Step 0 — Determine the review scope
 
 Pick the scope from the request (default **`tag`** if unspecified):
+
 - **`tag`** — review only what changed in this release (the `previousTag..reviewTag` diff). Triggers: explicit `tag`, or "just the tag", "the changes", "what changed". Pre-existing issues are not surfaced.
 - **`module`** — review the whole current module flat (all findings by severity, no diff, no new-vs-existing split). Triggers: explicit `module`, "the whole module", "full review", "the existing module".
 - **`both`** — whole module reviewed AND classified new vs pre-existing. Triggers: explicit `both`.
@@ -26,20 +27,22 @@ State the chosen scope to the user before proceeding.
 
 ## Step 2 — Set up the module
 
-```
+```powershell
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName <name> -Json
 ```
+
 Add `-ReviewTag <version>` when the user specified a version (omit it otherwise — the oldest pending version is used). Clones into `companion-modules-reviewing/` **and checks out the resolved tag**, so the fact sheet (Step 3), the validate-template build (Step 4), and the `previousTag..reviewTag` diff (Step 5) all reflect that exact version. Returns `{ module, reviewTag, previousTag, directory }`; `previousTag` is needed for `tag`/`both`, not for `module` scope. If a specified version isn't pending, the script errors and lists the module's pending versions — relay that. If it errors that the module is already reviewed with feedback pending, surface that; only re-run with `-Force` if the user confirms.
 
 ## Step 3 — Generate the shared fact sheet
 
-```
+```powershell
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/module-facts.ps1 -ModuleDir <directory> -GitTag <reviewTag> -Json
 ```
-Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` or `companion-v2-api-compliance` — a plugin from the bitfocus-companion-skills marketplace, invoked as `<apiSkill>:<apiSkill>`), **`apiSkillInstalled`**, `protocols`, `srcFiles`, `templateCheck`, **`templateFreshness`**, and the API-level fields:
+
+Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` or `companion-v2-api-compliance` — a plugin from the bitfocus-companion-skills marketplace, invoked as `<apiSkill>:<apiSkill>`), **`apiSkillInstalled`**, `protocols`, `srcFiles`, `templateCheck`, **`templateFreshness`**, **`sourceLinkBase`** (`<repoWebUrl>/blob/<reviewCommit>`: the GitHub base for every source link in the review, pinned to the tag's full commit SHA), and the API-level fields:
 
 | Field | Meaning |
-|---|---|
+| --- | --- |
 | `apiLevel` | `1`, `2.0`, `2.1`, … — the exact API rule set (resolved from `yarn.lock` / lockfile / `node_modules`, falling back to the `package.json` range) |
 | `baseVersion` / `baseVersionSource` | e.g. `2.1.3` from `yarn.lock` |
 | `apiAmbiguous` | `true` when only a caret range (`^2.x`) was available, so the minor version had to be assumed |
@@ -57,7 +60,7 @@ The reason to stop rather than report: with an out-of-date template every `CONFI
 
 Tell the user the local and upstream SHAs from `templateCheck` / the validator output and:
 
-```
+```powershell
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/update-templates.ps1     # then re-run the review
 ```
 
@@ -65,9 +68,10 @@ Templates are never refreshed automatically because concurrent review sessions s
 
 ## Step 4 — Deterministic compliance + build/lint
 
-```
+```powershell
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> -RunBuild -Json
 ```
+
 Interpret the output with the **`companion-module-review:review-template-check`** skill (invoke it with the Skill tool: finding ids, accepted deviations, environment findings). Every `Critical` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) `Medium` findings (currently `.github/**` parity) are reported but non-blocking.
 
 `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED`, and `TEMPLATE-COVERAGE` are **environment** findings about your workspace, not the module — they never appear in the review markdown. The first two should have already stopped you at Step 3a; `TEMPLATE-COVERAGE` means the template gained a file the validator has no rule for, so mention it to the user and move on.
@@ -83,15 +87,32 @@ Interpret the output with the **`companion-module-review:review-template-check`*
 ## Step 6 — Dispatch the review subagents (in parallel)
 
 Launch all three with the Agent tool in one message, using the plugin's namespaced agent types (`companion-module-review:companion-protocol-reviewer`, `companion-module-review:companion-qa-reviewer`, `companion-module-review:companion-compliance-reviewer`). Give each: the **scope** (Step 0), the **fact sheet**, the clone `directory`, the `previousTag`, and the `apiSkill` name. Give the compliance reviewer also `apiLevel`, `baseVersion`, `apiSkillDir`, `apiReferences`, and `apiScan`. Each returns findings (severity, `file:line`, classification when scope ≠ module, description, suggested fix **for the maintainer**) — they never edit the module.
+
 - `companion-protocol-reviewer` — connection lifecycle, sockets, OSC/TCP/UDP/HTTP/Bonjour, timeouts, `destroy()` cleanup, `InstanceStatus`.
 - `companion-qa-reviewer` — bugs, edge cases, error handling, performance, async correctness, silent failures.
 - `companion-compliance-reviewer` — invokes the `<apiSkill>:<apiSkill>` skill (and only the listed `apiReferences`); actions/feedbacks/presets/variables/config structure, upgrade scripts, test detection (absence is non-blocking).
 
 (Template/build/lint already came from Step 4 — don't duplicate it.)
 
+Every Critical/High a reviewer returns carries **Evidence** (verbatim code with `file:line`) and a **Confirm by** line. A reviewer Critical/High without evidence is demoted to 🟡 Medium before Step 6b.
+
+## Step 6b — Verify every AI-judgment Critical/High (in parallel)
+
+Dedupe the reviewers' findings by file+line first (merge duplicates; keep the higher severity). Then, for **each** remaining Critical/High that came from a reviewer — **not** the Step-4 validator findings, which are deterministic and tested — launch one `companion-module-review:companion-finding-verifier` in a single parallel message. Give each: the one finding (severity, title, `file:line`, description, the reviewer's evidence), the clone `directory`, the scope, `reviewTag`, and `previousTag`. Each verifier tries to **refute** the finding and returns `VERDICT` / `SEVERITY` / `EVIDENCE` / `CONFIRM BY` / `REASON` / `ASSUMPTIONS`.
+
+Keep every `ASSUMPTIONS` entry from the reviewers (Step 6) and the verifiers, together with the findings it affects. Merge duplicates. They become the review's **❓ Assumptions to Confirm** section.
+
+Apply the verdicts:
+
+- **`confirmed`** → keep it at the verifier's `SEVERITY`; Source `🔎 <reviewer> — verified`; use the verifier's EVIDENCE and CONFIRM BY in the report (freshly captured, not the reviewer's copy).
+- **`refuted`** → drop it from the report. Record `<title> — <REASON>` for the Step 8 summary.
+- **`uncertain`** → keep it at the verifier's `SEVERITY`; Source `🔎 <reviewer> — ⚠️ needs your check`; include the verifier's CONFIRM BY so the human knows what to check.
+
+If the verifier's `SEVERITY` is Medium or lower, the finding moves out of the blocking sections. When an `uncertain` verdict (or one of the ❓ assumptions) depends on how Companion itself behaves, such as upgrade-script input, option formats or migrations, offer the user a live test with **`companion-module-review:review-live-test`** instead of leaving it open. Findings below High from the reviewers are not verified.
+
 ## Step 7 — Assemble the review
 
-Invoke the **`companion-module-review:review-scorecard`** skill for the 📊 Scorecard and 📋 Issues format. Merge the Step-4 deterministic findings + the subagents' findings into ONE file, deduped by file+line. Header meta table includes a **`Scope:`** line (`tag` / `module` / `both`) and a **`Template`** row naming the exact revision the verdict was rendered against, so a disputed finding can be re-checked at that commit later:
+Invoke the **`companion-module-review:review-report-format`** skill for the section order, the Verdict line, the 📋 Issues list, the per-finding block (**Source** / Evidence / Confirm by) and 📝 Additional Notes. There is **no scorecard**. Put **❓ Assumptions to Confirm** right after the Verdict (each assumption links to the findings it affects), and make every cited module file a GitHub link built from `sourceLinkBase` (review-report-format → Source Links): `[`src/x.ts:10-20`](<sourceLinkBase>/src/x.ts#L10-L20)`. Write every finding **user-first** (review-report-format → "Write for the user, not the code"): a title that names the visible effect, then **What goes wrong** (a concrete scenario in Companion UI terms), then **Why it happens** (plain mechanism, any API jargon defined), and only then the code. Rewrite reviewer wording that leads with identifiers. Merge the Step-4 deterministic findings (Source `🤖 validate-template (<ID>)`) + the verified reviewer findings into ONE file, deduped by file+line. `TSCONFIG-DIFF` validator notes go to **📝 Additional Notes** (one line each) — never into a severity section or 📋 Issues. Header meta table includes a **`Scope:`** line (`tag` / `module` / `both`) and a **`Template`** row naming the exact revision the verdict was rendered against, so a disputed finding can be re-checked at that commit later:
 
 ```markdown
 | **Template** | `companion-module-template-js-v1` @ `9e222b4` (2026-03-26, pinned) · `.yarnrc.yml` from `companion-module-template-js` @ `0f916f9` (2026-06-24) |
@@ -103,19 +124,42 @@ Take the values from the validator's `templateRevision` / `yarnrcTemplate`; v2 m
 | **API** | 2.1 (base 2.1.3, yarn.lock) — requires Companion 5.0+ |
 ```
 
-For v1 modules write e.g. `1 (base 1.14.1, yarn.lock)`. If `apiAmbiguous` is true, add a 🟡 Medium finding asking the maintainer to pin `@companion-module/base` with `~2.N.x` (or commit the lockfile) so the target API version — and the Companion version users need — is explicit. If the run used `-SkipTemplateFreshness`, append `— freshness not verified (offline run)`. Sections in order: title + meta, **📊 Scorecard**, **Verdict**, **📋 Issues** (Blocking / Non-blocking), `🔴 Critical` → `🟠 High` → `🟡 Medium` → `🟢 Low` → `💡 Nice to Have` → `🔮 Next Release` → `⚠️ Pre-existing Notes` → `🧪 Tests`. Omit empty sections. The **Verdict** section is the status line only (`✅ Approved` / `❌ Changes Required`) — no reasoning paragraph. Include `🧪 Tests` **only if tests were found** (framework/files/`test` script present) — if none, omit the section entirely rather than writing "no tests found." Plain text (no emoji) in individual issue headings for stable anchors.
+For v1 modules write e.g. `1 (base 1.14.1, yarn.lock)`. If `apiAmbiguous` is true, add a 🟡 Medium finding asking the maintainer to pin `@companion-module/base` with `~2.N.x` (or commit the lockfile) so the target API version — and the Companion version users need — is explicit. If the run used `-SkipTemplateFreshness`, append `— freshness not verified (offline run)`. Sections in order: title + meta, **Verdict**, **📋 Issues** (Blocking / Non-blocking), `🔴 Critical` → `🟠 High` → `🟡 Medium` → `🟢 Low` → `💡 Nice to Have` → `🔮 Next Release` → `⚠️ Pre-existing Notes` → `🧪 Tests` → `📝 Additional Notes`. Omit empty sections. The **Verdict** section is the status line only (`✅ Approved` / `❌ Changes Required`) — no reasoning paragraph. Include `🧪 Tests` **only if tests were found** (framework/files/`test` script present) — if none, omit the section entirely rather than writing "no tests found." Plain text (no emoji) in individual issue headings for stable anchors.
 
 Scope adjusts the presentation:
-- **`tag`:** omit `⚠️ Pre-existing Notes`; scorecard "⚠️ Existing" column is 0 (all findings new).
-- **`module`:** omit `⚠️ Pre-existing Notes`; present scorecard counts by severity only and add the note "whole-module scope — new vs pre-existing not assessed."
-- **`both`:** full New/Existing scorecard + pre-existing notes.
+
+- **`tag`:** omit `⚠️ Pre-existing Notes`; every finding is classified 🆕 NEW or 🔙 REGRESSION.
+- **`module`:** omit `⚠️ Pre-existing Notes` and the Classification lines; add the line "whole-module scope — new vs pre-existing not assessed." under the meta table.
+- **`both`:** classify every finding and include `⚠️ Pre-existing Notes`.
 
 Write to `reviews/<name>/review-<name>-<reviewTag>-<YYYYMMDD-HHMMSS>.md` in the workspace (layout and naming: **`companion-module-review:review-workspace-conventions`**) (`mkdir -p reviews/<name>/` first; timestamp from `date -u +"%Y%m%d-%H%M%S"`). Append to `reviews/TRACKER.md`:
-```
+
+```markdown
 | ⬜ | <name> | <reviewTag> | <YYYY-MM-DD> | [review](<name>/review-<name>-<reviewTag>-<stamp>.md) |
 ```
+
 The ⬜ stays until the user delivers the review and marks it ✅ — that's what keeps the module from being reviewed twice.
+
+## Step 7a — Lint the review (must be clean)
+
+Run markdownlint on the review file with the plugin's config:
+
+```bash
+npx --yes markdownlint-cli2 --config ${CLAUDE_PLUGIN_ROOT}/config/.markdownlint.jsonc reviews/<name>/<review-file>.md
+```
+
+If it reports anything, re-run with `--fix` (blank lines around headings/lists/fences, table pipe spacing), then hand-fix what remains, typically MD036 (a bold-only line used as a heading → make it a `###` heading) and MD040 (a fence with no language → add `ts`/`js`/`json`/`bash`/`text`…). Re-run until it exits 0. After a `--fix`, re-check that tables with `\|` inside code spans and the 📋 Issues anchors are intact. The rules are in **`companion-module-review:review-report-format`** → Markdown Lint. Never finish with lint errors: the maintainer's editor shows every one.
 
 ## Step 8 — Stop (report only)
 
-Tell the user the review file path, the scope, the verdict (✅ Approved / ❌ Changes Required), and the blocking count. Do **not** modify the module, create a `fix/...` branch, or push anything to the module's repo. The user reviews the report, then delivers it to the maintainer.
+Tell the user the review file path, the scope, the verdict (✅ Approved / ❌ Changes Required), and a verification summary so they know where their own checking is needed:
+
+```text
+Blocking: N  (X deterministic · Y verified · Z ⚠️ need your check)
+Dropped by verification: <title> — <reason>; …   (or "none")
+Assumptions to confirm: K  (A1 → C1, H2; A2 → H1; …)   (or "none")
+```
+
+Confirmed or corrected assumptions are fed back into the review skills (the api-compliance references, the reviewer agents), so later reviews don't have to assume the same thing.
+
+The ⚠️ items are the only blocking findings the user must check against the code; verified ones only need a glance at the quoted Evidence. Do **not** modify the module, create a `fix/...` branch, or push anything to the module's repo. The user reviews the report, then delivers it to the maintainer.

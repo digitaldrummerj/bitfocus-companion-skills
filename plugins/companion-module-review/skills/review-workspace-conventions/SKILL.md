@@ -3,6 +3,8 @@ name: review-workspace-conventions
 description: 'Core conventions and file layout of a companion-module-review workspace (where clones, templates and reviews live; review file naming; TRACKER rows). Read this before writing any review output files.'
 ---
 
+# Review Workspace Conventions
+
 ## Context
 
 This is the `companion-module-review` repository — a Claude Code review system for BitFocus Companion modules. It reviews modules submitted to the BitFocus developer portal and writes structured review reports. It is **report-only** (see Process Directives).
@@ -17,14 +19,14 @@ This is the `companion-module-review` repository — a Claude Code review system
 
 **All assembled review files MUST be written to the `reviews/` directory inside this repo — NOT to the module's own folder.**
 
-```
+```text
 reviews/{short-module-name}/review-{short-module-name}-{version}-{YYYYMMDD}-{HHmmss}.md
 ```
 
 `{short-module-name}` = the module folder name with the `companion-module-` prefix stripped.
 
 | Module folder | Version | Correct output path |
-|---|---|---|
+| --- | --- | --- |
 | `companion-module-panasonic-ak-hrp1000` | v1.0.1 | `reviews/panasonic-ak-hrp1000/review-panasonic-ak-hrp1000-v1.0.1-20260405-070000.md` |
 | `companion-module-red-rcp2` | v1.4.6 | `reviews/red-rcp2/review-red-rcp2-v1.4.6-20260405-065528.md` |
 
