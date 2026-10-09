@@ -109,13 +109,12 @@ $langLower = $lang.ToLower()
 
 # Detect the @companion-module/base version. The API LEVEL picks the template (Get-TemplateSuffix):
 # 1.x → the pinned "-v1" clone, 2.0 → the pinned "-v2.0.4" clone (base 2.0.4 / node22), 2.1+ →
-# main (base 2.1 / node26 since 2026-10-08). The runtime check below also uses the level: API 2.1
-# allows node22 or node26, so a 2.1 module that stayed on node22 is not flagged.
+# main (base 2.1 / node26 since 2026-10-08). The runtime check below also uses the level: each
+# API level allows only its own template's runtime (2.0 -> node22, 2.1+ -> node26).
 $baseInfo   = Resolve-CompanionBaseVersion $ModuleDir
 $apiMajor   = $baseInfo.major
 $apiVer     = "v$apiMajor"
 $apiProfile = Get-CompanionApiProfile -ApiLevel $baseInfo.apiLevel
-$apiAtLeast21 = ($baseInfo.major -gt 2) -or ($baseInfo.major -eq 2 -and $baseInfo.minor -ge 1)
 
 # The module's manifest runtime is needed before §2 (the tsconfig allowance depends on it),
 # so it's read here; §5 still owns parsing errors and all MAN-* findings.
@@ -803,24 +802,6 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($es.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
-        # API 2.1 allowance: if the template extends tools' node22 preset (any template before
-        # the 2026-10-08 move to 2.1) and a 2.1 module on the node26 runtime extends the node26
-        # preset instead, swapping that ONE preset reference must make the file identical; then
-        # it is the documented upgrade path, reported as an Info note rather than a TSCONFIG-DIFF.
-        # Against the current 2.1 template (already node26) this simply never triggers. A 2.0
-        # module gets no allowance (node26 needs base >= 2.1; §5 flags its runtime separately).
-        $node26Preset = '@companion-module/tools/tsconfig/node26/recommended(?:\.json)?'
-        $tplPreset = @($tplLines | ForEach-Object { if ($_ -match '(@companion-module/tools/tsconfig/node22/[A-Za-z0-9_-]+(?:\.json)?)') { $Matches[1] } }) | Select-Object -First 1
-        if ($rule.Kind -eq 'tsconfig' -and $apiAtLeast21 -and $modRuntimeType -eq 'node26' -and $tplPreset -and
-            (($modLines -join "`n") -match $node26Preset)) {
-            $swapped = @($modLines | ForEach-Object { $_ -replace $node26Preset, $tplPreset })
-            if (($swapped -join "`n") -eq ($tplLines -join "`n")) {
-                Add-Finding 'TSCONFIG-NODE26' 'Info' $rel (
-                    "Extends the node26 tools preset where the template extends '$tplPreset'. Expected for an " +
-                    "API $($baseInfo.apiLevel) module whose manifest runtime is node26 — not a divergence.")
-                continue
-            }
-        }
         if ($rule.Kind -eq 'tsconfig') {
             # Not blocking: maintainers may tune their tsconfig freely as long as the module builds.
             # Surfaced as a note so the reviewer can still mention it (📝 Additional Notes).
@@ -993,11 +974,11 @@ if (Test-Path $manifestPath) {
             }
         }
         # runtime.type / runtime.api must match the template (lang+version specific).
-        # One exception for v2: runtime.type is judged against the API level's allowed runtimes
-        # (plus whatever the template pins), not the template alone. API 2.1 allows node22 and
-        # node26, so a 2.1 module is fine on either even though the 2.1 template (main) says
-        # node26; a 2.0 module is judged against the -v2.0.4 template (node22), and node26 there
-        # is still a Critical, with a message that says why (node26 needs base >= 2.1, Companion 5.0+).
+        # For v2, runtime.type is judged against the API level's allowed runtime (plus whatever
+        # the template pins, for an explicit -TemplateDir): a 2.1 module must be on node26 like
+        # the 2.1 template, and node22 there is a Critical; a 2.0 module is judged against the
+        # -v2.0.4 template (node22), and node26 there is a Critical whose message says why
+        # (node26 needs base >= 2.1, Companion 5.0+).
         # v1 keeps the plain template comparison (allowedRuntimes is $null for v1).
         if ($tplMan -and (Has-Prop $tplMan 'runtime') -and (Has-Prop $man 'runtime')) {
             foreach ($rp in @('type','api')) {
@@ -1008,6 +989,9 @@ if (Test-Path $manifestPath) {
                     if ($allowed -contains $have) { continue }
                     $msg = if ($have -eq 'node26') {
                         "runtime.type 'node26' requires @companion-module/base >= 2.1 (Companion 5.0+); this module resolves to $($baseInfo.version) (API $($baseInfo.apiLevel)). Use 'node22' or upgrade base to ~2.1.x"
+                    } elseif ($allowed.Count -eq 1) {
+                        $hint = if ($isTs -and $allowed[0] -eq 'node26') { "; also extend '@companion-module/tools/tsconfig/node26/recommended.json' in tsconfig.build.json, as the template does" } else { '' }
+                        "runtime.type '$have' should be '$($allowed[0])' to match the API $($baseInfo.apiLevel) template$hint"
                     } else {
                         "runtime.type '$have' should be one of: $($allowed -join ', ') (API $($baseInfo.apiLevel))"
                     }

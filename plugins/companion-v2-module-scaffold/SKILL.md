@@ -150,7 +150,7 @@ When you add tests (`tests/**/*.ts`, `vitest.config.ts`), also set `"rootDir": "
 - `verbatimModuleSyntax: true` means any import used **only as a type** must be written `import type { … }` or `import { type X }`.
 - Every relative import needs the `.js` extension (`./actions.js`), even though the source file is `.ts`.
 
-> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one: it already uses `node20`/`node16` module settings with an `es2025` target. Then set `runtime.type` to `"node26"` in the manifest (Step 4), and bump `engines.node` and `@types/node` to Node 26. `node22` remains supported.
+> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one: it already uses `node20`/`node16` module settings with an `es2025` target. Then set `runtime.type` to `"node26"` in the manifest (Step 4), and bump `engines.node` and `@types/node` to Node 26. This is what the 2.1 template ships, and a 2.1 module is expected to match it.
 
 ## Step 4 — `companion/manifest.json`
 
@@ -182,7 +182,7 @@ When you add tests (`tests/**/*.ts`, `vitest.config.ts`), also set `"rootDir": "
 
 - **`"type": "connection"` is required in v2.** Some docs pages leave it out, but `companion-module-check` rejects a manifest without it.
 - `version` and `apiVersion` stay `"0.0.0"`, because the build fills them in.
-- `runtime.type` is `"node22"`, or `"node26"` on **2.1+**. `node18` is not allowed in v2.
+- `runtime.type` is `"node22"` on 2.0 and `"node26"` on **2.1+**, matching that level's template. `node18` is not allowed in v2.
 - **Replace every template placeholder.** `companion-module-check` fails if the manifest still contains any of: `companion-module-your-module-name`, `module-shortname`, `A short one line description of your module`, `Your name`, `Your email`, `Your company`, `Your product`.
 - Optional fields: `runtime.permissions` (`filesystem`, `child-process`, `worker-threads`, `native-addons`, `insecure-algorithms`), `bonjourQueries`, `isPrerelease`.
 

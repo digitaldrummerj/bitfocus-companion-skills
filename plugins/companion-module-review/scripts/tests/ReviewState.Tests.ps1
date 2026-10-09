@@ -188,7 +188,8 @@ try {
     $p = Get-CompanionApiProfile -ApiLevel '2.1'
     Assert-Equal 'references/v2.0.md,references/v2.1.md' (@($p.apiReferences) -join ',') "2.1 => v2.0 + v2.1 references"
     Assert-Equal '5.0' $p.minCompanion "2.1 => Companion 5.0+"
-    Assert-Equal 'node22,node26' (@($p.allowedRuntimes) -join ',') "2.1 => node22 + node26"
+    Assert-Equal 'node26' (@($p.allowedRuntimes) -join ',') "2.1 => node26 only (match the 2.1 template)"
+    Assert-Equal 1 @($p.allowedRuntimes).Count "2.1 allowedRuntimes stays a list"
 
     $skills = Join-Path $root 'skills'
     New-Item -ItemType Directory -Path (Join-Path $skills 'companion-v2-api-compliance/references') -Force | Out-Null

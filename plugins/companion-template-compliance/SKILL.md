@@ -154,7 +154,7 @@ export default generateEslintConfig({ enableTypescript: true })
 
 ### `tsconfig.build.json` (TS only)
 
-**v2 template (base 2.x):**
+**v2 template, API 2.0 (base 2.0.x, node22):** (the API 2.1 template, base 2.1.x, is identical except that it extends `@companion-module/tools/tsconfig/node26/recommended.json`)
 ```json
 {
   "extends": "@companion-module/tools/tsconfig/node22/recommended-esm.json",
@@ -166,8 +166,7 @@ export default generateEslintConfig({ enableTypescript: true })
 
 The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution": "Node16"`; compare a v1 module against that one.
 
-> Deviations must be justified in the review. Two are accepted without justification:
-> - a module on base **≥ 2.1** with `runtime.type: "node26"` may extend `@companion-module/tools/tsconfig/node26/recommended(.json)` instead of the node22 preset;
+> Deviations must be justified in the review. One is accepted without justification:
 > - removing the template's commented-out jest hint from `compilerOptions.types` (see below).
 
 ### `tsconfig.json` (TS only)
@@ -302,7 +301,7 @@ All JS rules above, **plus**:
 | `maintainers` | must NOT be empty array `[]` |
 | `repository` | must be `"git+https://github.com/bitfocus/companion-module-{module-name}.git"` |
 | `type` | `"connection"` on base 2.x (required since 2.0.4); absent on v1 manifests — don't flag a v1 module for it |
-| `runtime.type` | `"node22"`. `"node26"` is also valid when base resolves to **≥ 2.1** (Companion 5.0+); on a 2.0.x module it is 🔴 |
+| `runtime.type` | Must match the template for the module's API level: `"node22"` on base 2.0.x, `"node26"` on base **≥ 2.1** (Companion 5.0+). `node26` on a 2.0.x module is 🔴 (it needs base ≥ 2.1); `node22` on a 2.1 module is 🔴 (it doesn't match the 2.1 template) |
 | `runtime.api` | `"nodejs-ipc"` |
 | `runtime.entrypoint` | Must reference a file that exists (build outputs under `dist/` are produced by the build) and resolve to the same file as `package.json` `main`. It does not have to be the template's filename |
 | `keywords` | see below |

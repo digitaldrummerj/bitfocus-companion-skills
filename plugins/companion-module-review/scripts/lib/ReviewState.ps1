@@ -682,8 +682,9 @@ function Get-CompanionApiProfile {
         anyone wrote references/v2.2.md).
 
         allowedRuntimes is $null for v1: v1 runtimes are judged against the pinned v1
-        template exactly as before. For v2 the runtime check uses the level's allowed runtimes
-        (2.0: node22; 2.1: node22 or node26) plus whatever the matching template pins.
+        template exactly as before. For v2 each level allows exactly the runtime of its own
+        template: 2.0 -> node22 (the -v2.0.4 template), 2.1+ -> node26 (main). A 2.1 module
+        must match the 2.1 template; staying on node22 is a finding.
     #>
     param(
         [Parameter(Mandatory)][string]$ApiLevel,
@@ -716,7 +717,7 @@ function Get-CompanionApiProfile {
     $minCompanion = @{ '2.0' = '4.3'; '2.1' = '5.0' }["$major.$minor"]
     # Assigned inside the branches: `$x = if (…) { @('a') }` would unroll the one-element
     # array to a bare string, and the JSON consumers expect a list.
-    if ($major -eq 2 -and $minor -eq 0) { $runtimes = @('node22') } else { $runtimes = @('node22', 'node26') }
+    if ($major -eq 2 -and $minor -eq 0) { $runtimes = @('node22') } else { $runtimes = @('node26') }
 
     return [pscustomobject]@{
         apiSkill          = $skill

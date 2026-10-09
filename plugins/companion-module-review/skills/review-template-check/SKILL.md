@@ -1,6 +1,6 @@
 ---
 name: review-template-check
-description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (node26 on 2.1, test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
+description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
 ---
 
 # Skill: review-template-check (validate-template.ps1)
@@ -85,21 +85,20 @@ meta table.
 | **(High)** `LICENSE` matches the template **exactly** — the copyright line included (see below) | `LICENSE-DIFF` |
 | All source under `src/` (none at module root). Tool config files named `<tool>.config.(js\|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
 | `package.json`: version-vs-tag, `main` (references an existing entry file; filename may differ from the template), `repository.url`, required fields, `packageManager` (yarn@4), required scripts, devDependencies, lint-staged | `PKG-VERSION`, `PKG-MAIN`, `PKG-REPO`, `PKG-FIELD`, `PKG-YARN`, `PKG-SCRIPT`, `PKG-DEVDEP`, `PKG-LINTSTAGED`, `PKG-DEP` |
-| `manifest.json`: non-placeholder/non-empty maintainers, banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match template, except the API 2.1 `node26` allowance below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
+| `manifest.json`: non-placeholder/non-empty maintainers, banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match the template; see the runtime rule below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
 | `companion/HELP.md` not a stub | `HELP-STUB` |
 | TS husky `pre-commit` runs `lint-staged` | `HUSKY` |
 | Build / lint (with `-RunBuild`) | `BUILD-INSTALL`, `BUILD-PACKAGE`, `LINT` |
 
-**API 2.1 allowances.** The 2.1 templates (`main`) use `runtime.type: "node26"`, but a module on base **≥ 2.1** (Companion 5.0+) may legitimately stay on Node 22, and a 2.0 module (judged against `-v2.0.4`, `node22`) may not move to Node 26. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports) and adjusts:
+**Runtime must match the module's own template.** Each API level allows exactly the runtime its template uses: 2.0 → `node22` (`-v2.0.4`), 2.1+ → `node26` (`main`). A module on API 2.1 is expected to match the 2.1 template, so staying on Node 22 is a finding. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports):
 
 | Situation | Result |
 | --- | --- |
 | base ≥ 2.1, `runtime.type: "node26"` | matches the 2.1 template — no `MAN-RUNTIME` |
-| base ≥ 2.1, `runtime.type: "node22"` | accepted — no `MAN-RUNTIME` (2.1 allows node22 or node26) |
+| base ≥ 2.1, `runtime.type: "node22"` | `MAN-RUNTIME` (Critical): "should be 'node26' to match the API 2.1 template" — for TS the message also says to extend `@companion-module/tools/tsconfig/node26/recommended.json` in `tsconfig.build.json` |
 | base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22` |
-| base ≥ 2.1, `runtime.type: "node26"`, `tsconfig.build.json` extends `@companion-module/tools/tsconfig/node26/recommended(.json)` where the template has `node22/recommended-esm.json` | `TSCONFIG-NODE26` (Info, for you) instead of a note — any *other* tsconfig difference is a `TSCONFIG-DIFF` note. Against the 2.1 template (already node26) this never triggers. |
 
-`TSCONFIG-NODE26` is an environment note like `TEMPLATE-COVERAGE`: it does not go into the review markdown.
+A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is also a `TSCONFIG-DIFF` note. Report it inside the `MAN-RUNTIME` finding's fix, not as a separate note.
 
 **Accepted deviation: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is the editor/typecheck config; the build uses `tsconfig.build.json`. A module that ships tests may widen `tsconfig.json` with:
 
@@ -185,7 +184,7 @@ manifest.json maintainers[0].name = "Your name"  ← placeholder, must be replac
 `TSCONFIG-DIFF` goes to **📝 Additional Notes** only (never blocking, never in 📋 Issues).
 
 Findings addressed to *you* rather than the maintainer — `TEMPLATE-STALE`,
-`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-NODE26`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE` — never appear in the review markdown.
+`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE` — never appear in the review markdown.
 
 If the script cannot run (templates unavailable), fall back to comparing the module directly
 against the matching template repo in `companion-module-templates/` (run `setup.ps1` to clone
