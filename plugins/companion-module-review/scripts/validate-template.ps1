@@ -10,8 +10,8 @@
     and "gitignored files must not be committed". Optionally runs the build and lint.
 
     This is the part of a review that does NOT need an LLM — it is exact, repeatable, and
-    cheap. The reviewer is left only with judgment calls (is HELP.md meaningful, is a
-    tsconfig deviation justified).
+    cheap. The reviewer is left only with judgment calls (is HELP.md meaningful). tsconfig
+    differences are reported as Info TSCONFIG-DIFF notes, never blocking.
 
     The official template repo is the authoritative reference, selected by API version ×
     language: v2 modules use companion-module-template-{js|ts}, v1 modules use the
@@ -284,10 +284,35 @@ function Normalize-TsconfigLine {
     # array: ["node" /* , "jest" ] // uncomment this if using jest */]. Deleting that
     # dead comment (leaving ["node"]) is an accepted divergence, not a CONFIG-DIFF — so
     # strip inline comments and normalize bracket spacing before comparing tsconfig lines.
+    #
+    # Comments are only stripped OUTSIDE string literals: a glob like "src/**/*.ts" contains
+    # "/**/" and a URL contains "//", and neither is a comment.
     param([string]$Line)
-    $l = $Line -replace '/\*.*?\*/', ''   # drop inline block comments (incl. the jest hint)
-    $l = $l -replace '//.*$', ''          # drop trailing line comments
-    $l = $l -replace '\s*\]', ']'         # collapse whitespace before a closing bracket
+    $sb = [System.Text.StringBuilder]::new()
+    $inString = $false
+    $i = 0
+    while ($i -lt $Line.Length) {
+        $ch = $Line[$i]
+        $next = if ($i + 1 -lt $Line.Length) { $Line[$i + 1] } else { [char]0 }
+        if ($inString) {
+            [void]$sb.Append($ch)
+            if ($ch -eq '\' -and $i + 1 -lt $Line.Length) { [void]$sb.Append($next); $i += 2; continue }
+            if ($ch -eq '"') { $inString = $false }
+            $i++
+            continue
+        }
+        if ($ch -eq '"') { $inString = $true; [void]$sb.Append($ch); $i++; continue }
+        if ($ch -eq '/' -and $next -eq '*') {           # inline block comment (incl. the jest hint)
+            $end = $Line.IndexOf('*/', $i + 2)
+            if ($end -lt 0) { break }                    # unterminated on this line: drop the rest
+            $i = $end + 2
+            continue
+        }
+        if ($ch -eq '/' -and $next -eq '/') { break }   # trailing line comment
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $l = $sb.ToString() -replace '\s*\]', ']'           # collapse whitespace before a closing bracket
     return $l.TrimEnd()
 }
 
@@ -626,7 +651,9 @@ function Get-TemplateTrackedFiles {
 
 # How each template-tracked path is judged. FIRST MATCH WINS, so order matters.
 #   exact             byte-for-byte after whitespace normalization
-#   tsconfig          exact, after stripping comments (the template's jest hint is optional)
+#   tsconfig          compared after stripping comments (the template's jest hint is optional), but a
+#                     difference is only an Info TSCONFIG-DIFF note — any tsconfig is fine as long as the
+#                     module builds (-RunBuild reports a failed build). A MISSING tsconfig stays Critical.
 #   gitignore-subset  every template entry must be present; module extras are fine
 #   yarnrc            parsed key/value comparison, sourced from the v2 template
 #   covered-elsewhere a dedicated section below owns this file's content
@@ -754,7 +781,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
                 }
                 continue
             }
-            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($dev.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
+            Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($($dev.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
         # Accepted deviation: eslint.config.mjs may add rule overrides scoped to test/tooling
@@ -789,6 +816,12 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
                     "API $($baseInfo.apiLevel) module whose manifest runtime is node26 — not a divergence.")
                 continue
             }
+        }
+        if ($rule.Kind -eq 'tsconfig') {
+            # Not blocking: maintainers may tune their tsconfig freely as long as the module builds.
+            # Surfaced as a note so the reviewer can still mention it (📝 Additional Notes).
+            Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
+            continue
         }
         Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
     }
@@ -1106,7 +1139,7 @@ if ($Json) {
     Write-Host ("─" * 70)
     Write-Host ("Critical: {0}  High: {1}  Medium: {2}  Info: {3}" -f $result.counts.critical, $result.counts.high, $result.counts.medium, $result.counts.info)
     Write-Host ""
-    Write-Host "Reviewer judgment still required: is HELP.md meaningful, are any tsconfig deviations justified." -ForegroundColor DarkGray
+    Write-Host "Reviewer judgment still required: is HELP.md meaningful. (TSCONFIG-DIFF notes go to the review's Additional Notes — never blocking.)" -ForegroundColor DarkGray
 }
 
 # A stale or unverifiable template outranks the findings: nothing below it can be trusted,

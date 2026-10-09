@@ -331,13 +331,16 @@ try {
 
     Write-Host "TS module (real tsconfig divergence)"
     $tb = Invoke-Validator $tsBad $tsTpl
-    $tbConfigDiffs = @($tb.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.json' })
-    Ok ($tbConfigDiffs.Count -gt 0) "still flags a real tsconfig.json divergence (node16)"
+    $tbConfigDiffs = @($tb.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -like 'tsconfig*.json' })
+    Ok ($tbConfigDiffs.Count -eq 0) "a real tsconfig.json divergence (node16) is never a blocking CONFIG-DIFF"
+    $tbNotes = @($tb.findings | Where-Object { $_.id -eq 'TSCONFIG-DIFF' -and $_.file -eq 'tsconfig.json' })
+    Ok ($tbNotes.Count -eq 1 -and $tbNotes[0].severity -eq 'Info') "…it is one Info TSCONFIG-DIFF note (📝 Additional Notes)"
 
     # ── tsconfig.json may be widened to type-check tests (accepted deviation) ──
     # Real-template shape. tsconfig.json is the editor/typecheck config; widening it with test
     # globs, extra types, rootDir and noEmit is accepted (Info). tsconfig.build.json is the
-    # build config and stays exact. Anything else in tsconfig.json is still a CONFIG-DIFF.
+    # build config and is compared exactly. Any other tsconfig difference is an Info
+    # TSCONFIG-DIFF note — never a blocking CONFIG-DIFF (the build check catches a broken build).
     $devTpl = Join-Path $root 'companion-module-template-ts-devscope'
     Copy-Item -Recurse -Force $tsTpl $devTpl
     $devTplTsconfig = "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"src/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": {`n`t`t`"types`": [`"node`" /* , `"jest`" ] // uncomment this if using jest */]`n`t}`n}"
@@ -366,24 +369,28 @@ try {
     Write-Host "tsconfig.json with a real compiler-option change"
     $dsStrict = New-DevScopeModule 'dsstrict' "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"src/**/*.ts`", `"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": {`n`t`t`"strict`": false,`n`t`t`"types`": [`"node`"]`n`t}`n}"
     $rstrict = Invoke-Validator $dsStrict $devTpl
-    $sd = Get-TsconfigJsonFindings $rstrict 'CONFIG-DIFF'
-    Ok ($sd.Count -eq 1 -and $sd[0].severity -eq 'Critical' -and $sd[0].message -match 'compilerOptions\.strict') "an extra compiler option (strict) is still a Critical CONFIG-DIFF naming it"
+    Ok ((Get-TsconfigJsonFindings $rstrict 'CONFIG-DIFF').Count -eq 0)      "an extra compiler option (strict) is not a CONFIG-DIFF"
+    $sd = Get-TsconfigJsonFindings $rstrict 'TSCONFIG-DIFF'
+    Ok ($sd.Count -eq 1 -and $sd[0].severity -eq 'Info' -and $sd[0].message -match 'compilerOptions\.strict') "…it is an Info TSCONFIG-DIFF naming it"
 
     Write-Host "tsconfig.json that drops the template's src include"
     $dsDrop = New-DevScopeModule 'dsdrop' "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": { `"types`": [`"node`"] }`n}"
     $rdrop = Invoke-Validator $dsDrop $devTpl
-    Ok ((Get-TsconfigJsonFindings $rdrop 'CONFIG-DIFF').Count -eq 1)        "removing a template include entry is still a CONFIG-DIFF"
+    Ok ((Get-TsconfigJsonFindings $rdrop 'CONFIG-DIFF').Count -eq 0 -and (Get-TsconfigJsonFindings $rdrop 'TSCONFIG-DIFF').Count -eq 1) "removing a template include entry is a TSCONFIG-DIFF note"
 
     Write-Host "tsconfig.json that changes extends"
     $dsExt = New-DevScopeModule 'dsext' "{`n`t`"extends`": `"@tsconfig/node22/tsconfig.json`",`n`t`"include`": [`"src/**/*.ts`", `"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": { `"types`": [`"node`"] }`n}"
     $rext = Invoke-Validator $dsExt $devTpl
-    Ok ((Get-TsconfigJsonFindings $rext 'CONFIG-DIFF').Count -eq 1)         "a different extends is still a CONFIG-DIFF"
+    Ok ((Get-TsconfigJsonFindings $rext 'CONFIG-DIFF').Count -eq 0 -and (Get-TsconfigJsonFindings $rext 'TSCONFIG-DIFF').Count -eq 1) "a different extends is a TSCONFIG-DIFF note"
 
     Write-Host "tsconfig.build.json is never widened"
     $dsBuild = New-DevScopeModule 'dsbuild' $devTplTsconfig
     Set-File (Join-Path $dsBuild 'tsconfig.build.json') "{ `"extends`": `"./tsconfig.json`", `"include`": [`"tests/**/*.ts`"] }"
     $rbuild = Invoke-Validator $dsBuild $devTpl
-    Ok (@($rbuild.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' }).Count -eq 1) "the same widening in tsconfig.build.json is still a CONFIG-DIFF"
+    Ok (@($rbuild.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' }).Count -eq 0) "a tsconfig.build.json divergence is not a blocking CONFIG-DIFF"
+    $bn = @($rbuild.findings | Where-Object { $_.id -eq 'TSCONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' })
+    Ok ($bn.Count -eq 1 -and $bn[0].severity -eq 'Info') "…it is an Info TSCONFIG-DIFF note (no dev-scope allowance for the build config)"
+    Ok ($bn.Count -eq 1 -and $bn[0].message -match [regex]::Escape('"tests/**/*.ts"')) "…and its message keeps glob paths intact (/**/ inside a string is not a comment)"
 
     # ── Root tool config files are not misplaced source ───────────────────────
     Write-Host "root tool config files (vitest.config.ts etc.)"
@@ -881,20 +888,20 @@ try {
     $rt = Find-Findings $r20 'MAN-RUNTIME' 'companion/manifest.json'
     Ok ($rt.Count -eq 1 -and $rt[0].severity -eq 'Critical')            "node26 on API 2.0 is a Critical MAN-RUNTIME"
     Ok ($rt.Count -eq 1 -and $rt[0].message -match '>= 2\.1')            "…whose message says node26 needs base >= 2.1"
-    Ok ((Find-Findings $r20 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset on API 2.0 is still a CONFIG-DIFF"
+    Ok ((Find-Findings $r20 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset on API 2.0 is a TSCONFIG-DIFF note (MAN-RUNTIME carries the block)"
     Ok ((Find-Findings $r20 'TSCONFIG-NODE26' $null).Count -eq 0)        "…with no node26 allowance"
 
     Write-Host "API 2.1 — node26 preset plus another change"
     $m21c = New-ApiModule 'api21mix' '~2.1.3' 'node26' $preset26 '2.1.3'
     Set-File (Join-Path $m21c 'tsconfig.build.json') "{`n`t`"extends`": `"$preset26`",`n`t`"compilerOptions`": { `"outDir`": `"./build`" }`n}"
     $r21c = Invoke-Validator $m21c $apiTpl
-    Ok ((Find-Findings $r21c 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "any other tsconfig difference is still a Critical CONFIG-DIFF"
+    Ok ((Find-Findings $r21c 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "any other tsconfig difference is a TSCONFIG-DIFF note"
     Ok ((Find-Findings $r21c 'TSCONFIG-NODE26' $null).Count -eq 0)       "…and not excused as a node26 note"
 
     Write-Host "API 2.1 — node26 preset but runtime still node22"
     $m21d = New-ApiModule 'api21half' '~2.1.3' 'node22' $preset26 '2.1.3'
     $r21d = Invoke-Validator $m21d $apiTpl
-    Ok ((Find-Findings $r21d 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset without a node26 runtime is still a CONFIG-DIFF"
+    Ok ((Find-Findings $r21d 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset without a node26 runtime is a TSCONFIG-DIFF note"
 
     Write-Host "API 2.1 — an unknown runtime is still flagged"
     $m21e = New-ApiModule 'api21n18' '~2.1.3' 'node18' $preset22 '2.1.3'
