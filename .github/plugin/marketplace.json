@@ -90,7 +90,7 @@
     {
       "name": "companion-upgrades",
       "description": "Write Companion upgrade scripts that safely migrate config, actions, and feedbacks across breaking changes.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "source": "./plugins/companion-upgrades"
     },
     {
@@ -156,7 +156,7 @@
     {
       "name": "companion-v2-api-compliance",
       "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "source": "./plugins/companion-v2-api-compliance"
     },
     {
@@ -192,7 +192,7 @@
     {
       "name": "companion-v2-upgrades",
       "description": "Reference for @companion-module/base v2.x upgrade scripts with expression-wrapped options, secrets and the built-in fixup helpers.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "source": "./plugins/companion-v2-upgrades"
     },
     {
