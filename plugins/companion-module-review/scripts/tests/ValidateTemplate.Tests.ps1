@@ -633,6 +633,8 @@ try {
     Ok (-not ($ids -contains 'MAN-IDNAME'))    "does not flag manifest id != name (name is human-facing, not the slug)"
     Ok ($ids -contains 'MAN-PLACEHOLDER')      "flags placeholder maintainer"
     Ok ($ids -contains 'MAN-KEYWORD')          "flags banned keyword 'companion'"
+    $kw = @($b.findings | Where-Object { $_.id -eq 'MAN-KEYWORD' })
+    Ok ($kw.Count -eq 1 -and $kw[0].message -match "'companion'") "does not flag a keyword that repeats the module id ('bar')"
     Ok ($ids -contains 'MAN-TYPE')             "flags missing manifest type (template has it)"
     Ok ($ids -contains 'MAN-RUNTIME')          "flags runtime.entrypoint referencing a non-existent file"
     Ok ($ids -contains 'HELP-STUB')            "flags HELP.md stub"

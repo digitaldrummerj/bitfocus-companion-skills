@@ -975,11 +975,14 @@ if (Test-Path $manifestPath) {
                 }
             }
         }
+        # Only the fixed list. A keyword that repeats part of the module name (manufacturer or
+        # product, e.g. 'switch' in goalake-switch) is NOT flagged: the review maintainer
+        # decided it isn't worth a finding (2026-10-10).
         $banned = @('companion','module','stream deck','streamdeck','bitfocus')
         if (Has-Prop $man 'keywords') {
             foreach ($kw in $man.keywords) {
                 $low = "$kw".ToLower()
-                if ($banned -contains $low -or $low -eq $moduleName -or ($moduleName -split '-') -contains $low) {
+                if ($banned -contains $low) {
                     Add-Finding 'MAN-KEYWORD' 'Critical' 'companion/manifest.json' "Banned/low-value keyword '$kw'"
                 }
             }

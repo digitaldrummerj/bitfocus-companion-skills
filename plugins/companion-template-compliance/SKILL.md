@@ -312,12 +312,10 @@ All JS rules above, **plus**:
 The `keywords` array must NOT contain any of:
 - `"companion"`
 - `"module"`
-- `"stream deck"`
-- The manufacturer name (e.g. `"bitfocus"`, `"softouch"`)
-- The module/product name (e.g. `"easyworship"`, `"tallyccupro"`)
-- The full product name (e.g. `"EasyWorship"`, `"Generic SNMP"`)
+- `"stream deck"` / `"streamdeck"`
+- `"bitfocus"`
 
-Flag any keyword that matches these patterns — it adds no value and pollutes search.
+Flag only these. A keyword that repeats the module's manufacturer or product name (for example `"switch"` in `goalake-switch`, or `"easyworship"`) is not a finding.
 
 ---
 
@@ -391,7 +389,7 @@ Found:             engines.node field missing entirely
 ```
 Template expects:  keywords = [] (or non-banned terms only)
 Found:             keywords = ["companion", "module", "easyworship"]
-  → Banned: "companion", "module", "easyworship" (product name)
+  → Banned: "companion", "module" ("easyworship" is fine)
 ```
 
 For missing files:
