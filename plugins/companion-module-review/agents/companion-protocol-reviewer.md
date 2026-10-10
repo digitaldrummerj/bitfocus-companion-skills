@@ -24,12 +24,13 @@ Companion handles network drops and configuration changes well: it calls `config
 - **Report (blocking, 🟠 High at least):** anything the module starts and doesn't stop:
   - a timer, interval, socket, listener, browser or child process **not stopped in `destroy()`**;
   - the old one **not stopped or replaced when `configUpdated()` rebuilds the connection**, so it keeps running next to the new one.
-- **Report:** a concrete, likely failure a user hits in normal use, such as a connection with **no reconnect at all** that stays dead after an ordinary drop or device reboot.
+- **Report:** a concrete, likely failure a user hits in normal use that comes from the module's own logic (for example an action that sends the wrong command, or a status that never shows the connection failed).
 - **Don't report:** hypothetical timing and race findings:
   - settings saved while a request or poll is in flight;
   - late events from an old socket;
   - overlapping polls;
   - status briefly flapping during a reconnect;
+  - a connection that **doesn't reconnect** after a drop or a device reboot. Many devices have no good way to reconnect other than polling, and polling isn't always the right design, so staying disconnected until the user re-enables the connection is acceptable;
   - retry or backoff policy, or "retries forever";
   - missing request timeouts;
   - feedbacks or variables showing stale values while offline;
