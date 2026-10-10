@@ -87,6 +87,17 @@ Re-importing re-runs the upgrade scripts on the imported buttons.
 3. `browser_find` `/Replace page \d+ with imported page|Link to/`. The button must read **Replace page 75 …** (or your empty page), and the connection behaviour must be **Link to `<connection>`**.
 4. Click `role=button[name="Replace page 75 with imported page"]` → `browser_wait_for` "Import successful".
 
+### Reading a connection's own log (do this before starting or switching it)
+
+The global **Log** page mixes every connection and shows only what Companion's process manager saw. Each connection has its own log, which also shows the module's own messages and console output, and that's where the real error is.
+
+- Open it from the connection's **⋮** menu (`role=button[name="Click for additional options."]` on its row in `/connections`), then **View logs**. It opens in a new tab at `/connection-debug/<connectionId>`, so you can also navigate there directly.
+- It shows **only lines written after the page opened**. Open it **before** you switch the version, enable the connection or start it, or the error you want is already gone.
+- The page has its own **Start connection** / **Stop connection** buttons, plus level filters (**Error**, **Warning**, **Info**, **Debug**, **Console**). Turn on **Debug** and **Console** to see everything.
+- When you're done, **Stop connection**, then make sure the row's switch reads "Enable connection" (disabled) on `/connections`.
+
+A new connection (no saved config) and an existing one (saved config) can fail differently. For example, chamsys-magicq-osc v3.2.1 (2026-10-10): with a `getConfigFields()` error, a new connection never finished starting ("failed to init … Restart forced" in a loop), while an existing one started fine and only its settings panel failed ("Failed to load configuration fields"). When a finding depends on start-up, test both.
+
 ### D. Verify (primary: the UI)
 
 1. `/buttons/<N>` → wait 2 s → click `[title="<N>/0/0"]` (titles are `page/row/column`). The edit panel opens on **Step 1**.
