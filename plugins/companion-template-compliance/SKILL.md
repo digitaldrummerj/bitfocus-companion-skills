@@ -72,7 +72,7 @@ All JS files above, **plus**:
 
 > **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
 
-> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences are usually GitHub Action pin churn (`actions/checkout@v4` vs the template's newer pin) — report them at 🟡 Medium, non-blocking, and don't tell a maintainer to overwrite a workflow they deliberately extended.
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences (a missing or different workflow, issue templates) are 🟡 Medium by default. The reviewer may raise one to blocking when it makes the module confusing to troubleshoot against the template, for example a CI Node version that doesn't match the runtime, or a missing template workflow. **One accepted customisation:** in `companion-module-checks.yaml`, uncommenting the template's `with:` / `upload-artifact: true` lines (the template tells you to) is not a divergence.
 
 ---
 
@@ -370,7 +370,7 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
 | `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
 | `LICENSE` differs from the template (including the `Copyright (c) 2022 Bitfocus AS - Open Source` line) | **🟠 High** |
-| `.github/**` workflow / issue-template divergence | **🟡 Medium** (non-blocking) |
+| `.github/**` workflow / issue-template missing or different (except enabling `upload-artifact: true` in `companion-module-checks.yaml`, which is accepted) | **🟡 Medium** by default; the reviewer may raise it to blocking |
 
 ---
 

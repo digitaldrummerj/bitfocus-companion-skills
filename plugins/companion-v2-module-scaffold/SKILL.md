@@ -50,7 +50,7 @@ package.json  tsconfig.json  tsconfig.build.json  eslint.config.mjs  .yarnrc.yml
 
 ## Step 1 — Copy the TypeScript template
 
-Start from [`bitfocus/companion-module-template-ts`](https://github.com/bitfocus/companion-module-template-ts). Keep its `.github/`, `.husky/`, `.yarnrc.yml`, `.gitignore`, `.gitattributes`, `.prettierignore`, `eslint.config.mjs` and `LICENSE` as they are.
+Start from [`bitfocus/companion-module-template-ts`](https://github.com/bitfocus/companion-module-template-ts). Keep its `.github/`, `.husky/`, `.yarnrc.yml`, `.gitignore`, `.gitattributes`, `.prettierignore`, `eslint.config.mjs` and `LICENSE` as they are. The one customisation reviewers accept is in `.github/workflows/companion-module-checks.yaml`: you may uncomment the `with:` / `upload-artifact: true` lines so CI uploads the built package. Any other workflow change is reported in review, and a reviewer may treat it as blocking.
 
 ## Step 2 — `package.json`
 

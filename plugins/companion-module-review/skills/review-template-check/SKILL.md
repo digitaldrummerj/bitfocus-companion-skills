@@ -78,7 +78,7 @@ meta table.
 | **(Checked first)** Template clone is not behind upstream — see §1.5 | `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED` |
 | Required files present; no `package-lock.json` | `FILE-MISSING`, `NPM-LOCK` |
 | Config-file parity vs template — exact match for `.gitattributes`, `.prettierignore`, TS `eslint.config.mjs`, and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
-| **(Medium — visible, not blocking)** `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**` parity. Usually GitHub Action pin churn (`actions/checkout@v4` vs the template's `@v7`), which the maintainer didn't cause and shouldn't be blocked on | `CONFIG-DIFF`, `FILE-MISSING` |
+| **(Medium by default — the reviewer may raise it to blocking)** `.github/workflows/**` and other `.github/**` parity (e.g. `.github/ISSUE_TEMPLATE/**`). The one accepted customisation, enabling `upload-artifact: true` in `companion-module-checks.yaml`, is not reported (see below) | `CONFIG-DIFF`, `FILE-MISSING` |
 | **(Info — 📝 Additional Notes, never blocking)** TS `tsconfig.json` / `tsconfig.build.json` differ from the template. Maintainers may tune their tsconfig as long as the module builds — a broken build is reported by `BUILD-*`/`LINT`, not here. A **missing** tsconfig is still a Critical `FILE-MISSING` | `TSCONFIG-DIFF` |
 | **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in this plugin's `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
 | Gitignored artifacts not committed (`node_modules`, `/pkg`, `*.tgz`, `/dist`, `/.yarn`, …) | `GITIGNORED-COMMITTED` |
@@ -99,6 +99,16 @@ meta table.
 | base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22` |
 
 A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is also a `TSCONFIG-DIFF` note. Report it inside the `MAN-RUNTIME` finding's fix, not as a separate note.
+
+**Accepted deviation: `upload-artifact: true` in `companion-module-checks.yaml`.** The template ships these lines commented out and tells the maintainer to uncomment them, so the built package is uploaded as a workflow artifact:
+
+```yaml
+    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main
+    with:
+      upload-artifact: true
+```
+
+The validator drops the `with:` and `upload-artifact: true` lines, commented or not, from both files before comparing. So a module that only enables this option is clean, with no finding and no note. Any other `with:` input, or any other change to the file, is still a Critical `CONFIG-DIFF`.
 
 **Accepted deviation: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is the editor/typecheck config; the build uses `tsconfig.build.json`. A module that ships tests may widen `tsconfig.json` with:
 
@@ -160,7 +170,12 @@ Bitfocus rather than the maintainer.
 ## 3. Judgment items the script can't fully decide
 
 - **HELP.md quality.** The script only catches stubs (placeholder string, `## Your module`, <5 meaningful lines). You still judge whether the content is *useful*: what the module does, how to configure it (host/port/auth), available actions/feedbacks/variables, troubleshooting. Thin-but-real docs are acceptable; empty scaffolding is not.
-- **`.github/**` divergences.** Reported at **Medium**, so they appear in the review under Medium but do not block. Judge whether it is worth mentioning at all: an out-of-date `actions/checkout` pin is worth a one-line note; a workflow the maintainer deliberately extended (extra matrix entries, an added job) is not a defect. Do not tell a maintainer to blindly overwrite a workflow they customised.
+- **`.github/**` divergences: Medium by default, raised at your judgment.** The validator reports a missing or different workflow at **Medium**. Decide per finding whether it should block, and if it should, move it to the blocking list as High with "raised to High by the review maintainer". Divergences worth raising are the ones that make the module confusing to troubleshoot against the template, such as:
+  - a CI Node version that doesn't match the module's runtime (`node-version: 22.x` on a `node26` module);
+  - a missing template workflow, such as `release.yaml`;
+  - a workflow that no longer runs the template's checks.
+
+  An older `actions/checkout` pin on its own can stay Medium. The fix is to copy the template's workflow. Enabling `upload-artifact: true` in `companion-module-checks.yaml` is the accepted customisation: the validator ignores it, so never report it.
 - **`tsconfig` differences are never blocking.** A `TSCONFIG-DIFF` goes into the review's **📝 Additional Notes** section as one line per file (what differs, from the validator message) — not into Critical/High/Medium, not into 📋 Issues, and with no demand to change it. If the module builds and lints (`-RunBuild` passed), the maintainer's tsconfig choices are theirs. If the build fails, report the `BUILD-*`/`LINT` finding — that is the blocking item, even when a tsconfig change caused it. Removing the template's commented-out jest hint in `compilerOptions.types` is stripped before comparing and produces no note at all.
 - **Entry-point filename.** `package.json main` and `manifest runtime.entrypoint` do **not** have to match the template's `src/main.js` / `../src/main.js`. A non-template name (e.g. `src/index.js`) is fine as long as both fields are present, reference a file that **exists**, and resolve to the **same** file. The validator already checks this: `PKG-MAIN`/`MAN-RUNTIME` fire only when the referenced file is missing, and `ENTRY-MISMATCH` fires only when `main` and `entrypoint` point to different files. Do **not** ask the maintainer to rename their entry to `main.js` when it loads correctly.
 - **Manifest `name` vs `id`.** These are **not** required to match, and the validator no longer checks it. `id` is the slug (the repository/module identifier); `name` is the human-facing module name and is *expected* to differ — e.g. `id: fblab-bpm2osc` / `name: BPM2OSC`, `id: lindy-38359-matrix` / `name: Lindy 38359 HDMI Matrix`. Do **not** raise this by hand or tell a maintainer to set `name` to the slug.

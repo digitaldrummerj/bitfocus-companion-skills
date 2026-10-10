@@ -747,7 +747,7 @@ try {
     $d1 = Invoke-Validator $good $dtpl
     $miss = Find-Findings $d1 'FILE-MISSING' '.github/workflows/node.yaml'
     Ok ($miss.Count -eq 1)                                        "a template-tracked file missing from the module is reported"
-    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     ".github/** lands at Medium, not blocking"
+    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing CI workflow is Medium by default (the reviewer may raise it)"
     Ok ((Find-Findings $d1 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "a missing file is not ALSO reported as a content diff"
 
     Write-Host "Derived file set — module-owned files are never compared"
@@ -766,10 +766,37 @@ try {
     $d3 = Invoke-Validator $good $dtpl
     $diff = Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/node.yaml'
     Ok ($diff.Count -eq 1)                                     "a diverging .github workflow is reported"
-    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium"
+    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium by default"
+    Ok ($d3.counts.critical -eq 0)                             "…so it doesn't raise the critical count"
     Ok ((Find-Findings $d3 'FILE-MISSING' '.github/workflows/node.yaml').Count -eq 0) "…and not also as missing"
     Ok ((Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/checks.yaml').Count -eq 0) "an identical .github workflow is not flagged"
-    Ok ($d3.counts.critical -eq 0)                             ".github findings never raise the critical count"
+
+    Write-Host "CI workflows — the upload-artifact customisation in companion-module-checks.yaml"
+    $checksTpl = "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    # with:`n    #   upload-artifact: true # uncomment this to upload the built package"
+    Set-File (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml') $checksTpl
+    Set-File (Join-Path $dtpl '.github/ISSUE_TEMPLATE/bug.md') "name: bug"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: node`njobs: {}"
+    Set-File (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md') "name: bug report"
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true"
+    $d5 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d5 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "enabling upload-artifact is the accepted customisation"
+    $it = Find-Findings $d5 'CONFIG-DIFF' '.github/ISSUE_TEMPLATE/bug.md'
+    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'Medium')    "other .github files (issue templates) stay Medium"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl
+    $d6 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d6 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "the template's commented-out form is clean too"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true`n      prerelease: true"
+    $d7 = Invoke-Validator $good $dtpl
+    $wx = Find-Findings $d7 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml'
+    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'Medium')    "any other with: input is still a CONFIG-DIFF (Medium)"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@v1`n    with:`n      upload-artifact: true"
+    $d8 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d8 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 1) "upload-artifact doesn't excuse another change in the file"
+    Remove-Item -Recurse -Force (Join-Path $good '.github/ISSUE_TEMPLATE'), (Join-Path $good '.github/workflows/companion-module-checks.yaml')
+    Remove-Item -Recurse -Force (Join-Path $dtpl '.github/ISSUE_TEMPLATE'), (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml')
 
     Write-Host "Derived file set — a template file with no rule"
     Set-File (Join-Path $dtpl '.editorconfig') "root = true`nindent_style = tab"

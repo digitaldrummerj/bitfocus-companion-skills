@@ -654,6 +654,7 @@ function Get-TemplateTrackedFiles {
 
 # How each template-tracked path is judged. FIRST MATCH WINS, so order matters.
 #   exact             byte-for-byte after whitespace normalization
+#   workflow          exact, except that companion-module-checks.yaml may enable upload-artifact
 #   tsconfig          compared after stripping comments (the template's jest hint is optional), but a
 #                     difference is only an Info TSCONFIG-DIFF note — any tsconfig is fine as long as the
 #                     module builds (-RunBuild reports a failed build). A MISSING tsconfig stays Critical.
@@ -672,9 +673,13 @@ $templateFileRules = @(
     @{ Pattern = '.prettierignore';         Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = 'eslint.config.mjs';       Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = '.husky/*';                Kind = 'exact';            Severity = 'Critical' }
-    # CI workflows and issue templates are compared, but at Medium: the usual divergence is
-    # GitHub Action pin churn (actions/checkout@v4 vs the template's @v7), which is not
-    # something the module maintainer did wrong and must not block a release.
+    # CI workflows are compared at Medium by default; the reviewer decides whether a given
+    # divergence (old action pins, a missing release workflow, a CI Node version that doesn't
+    # match the runtime) should be raised to blocking. The one accepted customisation is
+    # enabling the commented-out `with: upload-artifact: true` in companion-module-checks.yaml
+    # (see Remove-UploadArtifactOption), which is not reported at all.
+    @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'Medium' }
+    # Anything else under .github (issue templates, ...) is compared at Medium too.
     @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'Medium' }
     @{ Pattern = 'LICENSE';                 Kind = 'covered-elsewhere' }   # §3b LICENSE-DIFF
     @{ Pattern = 'package.json';            Kind = 'covered-elsewhere' }   # §4 PKG-*
@@ -690,6 +695,16 @@ $templateFileRules = @(
     @{ Pattern = '*.webp';                  Kind = 'skip-binary' }
     @{ Pattern = '*.zip';                   Kind = 'skip-binary' }
 )
+
+function Remove-UploadArtifactOption {
+    # companion-module-checks.yaml ships `with:` / `upload-artifact: true` commented out and tells
+    # the maintainer to uncomment it. Dropping those two lines (commented or not) from both sides
+    # makes that the only accepted difference; any other `with:` input is still a divergence.
+    param([string[]]$Lines)
+    return @($Lines | Where-Object {
+        $_ -notmatch '^\s*#?\s*with:\s*(#.*)?$' -and $_ -notmatch '^\s*#?\s*upload-artifact:\s*true\s*(#.*)?$'
+    })
+}
 
 function Resolve-TemplateFileRule {
     param([Parameter(Mandatory)][string]$Rel)
@@ -757,6 +772,10 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
     if ($rule.Kind -eq 'tsconfig') {
         $modLines = @($modLines | ForEach-Object { Normalize-TsconfigLine $_ })
         $tplLines = @($tplLines | ForEach-Object { Normalize-TsconfigLine $_ })
+    }
+    if ($rule.Kind -eq 'workflow' -and [IO.Path]::GetFileName($rel) -eq 'companion-module-checks.yaml') {
+        $modLines = Remove-UploadArtifactOption $modLines
+        $tplLines = Remove-UploadArtifactOption $tplLines
     }
     if ($rule.Kind -eq 'gitignore-subset') {
         # Subset rule: every template entry must be present in the module's .gitignore.
