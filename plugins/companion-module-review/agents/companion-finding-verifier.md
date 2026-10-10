@@ -19,6 +19,7 @@ The orchestrator gives you: the **finding** (severity, title, `file:line`, descr
    - Does the claimed runtime behaviour actually follow? If it's cheap and safe to check (e.g. `node -e` on a pure function, reading the compiled output), do so. Never connect to devices or the network.
 3. **Scope check** (`tag` / `both`): is the problem actually introduced or changed in `git -C <dir> diff <previousTag>..<reviewTag>`? If it is pre-existing under `tag` scope, the finding should not be in this review — return `refuted` and say "pre-existing, out of scope".
 4. **Severity check.** Critical = crashes/breaks the module or a release requirement; High = wrong operator-visible behaviour, leaks, or data loss under normal use. If it is real but milder, say which severity fits.
+5. **Calibration check.** Return `refuted` for hypothetical network timing or config-change races (a save during a request, late events from an old socket, retry policy, missing timeouts, stale values while offline). Companion handles drops and config changes. Also return `refuted` when the finding depends on an assumption about the **device's** behaviour that contradicts how the module is written: the maintainer knows their device. Timers, sockets or listeners not stopped in `destroy()` or left running after `configUpdated()` are real leaks; don't refute those on this ground.
 
 ## Verdict rules
 

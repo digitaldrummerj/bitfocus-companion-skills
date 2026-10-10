@@ -13,14 +13,34 @@ The orchestrator gives you: the **scope**, the **fact sheet**, the **clone direc
 
 - **Bugs:** logic errors, off-by-one, incorrect state transitions, race conditions.
 - **Error handling:** unhandled rejections, swallowed/silent errors, missing `try/catch`, `catch` blocks that log-and-continue without setting `InstanceStatus`.
-- **Edge cases:** malformed input, connection drops mid-operation, rapid config changes, zero/null/undefined where not expected.
+- **Edge cases:** malformed input, zero/null/undefined where not expected. (Not hypothetical timing around connection drops or config saves; see Calibration.)
 - **Performance:** busy-loops, excessive polling, unbounded queues, memory leaks (listener accumulation, uncleared timers, circular references).
 - **Async correctness:** proper `async/await`, no floating promises, correct error propagation.
 - **TypeScript correctness:** `as unknown as`, non-null `!` assertions masking issues, wrong narrowing.
 
+## Calibration: network and config-change findings
+
+Companion handles network drops and configuration changes well: it calls `configUpdated()` when settings are saved and `destroy()` when a connection is disabled or deleted, and it restarts a module's process if it crashes. Past reviews were far too cautious here, and the review maintainer removed almost all such findings. So:
+
+- **Report (blocking, 🟠 High at least):** anything the module starts and doesn't stop:
+  - a timer, interval, socket, listener, browser or child process **not stopped in `destroy()`**;
+  - the old one **not stopped or replaced when `configUpdated()` rebuilds the connection**, so it keeps running next to the new one.
+- **Report:** a concrete, likely failure a user hits in normal use, such as a connection with **no reconnect at all** that stays dead after an ordinary drop or device reboot.
+- **Don't report:** hypothetical timing and race findings:
+  - settings saved while a request or poll is in flight;
+  - late events from an old socket;
+  - overlapping polls;
+  - status briefly flapping during a reconnect;
+  - retry or backoff policy, or "retries forever";
+  - missing request timeouts;
+  - feedbacks or variables showing stale values while offline;
+  - discovery-socket edge cases;
+  - errors in background tasks that are caught or can't realistically happen.
+- **Trust the module maintainer's knowledge of their device.** Don't raise a finding that depends on an assumption about how the device or service behaves (event-id numbering, mid-reply disconnects, port order, …) when the module is written differently. If you can't prove it from the code, drop it rather than listing it as an assumption. Assumptions about **Companion's** own behaviour are still fine to list.
+
 ## Method (scope-driven)
 
-Pay special attention to event-driven code (listener leaks) and `configUpdated()` (it usually must tear down the old connection before creating a new one — race conditions are common). Review per the **scope** the orchestrator gave you:
+Pay special attention to event-driven code (listener leaks), `configUpdated()` (it must stop the old connection's timers, sockets and listeners before creating new ones) and `destroy()` (it must stop everything). Review per the **scope** the orchestrator gave you:
 
 - **`tag`** — review only the release diff: `git -C <dir> diff <previousTag>..<reviewTag>`. Every finding is **🆕 NEW** or **🔙 REGRESSION**.
 - **`module`** — review the whole current module; report all findings by severity, no classification.
@@ -31,12 +51,12 @@ First release (no previous tag) under tag/both → review the whole module (all 
 
 - Unhandled rejections that could crash the module process.
 - Confirmed memory leaks (e.g. `on('data')` added in a loop without cleanup).
-- Race conditions in `configUpdated()` that corrupt state.
+- Timers, intervals, sockets or listeners not stopped in `destroy()`, or left running next to new ones when `configUpdated()` rebuilds the connection.
 - Logic errors producing wrong operator behavior (an action sends the wrong command).
 
 ## Notes (non-blocking)
 
-- `catch` blocks that swallow errors without updating `InstanceStatus`; missing null checks on config values; async ops without timeout that can hang.
+- `catch` blocks that swallow errors so the user never sees the connection is failing; missing null checks on config values.
 - **Absence of tests is NOT a finding** — the compliance reviewer handles test evaluation.
 
 ## Output

@@ -13,9 +13,29 @@ The orchestrator gives you: the **scope**, the **fact sheet** (language, API ver
 
 - Connection lifecycle: connect, disconnect, reconnect, error recovery — trace it from `configUpdated()` → connect → operational → `destroy()`.
 - Socket hygiene: `destroy()` must stop **everything** the module started: every timer and interval, socket, connection, browser and child process. The same goes for the old resources whenever the module reconnects or `configUpdated()` rebuilds the connection. Leaks fail the review. (Companion does stop the module's process after `destroy()` when a connection is disabled or deleted, but the module must still clean up properly. Don't lower a `destroy()` finding because of that.)
-- Error handling on network ops: `try/catch`, socket `'error'` handlers, timeouts, retry/backoff, no unhandled promise rejections on network calls.
+- Error handling on network ops: `try/catch`, socket `'error'` handlers, no unhandled promise rejections on network calls that can realistically fail.
 - `InstanceStatus` transitions: Ok / Connecting / Disconnected / BadConfig set at the right points.
 - Protocol specifics: OSC address/arg validation and malformed-message handling; HTTP via `got`/`axios`/`node-fetch`/`http` with no blocking calls; Bonjour/mDNS service lifecycle cleanup; defensive parsing of data from real hardware.
+
+## Calibration: network and config-change findings
+
+Companion handles network drops and configuration changes well: it calls `configUpdated()` when settings are saved and `destroy()` when a connection is disabled or deleted, and it restarts a module's process if it crashes. Past reviews were far too cautious here, and the review maintainer removed almost all such findings. So:
+
+- **Report (blocking, 🟠 High at least):** anything the module starts and doesn't stop:
+  - a timer, interval, socket, listener, browser or child process **not stopped in `destroy()`**;
+  - the old one **not stopped or replaced when `configUpdated()` rebuilds the connection**, so it keeps running next to the new one.
+- **Report:** a concrete, likely failure a user hits in normal use, such as a connection with **no reconnect at all** that stays dead after an ordinary drop or device reboot.
+- **Don't report:** hypothetical timing and race findings:
+  - settings saved while a request or poll is in flight;
+  - late events from an old socket;
+  - overlapping polls;
+  - status briefly flapping during a reconnect;
+  - retry or backoff policy, or "retries forever";
+  - missing request timeouts;
+  - feedbacks or variables showing stale values while offline;
+  - discovery-socket edge cases;
+  - errors in background tasks that are caught or can't realistically happen.
+- **Trust the module maintainer's knowledge of their device.** Don't raise a finding that depends on an assumption about how the device or service behaves (event-id numbering, mid-reply disconnects, port order, …) when the module is written differently. If you can't prove it from the code, drop it rather than listing it as an assumption. Assumptions about **Companion's** own behaviour are still fine to list.
 
 ## Method (scope-driven)
 
@@ -37,7 +57,7 @@ First release (no previous tag) under tag/both → review the whole layer (all e
 
 ## Notes (non-blocking)
 
-- Missing reconnect after a drop; retry without backoff; no timeout on outbound connections/requests; `InstanceStatus` not updated on error.
+- `InstanceStatus` never set to an error state when the connection fails, so the user can't tell it's down. (Not: retry/backoff policy, missing timeouts, or brief status flaps. See Calibration.)
 
 ## Output
 
