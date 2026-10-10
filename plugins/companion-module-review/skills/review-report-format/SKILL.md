@@ -101,10 +101,11 @@ or (no blocking findings)
 
 - **Include every finding** with a heading in the main review body (Critical through Next Release)
 - **Group as Blocking / Non-blocking** — Blocking = `🔴 Critical` + `🟠 High`; Non-blocking = everything else
-- **Omit** the Pre-existing Notes table entries and the 📝 Additional Notes — they have no individual headings
+- **Don't list individual notes** (Pre-existing Notes table entries, 📝 Additional Notes bullets), because they have no headings of their own. But when the review has a 📝 Additional Notes section, end the Issues list with a `### Notes` group that links to it, so the reader knows it's there: `- [📝 Additional Notes](#-additional-notes)`. The anchor is `#-additional-notes`: GitHub drops the 📝 but keeps the hyphen that the space after it becomes. Notes are never checklist items: they need no action.
 - The groups are `### Blocking` / `### Non-blocking` **headings** (never bold-only lines — that is MD036), each followed by a blank line before its list
 - If there are no blocking issues, omit the `### Blocking` heading and its list
 - If there are no non-blocking issues, omit the `### Non-blocking` heading and its list
+- If there is no 📝 Additional Notes section, omit the `### Notes` group
 
 Each item is a GitHub-flavored Markdown task list item (`- [ ]`). On a re-review, mark an item `- [x]` once the maintainer has addressed it in the resubmitted version.
 
@@ -121,6 +122,10 @@ Each item is a GitHub-flavored Markdown task list item (`- [ ]`). On a re-review
 - [ ] [M1: Issue title here](#m1-issue-title-here)
 - [ ] [L1: Issue title here](#l1-issue-title-here)
 - [ ] [N1: Issue title here](#n1-issue-title-here)
+
+### Notes
+
+- [📝 Additional Notes](#-additional-notes)
 ```
 
 ### Anchor Generation (GitHub Markdown Rules)
