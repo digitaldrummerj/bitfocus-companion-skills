@@ -35,7 +35,12 @@ export { UpgradeScripts }
 export default class ModuleInstance extends InstanceBase<ModuleSchema> { /* … */ }
 ```
 
-In v2 this replaces `runEntrypoint(ModuleInstance, UpgradeScripts)`. Companion records how many scripts each connection has run, so **never remove, reorder or edit a released script**. Only append. If a script must become a no-op, replace it with `EmptyUpgradeScript`.
+In v2 this replaces `runEntrypoint(ModuleInstance, UpgradeScripts)`. Companion records how many scripts each connection has run, so **never remove, reorder or edit a released script**. Only append.
+
+> **Confirmed host behaviour:** Companion runs each upgrade script **only once per connection** and remembers that it has. Editing a released script therefore only reaches connections that haven't run it yet. Everyone already past that index never gets the change, so a new migration must go in a **new, appended** script.
+>
+> **Confirmed host behaviour:** options always arrive wrapped (`{ isExpression, value }`), even for buttons saved by a v1 version of the module, and whatever the script returns is stored unchanged. A bare value written back is read as `undefined`, fails validation, and Companion refuses to run the action. Always write the wrapped shape.
+ If a script must become a no-op, replace it with `EmptyUpgradeScript`.
 
 ### `CompanionStaticUpgradeScript<TConfig, TSecrets = undefined>`
 

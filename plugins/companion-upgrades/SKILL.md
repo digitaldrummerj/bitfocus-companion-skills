@@ -393,3 +393,5 @@ The upgrade script array index determines the version:
 - etc.
 
 When users update a module, Companion runs all scripts from their saved version to current version in sequence.
+
+**Confirmed host behaviour:** each script runs **only once per connection**. Companion records how many scripts a connection has run, and never re-runs one. A change made to an already-released script only reaches connections that haven't run it yet, so new migrations always go in a new, appended script.

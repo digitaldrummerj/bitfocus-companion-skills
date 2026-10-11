@@ -188,7 +188,8 @@ try {
     $p = Get-CompanionApiProfile -ApiLevel '2.1'
     Assert-Equal 'references/v2.0.md,references/v2.1.md' (@($p.apiReferences) -join ',') "2.1 => v2.0 + v2.1 references"
     Assert-Equal '5.0' $p.minCompanion "2.1 => Companion 5.0+"
-    Assert-Equal 'node22,node26' (@($p.allowedRuntimes) -join ',') "2.1 => node22 + node26"
+    Assert-Equal 'node26' (@($p.allowedRuntimes) -join ',') "2.1 => node26 only (match the 2.1 template)"
+    Assert-Equal 1 @($p.allowedRuntimes).Count "2.1 allowedRuntimes stays a list"
 
     $skills = Join-Path $root 'skills'
     New-Item -ItemType Directory -Path (Join-Path $skills 'companion-v2-api-compliance/references') -Force | Out-Null
@@ -289,6 +290,26 @@ Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $pending | Where-Object
 Assert-Equal 0 (@(Select-PendingVersionsByType -Versions @()).Count) "an empty queue stays empty"
 Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $null).Count) "a null queue is treated as empty"
 Assert-Equal 'https://developer.bitfocus.io/modules/review?type=companion-connection' (Get-PendingReviewPageUrl) "review page link defaults to connection modules"
+
+Write-Host ""
+Write-Host "Template suffix and pins by API level"
+Assert-Equal '-v1'     (Get-TemplateSuffix '1')   "API 1 uses the pinned -v1 template"
+Assert-Equal '-v2.0.4' (Get-TemplateSuffix '2.0') "API 2.0 uses the pinned -v2.0.4 template"
+Assert-Equal ''        (Get-TemplateSuffix '2.1') "API 2.1 uses main"
+Assert-Equal ''        (Get-TemplateSuffix '2.2') "later 2.x levels use main"
+$tp = Get-TemplatePins
+Assert-Equal '-v1,-v2.0.4' (@($tp.Keys) -join ',') "pins exist for -v1 and -v2.0.4"
+Assert-Equal 4 (@($tp.Values | ForEach-Object { $_.js; $_.ts } | Where-Object { $_ -match '^[0-9a-f]{40}$' }).Count) "every pin is a full 40-character commit SHA"
+Assert-Equal $tp['-v1'].ts (Get-TemplateV1Pins).ts "Get-TemplateV1Pins still returns the -v1 pins"
+
+Write-Host ""
+Write-Host "Repo web URL (source links in reviews)"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git+https://github.com/bitfocus/companion-module-x.git') "package.json git+https url → https without .git"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'git@github.com:bitfocus/companion-module-x.git') "scp-style ssh remote → https"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'ssh://git@github.com/bitfocus/companion-module-x.git') "ssh:// remote → https"
+Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'https://github.com/bitfocus/companion-module-x/') "plain https url is kept (trailing slash dropped)"
+Assert-Equal $null (ConvertTo-RepoWebUrl '/Users/me/clones/companion-module-x') "a local path is not a web url"
+Assert-Equal $null (ConvertTo-RepoWebUrl '') "empty input → null"
 
 Write-Host ""
 Write-Host "$($script:pass) passed, $($script:fail) failed" -ForegroundColor ($(if ($script:fail) { 'Red' } else { 'Green' }))

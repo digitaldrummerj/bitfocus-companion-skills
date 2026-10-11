@@ -185,10 +185,27 @@ if (-not $SkipApiScan) {
     }
 }
 
+# Source links. Reviews link every cited module file to GitHub at the exact commit the tag
+# points to (not the tag name: a re-pushed tag would silently move the lines under the link).
+# Prefer the clone's origin; fall back to package.json repository.url.
+$repoWebUrl = ConvertTo-RepoWebUrl (Invoke-GitRead @('-C', $ModuleDir, 'remote', 'get-url', 'origin'))
+if (-not $repoWebUrl -and (Has-Prop $pkg 'repository')) {
+    $repoField = if ($pkg.repository -is [string]) { $pkg.repository } elseif (Has-Prop $pkg.repository 'url') { $pkg.repository.url } else { $null }
+    $repoWebUrl = ConvertTo-RepoWebUrl $repoField
+}
+$commitRef = if ($GitTag) { "$GitTag^{commit}" } else { 'HEAD' }
+$reviewCommit = Invoke-GitRead @('-C', $ModuleDir, 'rev-parse', '--verify', '--quiet', $commitRef)
+if ([string]::IsNullOrWhiteSpace($reviewCommit)) { $reviewCommit = $null }
+$sourceLinkBase = if ($repoWebUrl -and $reviewCommit) { "$repoWebUrl/blob/$reviewCommit" } else { $null }
+
 $facts = [pscustomobject]@{
     module        = (Split-Path $ModuleDir -Leaf) -replace '^companion-module-', ''
     moduleDir     = $ModuleDir
     gitTag        = $GitTag
+    # Link cited files as "$sourceLinkBase/<path>#L<start>-L<end>" (null when the repo or tag can't be resolved).
+    repoWebUrl    = $repoWebUrl
+    reviewCommit  = $reviewCommit
+    sourceLinkBase = $sourceLinkBase
     language      = $lang
     apiVersion    = $apiVer
     apiSkill      = $apiSkill

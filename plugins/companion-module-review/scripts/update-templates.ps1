@@ -15,13 +15,15 @@
     act you perform BETWEEN review sessions, not during one.
 
     What it does, per language:
-      * v2 clone (companion-module-template-{js,ts}) — `git fetch` + `git merge --ff-only`.
-        Refuses a dirty work tree, a detached clone, or a non-fast-forward. It never
-        rebases, force-merges, or resets: a non-fast-forward means somebody committed
-        locally to a template clone, which is a situation to look at, not to paper over.
-      * v1 clone (…-v1) — never fetched. It is pinned in detached HEAD at the last v1.x
-        commit so v1 modules are judged against the API surface of their own era. This
-        script only ASSERTS the pin hasn't drifted; it never repairs it.
+      * main clone (companion-module-template-{js,ts}, the current API level: 2.1 since
+        2026-10-08) — `git fetch` + `git merge --ff-only`. Refuses a dirty work tree, a
+        detached clone, or a non-fast-forward. It never rebases, force-merges, or resets: a
+        non-fast-forward means somebody committed locally to a template clone, which is a
+        situation to look at, not to paper over.
+      * pinned clones (…-v1 for base 1.x, …-v2.0.4 for base 2.0; see Get-TemplatePins) —
+        never fetched. Each sits in detached HEAD at the last commit of its API generation so
+        modules are judged against the template of their own era. This script only ASSERTS
+        the pins haven't drifted; it never repairs them.
 
     Reviews block on a stale template (validate-template.ps1 raises TEMPLATE-STALE and the
     review orchestrator aborts), so this is the command those messages point at.
@@ -177,9 +179,10 @@ function Update-V2Clone {
 
 # ── Assert one v1 pin ────────────────────────────────────────────────────────
 function Test-V1Pin {
-    param([Parameter(Mandatory)][string]$Dir, [Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Pin)
+    param([Parameter(Mandatory)][string]$Dir, [Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Pin,
+          [string]$Kind = 'v1')
 
-    $r = [ordered]@{ name = $Name; kind = 'v1'; ok = $false; changed = $false
+    $r = [ordered]@{ name = $Name; kind = $Kind; ok = $false; changed = $false
                      from = $null; to = $null; status = 'error'; message = $null; commits = @() }
 
     if (-not (Test-Path $Dir)) {
@@ -230,16 +233,19 @@ if ($inFlight.Count -gt 0 -and -not $DryRun) {
     Write-Line ""
 }
 
-$pins    = Get-TemplateV1Pins
+$pins    = Get-TemplatePins
 $results = [System.Collections.Generic.List[object]]::new()
 
 Enter-UpdateLock
 try {
     foreach ($lang in 'js', 'ts') {
-        $v2Name = "companion-module-template-$lang"
-        $v1Name = "$v2Name-v1"
-        $results.Add((Update-V2Clone -Dir (Join-Path $TemplatesDir $v2Name) -Name $v2Name))
-        $results.Add((Test-V1Pin    -Dir (Join-Path $TemplatesDir $v1Name) -Name $v1Name -Pin $pins[$lang]))
+        $mainName = "companion-module-template-$lang"
+        $results.Add((Update-V2Clone -Dir (Join-Path $TemplatesDir $mainName) -Name $mainName))
+        # Every pinned API generation ("-v1", "-v2.0.4", ...) is only asserted, never fetched.
+        foreach ($suffix in $pins.Keys) {
+            $pinName = "$mainName$suffix"
+            $results.Add((Test-V1Pin -Dir (Join-Path $TemplatesDir $pinName) -Name $pinName -Pin $pins[$suffix][$lang] -Kind $suffix.TrimStart('-')))
+        }
     }
 } finally {
     Exit-UpdateLock

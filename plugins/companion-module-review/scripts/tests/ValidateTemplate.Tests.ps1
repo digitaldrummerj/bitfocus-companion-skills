@@ -331,13 +331,16 @@ try {
 
     Write-Host "TS module (real tsconfig divergence)"
     $tb = Invoke-Validator $tsBad $tsTpl
-    $tbConfigDiffs = @($tb.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.json' })
-    Ok ($tbConfigDiffs.Count -gt 0) "still flags a real tsconfig.json divergence (node16)"
+    $tbConfigDiffs = @($tb.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -like 'tsconfig*.json' })
+    Ok ($tbConfigDiffs.Count -eq 0) "a real tsconfig.json divergence (node16) is never a blocking CONFIG-DIFF"
+    $tbNotes = @($tb.findings | Where-Object { $_.id -eq 'TSCONFIG-DIFF' -and $_.file -eq 'tsconfig.json' })
+    Ok ($tbNotes.Count -eq 1 -and $tbNotes[0].severity -eq 'Info') "…it is one Info TSCONFIG-DIFF note (📝 Additional Notes)"
 
     # ── tsconfig.json may be widened to type-check tests (accepted deviation) ──
     # Real-template shape. tsconfig.json is the editor/typecheck config; widening it with test
     # globs, extra types, rootDir and noEmit is accepted (Info). tsconfig.build.json is the
-    # build config and stays exact. Anything else in tsconfig.json is still a CONFIG-DIFF.
+    # build config and is compared exactly. Any other tsconfig difference is an Info
+    # TSCONFIG-DIFF note — never a blocking CONFIG-DIFF (the build check catches a broken build).
     $devTpl = Join-Path $root 'companion-module-template-ts-devscope'
     Copy-Item -Recurse -Force $tsTpl $devTpl
     $devTplTsconfig = "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"src/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": {`n`t`t`"types`": [`"node`" /* , `"jest`" ] // uncomment this if using jest */]`n`t}`n}"
@@ -366,24 +369,28 @@ try {
     Write-Host "tsconfig.json with a real compiler-option change"
     $dsStrict = New-DevScopeModule 'dsstrict' "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"src/**/*.ts`", `"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": {`n`t`t`"strict`": false,`n`t`t`"types`": [`"node`"]`n`t}`n}"
     $rstrict = Invoke-Validator $dsStrict $devTpl
-    $sd = Get-TsconfigJsonFindings $rstrict 'CONFIG-DIFF'
-    Ok ($sd.Count -eq 1 -and $sd[0].severity -eq 'Critical' -and $sd[0].message -match 'compilerOptions\.strict') "an extra compiler option (strict) is still a Critical CONFIG-DIFF naming it"
+    Ok ((Get-TsconfigJsonFindings $rstrict 'CONFIG-DIFF').Count -eq 0)      "an extra compiler option (strict) is not a CONFIG-DIFF"
+    $sd = Get-TsconfigJsonFindings $rstrict 'TSCONFIG-DIFF'
+    Ok ($sd.Count -eq 1 -and $sd[0].severity -eq 'Info' -and $sd[0].message -match 'compilerOptions\.strict') "…it is an Info TSCONFIG-DIFF naming it"
 
     Write-Host "tsconfig.json that drops the template's src include"
     $dsDrop = New-DevScopeModule 'dsdrop' "{`n`t`"extends`": `"./tsconfig.build.json`",`n`t`"include`": [`"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": { `"types`": [`"node`"] }`n}"
     $rdrop = Invoke-Validator $dsDrop $devTpl
-    Ok ((Get-TsconfigJsonFindings $rdrop 'CONFIG-DIFF').Count -eq 1)        "removing a template include entry is still a CONFIG-DIFF"
+    Ok ((Get-TsconfigJsonFindings $rdrop 'CONFIG-DIFF').Count -eq 0 -and (Get-TsconfigJsonFindings $rdrop 'TSCONFIG-DIFF').Count -eq 1) "removing a template include entry is a TSCONFIG-DIFF note"
 
     Write-Host "tsconfig.json that changes extends"
     $dsExt = New-DevScopeModule 'dsext' "{`n`t`"extends`": `"@tsconfig/node22/tsconfig.json`",`n`t`"include`": [`"src/**/*.ts`", `"tests/**/*.ts`"],`n`t`"exclude`": [`"node_modules/**`"],`n`t`"compilerOptions`": { `"types`": [`"node`"] }`n}"
     $rext = Invoke-Validator $dsExt $devTpl
-    Ok ((Get-TsconfigJsonFindings $rext 'CONFIG-DIFF').Count -eq 1)         "a different extends is still a CONFIG-DIFF"
+    Ok ((Get-TsconfigJsonFindings $rext 'CONFIG-DIFF').Count -eq 0 -and (Get-TsconfigJsonFindings $rext 'TSCONFIG-DIFF').Count -eq 1) "a different extends is a TSCONFIG-DIFF note"
 
     Write-Host "tsconfig.build.json is never widened"
     $dsBuild = New-DevScopeModule 'dsbuild' $devTplTsconfig
     Set-File (Join-Path $dsBuild 'tsconfig.build.json') "{ `"extends`": `"./tsconfig.json`", `"include`": [`"tests/**/*.ts`"] }"
     $rbuild = Invoke-Validator $dsBuild $devTpl
-    Ok (@($rbuild.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' }).Count -eq 1) "the same widening in tsconfig.build.json is still a CONFIG-DIFF"
+    Ok (@($rbuild.findings | Where-Object { $_.id -eq 'CONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' }).Count -eq 0) "a tsconfig.build.json divergence is not a blocking CONFIG-DIFF"
+    $bn = @($rbuild.findings | Where-Object { $_.id -eq 'TSCONFIG-DIFF' -and $_.file -eq 'tsconfig.build.json' })
+    Ok ($bn.Count -eq 1 -and $bn[0].severity -eq 'Info') "…it is an Info TSCONFIG-DIFF note (no dev-scope allowance for the build config)"
+    Ok ($bn.Count -eq 1 -and $bn[0].message -match [regex]::Escape('"tests/**/*.ts"')) "…and its message keeps glob paths intact (/**/ inside a string is not a comment)"
 
     # ── Root tool config files are not misplaced source ───────────────────────
     Write-Host "root tool config files (vitest.config.ts etc.)"
@@ -626,6 +633,8 @@ try {
     Ok (-not ($ids -contains 'MAN-IDNAME'))    "does not flag manifest id != name (name is human-facing, not the slug)"
     Ok ($ids -contains 'MAN-PLACEHOLDER')      "flags placeholder maintainer"
     Ok ($ids -contains 'MAN-KEYWORD')          "flags banned keyword 'companion'"
+    $kw = @($b.findings | Where-Object { $_.id -eq 'MAN-KEYWORD' })
+    Ok ($kw.Count -eq 1 -and $kw[0].message -match "'companion'") "does not flag a keyword that repeats the module id ('bar')"
     Ok ($ids -contains 'MAN-TYPE')             "flags missing manifest type (template has it)"
     Ok ($ids -contains 'MAN-RUNTIME')          "flags runtime.entrypoint referencing a non-existent file"
     Ok ($ids -contains 'HELP-STUB')            "flags HELP.md stub"
@@ -740,7 +749,7 @@ try {
     $d1 = Invoke-Validator $good $dtpl
     $miss = Find-Findings $d1 'FILE-MISSING' '.github/workflows/node.yaml'
     Ok ($miss.Count -eq 1)                                        "a template-tracked file missing from the module is reported"
-    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     ".github/** lands at Medium, not blocking"
+    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing CI workflow is Medium by default (the reviewer may raise it)"
     Ok ((Find-Findings $d1 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "a missing file is not ALSO reported as a content diff"
 
     Write-Host "Derived file set — module-owned files are never compared"
@@ -759,10 +768,37 @@ try {
     $d3 = Invoke-Validator $good $dtpl
     $diff = Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/node.yaml'
     Ok ($diff.Count -eq 1)                                     "a diverging .github workflow is reported"
-    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium"
+    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium by default"
+    Ok ($d3.counts.critical -eq 0)                             "…so it doesn't raise the critical count"
     Ok ((Find-Findings $d3 'FILE-MISSING' '.github/workflows/node.yaml').Count -eq 0) "…and not also as missing"
     Ok ((Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/checks.yaml').Count -eq 0) "an identical .github workflow is not flagged"
-    Ok ($d3.counts.critical -eq 0)                             ".github findings never raise the critical count"
+
+    Write-Host "CI workflows — the upload-artifact customisation in companion-module-checks.yaml"
+    $checksTpl = "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    # with:`n    #   upload-artifact: true # uncomment this to upload the built package"
+    Set-File (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml') $checksTpl
+    Set-File (Join-Path $dtpl '.github/ISSUE_TEMPLATE/bug.md') "name: bug"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: node`njobs: {}"
+    Set-File (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md') "name: bug report"
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true"
+    $d5 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d5 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "enabling upload-artifact is the accepted customisation"
+    $it = Find-Findings $d5 'CONFIG-DIFF' '.github/ISSUE_TEMPLATE/bug.md'
+    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'Medium')    "other .github files (issue templates) stay Medium"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl
+    $d6 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d6 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "the template's commented-out form is clean too"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true`n      prerelease: true"
+    $d7 = Invoke-Validator $good $dtpl
+    $wx = Find-Findings $d7 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml'
+    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'Medium')    "any other with: input is still a CONFIG-DIFF (Medium)"
+
+    Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@v1`n    with:`n      upload-artifact: true"
+    $d8 = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d8 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 1) "upload-artifact doesn't excuse another change in the file"
+    Remove-Item -Recurse -Force (Join-Path $good '.github/ISSUE_TEMPLATE'), (Join-Path $good '.github/workflows/companion-module-checks.yaml')
+    Remove-Item -Recurse -Force (Join-Path $dtpl '.github/ISSUE_TEMPLATE'), (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml')
 
     Write-Host "Derived file set — a template file with no rule"
     Set-File (Join-Path $dtpl '.editorconfig') "root = true`nindent_style = tab"
@@ -824,25 +860,31 @@ try {
     Ok ((Find-Findings $h2 'CONFIG-DIFF' '.husky/pre-commit').Count -eq 0) "a matching husky hook is clean"
     Ok ((Find-Findings $h2 'HUSKY' $null).Count -eq 0)                     "…with no HUSKY finding either"
 
-    # ── API 2.1 allowances: node26 runtime + node26 tsconfig preset ──────────
-    # The v2 templates still pin base 2.0.x / node22. API 2.1 added node26, so a 2.1 module
-    # on node26 (manifest runtime + tools' node26 tsconfig preset) is correct and must not be
-    # flagged — while a 2.0 module on node26 still must be, and any other tsconfig
-    # difference still is a CONFIG-DIFF.
-    $apiTpl = Join-Path $root 'companion-module-template-ts-api'
-    Copy-Item -Recurse -Force $tsTpl $apiTpl
-    Set-File (Join-Path $apiTpl 'tsconfig.build.json') "{`n`t`"extends`": `"@companion-module/tools/tsconfig/node22/recommended-esm.json`",`n`t`"compilerOptions`": { `"outDir`": `"./dist`" }`n}"
-    Set-File (Join-Path $apiTpl 'package.json') (Get-Content -Raw (Join-Path (New-TsModule 'tplsrc' '"types": ["node"]') 'package.json'))
-    Set-File (Join-Path $apiTpl 'companion/manifest.json') (@'
+    # ── Runtime by API level: each level must match its own template ─────────
+    # 2.0 modules are judged against the -v2.0.4 template (node22), 2.1+ against main (node26).
+    # A 2.1 module must be on node26 like its template; node22 there is a Critical, and node26
+    # on a 2.0 module is a Critical that says why. tsconfig differences stay TSCONFIG-DIFF notes.
+    $preset22 = '@companion-module/tools/tsconfig/node22/recommended-esm.json'
+    $preset26 = '@companion-module/tools/tsconfig/node26/recommended.json'
+    function New-ApiTemplate($name, $runtime, $preset) {
+        $dir = Join-Path $root $name
+        Copy-Item -Recurse -Force $tsTpl $dir
+        Set-File (Join-Path $dir 'tsconfig.build.json') "{`n`t`"extends`": `"$preset`",`n`t`"compilerOptions`": { `"outDir`": `"./dist`" }`n}"
+        Set-File (Join-Path $dir 'package.json') (Get-Content -Raw (Join-Path (New-TsModule "$name-src" '"types": ["node"]') 'package.json'))
+        Set-File (Join-Path $dir 'companion/manifest.json') (@'
 {
   "type": "connection",
   "id": "your-module-name",
   "name": "your-module-name",
   "maintainers": [ { "name": "Your name", "email": "Your email" } ],
-  "runtime": { "type": "node22", "api": "nodejs-ipc", "entrypoint": "../src/main.ts" },
+  "runtime": { "type": "__RT__", "api": "nodejs-ipc", "entrypoint": "../src/main.ts" },
   "keywords": []
 }
-'@)
+'@ -replace '__RT__', $runtime)
+        return $dir
+    }
+    $tpl20 = New-ApiTemplate 'companion-module-template-ts-api20' 'node22' $preset22
+    $tpl21 = New-ApiTemplate 'companion-module-template-ts-api21' 'node26' $preset26
     function New-ApiModule($name, $baseRange, $runtime, $buildExtends, [string]$lockVersion) {
         $dir = New-TsModule $name '"types": ["node"]'
         Set-File (Join-Path $dir 'tsconfig.build.json') "{`n`t`"extends`": `"$buildExtends`",`n`t`"compilerOptions`": { `"outDir`": `"./dist`" }`n}"
@@ -855,52 +897,84 @@ try {
         }
         return $dir
     }
-    $preset22 = '@companion-module/tools/tsconfig/node22/recommended-esm.json'
-    $preset26 = '@companion-module/tools/tsconfig/node26/recommended.json'
 
-    Write-Host "API 2.1 — node26 runtime + node26 tsconfig preset"
+    Write-Host "API 2.1 — node26 runtime + node26 tsconfig preset (matches the 2.1 template)"
     $m21 = New-ApiModule 'api21n26' '~2.1.3' 'node26' $preset26 '2.1.3'
-    $r21 = Invoke-Validator $m21 $apiTpl
+    $r21 = Invoke-Validator $m21 $tpl21
     Ok ($r21.apiLevel -eq '2.1')                                         "reports apiLevel 2.1 (from yarn.lock)"
     Ok ($r21.baseVersion -eq '2.1.3' -and $r21.baseVersionSource -eq 'yarn.lock') "reports baseVersion + source"
     Ok ((Find-Findings $r21 'MAN-RUNTIME' $null).Count -eq 0)            "node26 on API 2.1 is not a MAN-RUNTIME"
-    Ok ((Find-Findings $r21 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "node26 tools preset on API 2.1 is not a CONFIG-DIFF"
-    $n26 = Find-Findings $r21 'TSCONFIG-NODE26' 'tsconfig.build.json'
-    Ok ($n26.Count -eq 1 -and $n26[0].severity -eq 'Info')              "…it is an Info TSCONFIG-NODE26 note instead"
+    Ok ((Find-Findings $r21 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "the node26 preset matches the 2.1 template"
     Ok ($r21.counts.critical -eq 0)                                      "clean 2.1/node26 module has no criticals (got $(@($r21.findings | Where-Object severity -eq 'Critical' | ForEach-Object { $_.id }) -join ','))"
 
-    Write-Host "API 2.1 — node22 stays valid"
+    Write-Host "API 2.1 — staying on node22 does not match the template"
     $m21b = New-ApiModule 'api21n22' '~2.1.3' 'node22' $preset22 '2.1.3'
-    $r21b = Invoke-Validator $m21b $apiTpl
-    Ok ((Find-Findings $r21b 'MAN-RUNTIME' $null).Count -eq 0)           "node22 on API 2.1 is fine"
-    Ok ((Find-Findings $r21b 'TSCONFIG-NODE26' $null).Count -eq 0)       "no node26 note when nothing changed"
+    $r21b = Invoke-Validator $m21b $tpl21
+    $rt22 = Find-Findings $r21b 'MAN-RUNTIME' 'companion/manifest.json'
+    Ok ($rt22.Count -eq 1 -and $rt22[0].severity -eq 'Critical')        "node22 on API 2.1 is a Critical MAN-RUNTIME"
+    Ok ($rt22.Count -eq 1 -and $rt22[0].message -match "should be 'node26'") "…saying it should be node26"
+    Ok ($rt22.Count -eq 1 -and $rt22[0].message -match 'node26/recommended\.json') "…and naming the node26 tsconfig preset (TS)"
+    Ok ((Find-Findings $r21b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "the node22 preset is a TSCONFIG-DIFF note"
 
     Write-Host "API 2.0 — node26 is a version mismatch"
     $m20 = New-ApiModule 'api20n26' '~2.0.4' 'node26' $preset26 '2.0.4'
-    $r20 = Invoke-Validator $m20 $apiTpl
+    $r20 = Invoke-Validator $m20 $tpl20
     $rt = Find-Findings $r20 'MAN-RUNTIME' 'companion/manifest.json'
     Ok ($rt.Count -eq 1 -and $rt[0].severity -eq 'Critical')            "node26 on API 2.0 is a Critical MAN-RUNTIME"
     Ok ($rt.Count -eq 1 -and $rt[0].message -match '>= 2\.1')            "…whose message says node26 needs base >= 2.1"
-    Ok ((Find-Findings $r20 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset on API 2.0 is still a CONFIG-DIFF"
-    Ok ((Find-Findings $r20 'TSCONFIG-NODE26' $null).Count -eq 0)        "…with no node26 allowance"
+    Ok ((Find-Findings $r20 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset on API 2.0 is a TSCONFIG-DIFF note (MAN-RUNTIME carries the block)"
 
-    Write-Host "API 2.1 — node26 preset plus another change"
+    Write-Host "API 2.0 — node22 matches the 2.0 template"
+    $m20b = New-ApiModule 'api20n22' '~2.0.4' 'node22' $preset22 '2.0.4'
+    $r20b = Invoke-Validator $m20b $tpl20
+    Ok ((Find-Findings $r20b 'MAN-RUNTIME' $null).Count -eq 0)           "node22 on API 2.0 is fine"
+    Ok ((Find-Findings $r20b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "…with no tsconfig note"
+
+    Write-Host "API 2.1 — another tsconfig change"
     $m21c = New-ApiModule 'api21mix' '~2.1.3' 'node26' $preset26 '2.1.3'
     Set-File (Join-Path $m21c 'tsconfig.build.json') "{`n`t`"extends`": `"$preset26`",`n`t`"compilerOptions`": { `"outDir`": `"./build`" }`n}"
-    $r21c = Invoke-Validator $m21c $apiTpl
-    Ok ((Find-Findings $r21c 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "any other tsconfig difference is still a Critical CONFIG-DIFF"
-    Ok ((Find-Findings $r21c 'TSCONFIG-NODE26' $null).Count -eq 0)       "…and not excused as a node26 note"
-
-    Write-Host "API 2.1 — node26 preset but runtime still node22"
-    $m21d = New-ApiModule 'api21half' '~2.1.3' 'node22' $preset26 '2.1.3'
-    $r21d = Invoke-Validator $m21d $apiTpl
-    Ok ((Find-Findings $r21d 'CONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset without a node26 runtime is still a CONFIG-DIFF"
+    $r21c = Invoke-Validator $m21c $tpl21
+    Ok ((Find-Findings $r21c 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "any other tsconfig difference is a TSCONFIG-DIFF note"
 
     Write-Host "API 2.1 — an unknown runtime is still flagged"
-    $m21e = New-ApiModule 'api21n18' '~2.1.3' 'node18' $preset22 '2.1.3'
-    $r21e = Invoke-Validator $m21e $apiTpl
+    $m21e = New-ApiModule 'api21n18' '~2.1.3' 'node18' $preset26 '2.1.3'
+    $r21e = Invoke-Validator $m21e $tpl21
     $rt18 = Find-Findings $r21e 'MAN-RUNTIME' 'companion/manifest.json'
-    Ok ($rt18.Count -eq 1 -and $rt18[0].message -match 'node22, node26') "node18 on API 2.1 lists the allowed runtimes"
+    Ok ($rt18.Count -eq 1 -and $rt18[0].message -match "should be 'node26'") "node18 on API 2.1 names the required runtime"
+
+    # ── Template selection by API level (auto-detected, no -TemplateDir) ─────
+    # base 1.x → "-v1", 2.0 → pinned "-v2.0.4", 2.1+ → main. A missing pinned folder must be
+    # an error, never a silent fallback to main (wrong template = false findings).
+    Write-Host "template selection by API level"
+    $selRoot = Join-Path $root 'templates-select'
+    New-Item -ItemType Directory -Path $selRoot -Force | Out-Null
+    Copy-Item -Recurse -Force $tpl21 (Join-Path $selRoot 'companion-module-template-ts')
+    Copy-Item -Recurse -Force $tpl20 (Join-Path $selRoot 'companion-module-template-ts-v2.0.4')
+    $prevTplDir = $env:COMPANION_TEMPLATES_DIR
+    try {
+        $env:COMPANION_TEMPLATES_DIR = $selRoot
+        function Invoke-AutoTemplate($ModuleDir) {
+            $out = & pwsh -NoProfile -File $validator -ModuleDir $ModuleDir -SkipTemplateFreshness -Json 2>&1
+            $code = $LASTEXITCODE
+            $text = ($out | Out-String)
+            $json = $null
+            if ($code -ne 2) { try { $json = ($out | Where-Object { $_ -is [string] } | Out-String) | ConvertFrom-Json } catch { } }
+            return [pscustomobject]@{ Code = $code; Json = $json; Text = $text }
+        }
+        $m20s = New-ApiModule 'sel20' '~2.0.4' 'node22' $preset22 '2.0.4'
+        $s20 = Invoke-AutoTemplate $m20s
+        Ok ($s20.Json -and $s20.Json.templateRevision.leaf -eq 'companion-module-template-ts-v2.0.4') "an API 2.0 module is judged against the pinned -v2.0.4 template"
+
+        $m21s = New-ApiModule 'sel21' '~2.1.3' 'node26' $preset26 '2.1.3'
+        $s21 = Invoke-AutoTemplate $m21s
+        Ok ($s21.Json -and $s21.Json.templateRevision.leaf -eq 'companion-module-template-ts') "an API 2.1 module is judged against main"
+
+        Remove-Item -Recurse -Force (Join-Path $selRoot 'companion-module-template-ts-v2.0.4')
+        $sMissing = Invoke-AutoTemplate $m20s
+        Ok ($sMissing.Code -eq 2 -and $sMissing.Text -match 'companion-module-template-ts-v2\.0\.4') "a missing -v2.0.4 folder is an error naming it (no fallback to main)"
+    } finally {
+        $env:COMPANION_TEMPLATES_DIR = $prevTplDir
+    }
 }
 finally {
     $env:COMPANION_TEMPLATE_FRESHNESS_TTL = $script:prevTtl

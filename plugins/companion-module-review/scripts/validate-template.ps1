@@ -10,12 +10,14 @@
     and "gitignored files must not be committed". Optionally runs the build and lint.
 
     This is the part of a review that does NOT need an LLM — it is exact, repeatable, and
-    cheap. The reviewer is left only with judgment calls (is HELP.md meaningful, is a
-    tsconfig deviation justified).
+    cheap. The reviewer is left only with judgment calls (is HELP.md meaningful). tsconfig
+    differences are reported as Info TSCONFIG-DIFF notes, never blocking.
 
     The official template repo is the authoritative reference, selected by API version ×
-    language: v2 modules use companion-module-template-{js|ts}, v1 modules use the
-    "-v1"-suffixed variant. Templates are auto-detected under COMPANION_TEMPLATES_DIR
+    language, via Get-TemplateSuffix: API 2.1+ modules use companion-module-template-{js|ts}
+    (main), API 2.0 modules the "-v2.0.4"-suffixed clone, and v1 modules the "-v1"-suffixed
+    clone. A missing pinned clone is an error (exit 2), never a silent fallback to main.
+    Templates are auto-detected under COMPANION_TEMPLATES_DIR
     (default companion-module-templates/ inside the repo), or passed via -TemplateDir.
 
     BEFORE comparing anything, the local template clone is verified against its upstream
@@ -23,8 +25,8 @@
     behind upstream would judge the module against outdated expectations and produce false
     findings, so it is a blocking TEMPLATE-STALE. Templates are NEVER auto-updated here:
     concurrent review sessions share these clones, so refreshing is a separate, deliberate
-    act (scripts/update-templates.ps1). The "-v1" clones sit in detached HEAD by design and
-    are exempt.
+    act (scripts/update-templates.ps1). The pinned clones ("-v1", "-v2.0.4") sit in detached
+    HEAD by design and are exempt.
 
     Which files get compared is derived from the template's own tracked files
     (`git ls-files`) minus module-owned paths, so a file newly added upstream is compared
@@ -33,8 +35,8 @@
     TEMPLATE-COVERAGE so the gap can't go silent.
 
     One exception: .yarnrc.yml is repo tooling rather than API surface, and Bitfocus only
-    updates it on main, so it is always compared against the non-"-v1" template when one
-    exists — and by parsed key, not raw text (key order, quote style, and blank lines are
+    updates it on main, so it is always compared against the main (unsuffixed) template when
+    one exists — and by parsed key, not raw text (key order, quote style, and blank lines are
     not divergences; a missing/extra key or a conflicting value is).
 .PARAMETER ModuleDir
     Path to the cloned module under review.
@@ -73,7 +75,7 @@ Set-StrictMode -Version Latest
 
 . "$PSScriptRoot/lib/ReviewState.ps1"
 
-if (-not (Test-Path $ModuleDir)) { Write-Error "ModuleDir not found: $ModuleDir"; exit 2 }
+if (-not (Test-Path $ModuleDir)) { Write-Error "ModuleDir not found: $ModuleDir" -ErrorAction Continue; exit 2 }
 $ModuleDir = (Resolve-Path $ModuleDir).Path
 
 # ── Findings accumulator ─────────────────────────────────────────────────────
@@ -105,15 +107,14 @@ $isTs = Test-ModuleIsTypeScript $ModuleDir
 $lang = if ($isTs) { 'TS' } else { 'JS' }
 $langLower = $lang.ToLower()
 
-# Detect the @companion-module/base version. The MAJOR still picks the template (1.x → the
-# pinned "-v1" clone, 2.x → main). The MINOR matters too since API 2.1: the v2 templates still
-# pin base 2.0.x / node22, but a 2.1 module may legitimately run on node26 — so the runtime and
-# tsconfig comparisons below need to know the level, or they'd flag a correct module.
+# Detect the @companion-module/base version. The API LEVEL picks the template (Get-TemplateSuffix):
+# 1.x → the pinned "-v1" clone, 2.0 → the pinned "-v2.0.4" clone (base 2.0.4 / node22), 2.1+ →
+# main (base 2.1 / node26 since 2026-10-08). The runtime check below also uses the level: each
+# API level allows only its own template's runtime (2.0 -> node22, 2.1+ -> node26).
 $baseInfo   = Resolve-CompanionBaseVersion $ModuleDir
 $apiMajor   = $baseInfo.major
 $apiVer     = "v$apiMajor"
 $apiProfile = Get-CompanionApiProfile -ApiLevel $baseInfo.apiLevel
-$apiAtLeast21 = ($baseInfo.major -gt 2) -or ($baseInfo.major -eq 2 -and $baseInfo.minor -ge 1)
 
 # The module's manifest runtime is needed before §2 (the tsconfig allowance depends on it),
 # so it's read here; §5 still owns parsing errors and all MAN-* findings.
@@ -128,8 +129,8 @@ try {
 
 # ── Resolve template dir by version × language ───────────────────────────────
 # Templates live in companion-module-templates/ inside the repo (override:
-# COMPANION_TEMPLATES_DIR). v1 templates use a "-v1" suffix; v2 templates have none.
-$tplSuffix = if ($apiMajor -le 1) { '-v1' } else { '' }
+# COMPANION_TEMPLATES_DIR). Pinned API generations use a suffix ("-v1", "-v2.0.4"); main has none.
+$tplSuffix = Get-TemplateSuffix -ApiLevel $baseInfo.apiLevel
 $tplName   = "companion-module-template-$langLower$tplSuffix"
 if (-not $TemplateDir) {
     # The scripts live in the companion-module-review plugin, so the templates are found
@@ -142,17 +143,19 @@ if (-not $TemplateDir) {
     }
 }
 if (-not $TemplateDir -or -not (Test-Path $TemplateDir)) {
-    Write-Error "Template '$tplName' ($lang $apiVer) not found. Run this from your companion-module-review workspace after setup.ps1 has cloned the templates into companion-module-templates/ (or set COMPANION_REVIEW_ROOT / COMPANION_TEMPLATES_DIR, or pass -TemplateDir)."
+    # Never fall back to main for a pinned generation: the wrong template means false findings.
+    Write-Error "Template '$tplName' ($lang, API $($baseInfo.apiLevel)) not found. Run setup.ps1 in your companion-module-review workspace to create the template clones in companion-module-templates/ (pinned ones included), or set COMPANION_REVIEW_ROOT / COMPANION_TEMPLATES_DIR, or pass -TemplateDir." -ErrorAction Continue
     exit 2
 }
 $TemplateDir = (Resolve-Path $TemplateDir).Path
 
 # .yarnrc.yml is repo tooling, not API-versioned — Bitfocus updates it on main only, so a
-# v1 module is judged against the current (main) template's yarnrc rather than the pinned
-# v1 template's stale copy. Falls back to $TemplateDir when there's no sibling to use.
+# module judged against a pinned template ("-v1", "-v2.0.4") still gets the current (main)
+# template's yarnrc rather than the pinned clone's stale copy. Falls back to $TemplateDir
+# when there's no sibling to use.
 $yarnrcTemplateDir = $TemplateDir
-if ($TemplateDir -match '-v1$') {
-    $sibling = $TemplateDir -replace '-v1$',''
+if ($TemplateDir -match '-v\d[\d.]*$') {
+    $sibling = $TemplateDir -replace '-v\d[\d.]*$',''
     if (Test-Path (Join-Path $sibling '.yarnrc.yml')) { $yarnrcTemplateDir = $sibling }
 }
 
@@ -171,9 +174,9 @@ $seenTplDirs = [System.Collections.Generic.HashSet[string]]::new()
 
 # The check set is every clone whose contents feed an expectation:
 #   - the matched template;
-#   - the yarnrc source, which for a v1 module is the *v2* sibling (see above);
-#   - one hop through a pinned clone's local origin, since the "-v1" clones are cloned from
-#     the v2 clone — that parent is the thing that can actually fall behind GitHub.
+#   - the yarnrc source, which for a pinned (v1 / 2.0) module is the main sibling (see above);
+#   - one hop through a pinned clone's local origin, since setup.ps1 clones the pinned
+#     folders from the main clone — that parent is the thing that can actually fall behind GitHub.
 $freshnessTargets = @($TemplateDir, $yarnrcTemplateDir)
 $tplInfo = Get-GitRepoInfo -Dir $TemplateDir
 if ($tplInfo.IsRepo -and $tplInfo.Detached -and $tplInfo.OriginIsLocalDir) {
@@ -284,10 +287,35 @@ function Normalize-TsconfigLine {
     # array: ["node" /* , "jest" ] // uncomment this if using jest */]. Deleting that
     # dead comment (leaving ["node"]) is an accepted divergence, not a CONFIG-DIFF — so
     # strip inline comments and normalize bracket spacing before comparing tsconfig lines.
+    #
+    # Comments are only stripped OUTSIDE string literals: a glob like "src/**/*.ts" contains
+    # "/**/" and a URL contains "//", and neither is a comment.
     param([string]$Line)
-    $l = $Line -replace '/\*.*?\*/', ''   # drop inline block comments (incl. the jest hint)
-    $l = $l -replace '//.*$', ''          # drop trailing line comments
-    $l = $l -replace '\s*\]', ']'         # collapse whitespace before a closing bracket
+    $sb = [System.Text.StringBuilder]::new()
+    $inString = $false
+    $i = 0
+    while ($i -lt $Line.Length) {
+        $ch = $Line[$i]
+        $next = if ($i + 1 -lt $Line.Length) { $Line[$i + 1] } else { [char]0 }
+        if ($inString) {
+            [void]$sb.Append($ch)
+            if ($ch -eq '\' -and $i + 1 -lt $Line.Length) { [void]$sb.Append($next); $i += 2; continue }
+            if ($ch -eq '"') { $inString = $false }
+            $i++
+            continue
+        }
+        if ($ch -eq '"') { $inString = $true; [void]$sb.Append($ch); $i++; continue }
+        if ($ch -eq '/' -and $next -eq '*') {           # inline block comment (incl. the jest hint)
+            $end = $Line.IndexOf('*/', $i + 2)
+            if ($end -lt 0) { break }                    # unterminated on this line: drop the rest
+            $i = $end + 2
+            continue
+        }
+        if ($ch -eq '/' -and $next -eq '/') { break }   # trailing line comment
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $l = $sb.ToString() -replace '\s*\]', ']'           # collapse whitespace before a closing bracket
     return $l.TrimEnd()
 }
 
@@ -626,7 +654,10 @@ function Get-TemplateTrackedFiles {
 
 # How each template-tracked path is judged. FIRST MATCH WINS, so order matters.
 #   exact             byte-for-byte after whitespace normalization
-#   tsconfig          exact, after stripping comments (the template's jest hint is optional)
+#   workflow          exact, except that companion-module-checks.yaml may enable upload-artifact
+#   tsconfig          compared after stripping comments (the template's jest hint is optional), but a
+#                     difference is only an Info TSCONFIG-DIFF note — any tsconfig is fine as long as the
+#                     module builds (-RunBuild reports a failed build). A MISSING tsconfig stays Critical.
 #   gitignore-subset  every template entry must be present; module extras are fine
 #   yarnrc            parsed key/value comparison, sourced from the v2 template
 #   covered-elsewhere a dedicated section below owns this file's content
@@ -642,9 +673,13 @@ $templateFileRules = @(
     @{ Pattern = '.prettierignore';         Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = 'eslint.config.mjs';       Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = '.husky/*';                Kind = 'exact';            Severity = 'Critical' }
-    # CI workflows and issue templates are compared, but at Medium: the usual divergence is
-    # GitHub Action pin churn (actions/checkout@v4 vs the template's @v7), which is not
-    # something the module maintainer did wrong and must not block a release.
+    # CI workflows are compared at Medium by default; the reviewer decides whether a given
+    # divergence (old action pins, a missing release workflow, a CI Node version that doesn't
+    # match the runtime) should be raised to blocking. The one accepted customisation is
+    # enabling the commented-out `with: upload-artifact: true` in companion-module-checks.yaml
+    # (see Remove-UploadArtifactOption), which is not reported at all.
+    @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'Medium' }
+    # Anything else under .github (issue templates, ...) is compared at Medium too.
     @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'Medium' }
     @{ Pattern = 'LICENSE';                 Kind = 'covered-elsewhere' }   # §3b LICENSE-DIFF
     @{ Pattern = 'package.json';            Kind = 'covered-elsewhere' }   # §4 PKG-*
@@ -660,6 +695,16 @@ $templateFileRules = @(
     @{ Pattern = '*.webp';                  Kind = 'skip-binary' }
     @{ Pattern = '*.zip';                   Kind = 'skip-binary' }
 )
+
+function Remove-UploadArtifactOption {
+    # companion-module-checks.yaml ships `with:` / `upload-artifact: true` commented out and tells
+    # the maintainer to uncomment it. Dropping those two lines (commented or not) from both sides
+    # makes that the only accepted difference; any other `with:` input is still a divergence.
+    param([string[]]$Lines)
+    return @($Lines | Where-Object {
+        $_ -notmatch '^\s*#?\s*with:\s*(#.*)?$' -and $_ -notmatch '^\s*#?\s*upload-artifact:\s*true\s*(#.*)?$'
+    })
+}
 
 function Resolve-TemplateFileRule {
     param([Parameter(Mandatory)][string]$Rel)
@@ -728,6 +773,10 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $modLines = @($modLines | ForEach-Object { Normalize-TsconfigLine $_ })
         $tplLines = @($tplLines | ForEach-Object { Normalize-TsconfigLine $_ })
     }
+    if ($rule.Kind -eq 'workflow' -and [IO.Path]::GetFileName($rel) -eq 'companion-module-checks.yaml') {
+        $modLines = Remove-UploadArtifactOption $modLines
+        $tplLines = Remove-UploadArtifactOption $tplLines
+    }
     if ($rule.Kind -eq 'gitignore-subset') {
         # Subset rule: every template entry must be present in the module's .gitignore.
         # Extra module entries are allowed and not flagged. Blank and comment lines in
@@ -754,7 +803,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
                 }
                 continue
             }
-            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($dev.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
+            Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($($dev.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
         # Accepted deviation: eslint.config.mjs may add rule overrides scoped to test/tooling
@@ -772,23 +821,11 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($es.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
-        # API 2.1 allowance: the v2 templates still extend tools' node22 preset, but a 2.1
-        # module that moved its manifest runtime to node26 is expected to extend the node26
-        # preset instead. If swapping that ONE preset reference makes the file identical, it
-        # is the documented upgrade path, not a divergence — an Info note, not a Critical.
-        # Anything else that differs still raises CONFIG-DIFF, and a 2.0 module gets no
-        # allowance (node26 needs base >= 2.1; §5 flags its runtime separately).
-        $node26Preset = '@companion-module/tools/tsconfig/node26/recommended(?:\.json)?'
-        $tplPreset = @($tplLines | ForEach-Object { if ($_ -match '(@companion-module/tools/tsconfig/node22/[A-Za-z0-9_-]+(?:\.json)?)') { $Matches[1] } }) | Select-Object -First 1
-        if ($rule.Kind -eq 'tsconfig' -and $apiAtLeast21 -and $modRuntimeType -eq 'node26' -and $tplPreset -and
-            (($modLines -join "`n") -match $node26Preset)) {
-            $swapped = @($modLines | ForEach-Object { $_ -replace $node26Preset, $tplPreset })
-            if (($swapped -join "`n") -eq ($tplLines -join "`n")) {
-                Add-Finding 'TSCONFIG-NODE26' 'Info' $rel (
-                    "Extends the node26 tools preset where the template extends '$tplPreset'. Expected for an " +
-                    "API $($baseInfo.apiLevel) module whose manifest runtime is node26 — not a divergence.")
-                continue
-            }
+        if ($rule.Kind -eq 'tsconfig') {
+            # Not blocking: maintainers may tune their tsconfig freely as long as the module builds.
+            # Surfaced as a note so the reviewer can still mention it (📝 Additional Notes).
+            Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
+            continue
         }
         Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
     }
@@ -938,11 +975,14 @@ if (Test-Path $manifestPath) {
                 }
             }
         }
+        # Only the fixed list. A keyword that repeats part of the module name (manufacturer or
+        # product, e.g. 'switch' in goalake-switch) is NOT flagged: the review maintainer
+        # decided it isn't worth a finding (2026-10-10).
         $banned = @('companion','module','stream deck','streamdeck','bitfocus')
         if (Has-Prop $man 'keywords') {
             foreach ($kw in $man.keywords) {
                 $low = "$kw".ToLower()
-                if ($banned -contains $low -or $low -eq $moduleName -or ($moduleName -split '-') -contains $low) {
+                if ($banned -contains $low) {
                     Add-Finding 'MAN-KEYWORD' 'Critical' 'companion/manifest.json' "Banned/low-value keyword '$kw'"
                 }
             }
@@ -956,11 +996,11 @@ if (Test-Path $manifestPath) {
             }
         }
         # runtime.type / runtime.api must match the template (lang+version specific).
-        # One exception for v2: runtime.type is judged against the API level's allowed runtimes
-        # (plus whatever the template pins), not the template alone. The v2 templates still say
-        # node22, yet API 2.1 added node26 — comparing to the template would flag every 2.1
-        # module that took the documented node26 upgrade. A 2.0 module on node26 is still a
-        # Critical, with a message that says why (node26 needs base >= 2.1, Companion 5.0+).
+        # For v2, runtime.type is judged against the API level's allowed runtime (plus whatever
+        # the template pins, for an explicit -TemplateDir): a 2.1 module must be on node26 like
+        # the 2.1 template, and node22 there is a Critical; a 2.0 module is judged against the
+        # -v2.0.4 template (node22), and node26 there is a Critical whose message says why
+        # (node26 needs base >= 2.1, Companion 5.0+).
         # v1 keeps the plain template comparison (allowedRuntimes is $null for v1).
         if ($tplMan -and (Has-Prop $tplMan 'runtime') -and (Has-Prop $man 'runtime')) {
             foreach ($rp in @('type','api')) {
@@ -971,6 +1011,9 @@ if (Test-Path $manifestPath) {
                     if ($allowed -contains $have) { continue }
                     $msg = if ($have -eq 'node26') {
                         "runtime.type 'node26' requires @companion-module/base >= 2.1 (Companion 5.0+); this module resolves to $($baseInfo.version) (API $($baseInfo.apiLevel)). Use 'node22' or upgrade base to ~2.1.x"
+                    } elseif ($allowed.Count -eq 1) {
+                        $hint = if ($isTs -and $allowed[0] -eq 'node26') { "; also extend '@companion-module/tools/tsconfig/node26/recommended.json' in tsconfig.build.json, as the template does" } else { '' }
+                        "runtime.type '$have' should be '$($allowed[0])' to match the API $($baseInfo.apiLevel) template$hint"
                     } else {
                         "runtime.type '$have' should be one of: $($allowed -join ', ') (API $($baseInfo.apiLevel))"
                     }
@@ -1106,7 +1149,7 @@ if ($Json) {
     Write-Host ("─" * 70)
     Write-Host ("Critical: {0}  High: {1}  Medium: {2}  Info: {3}" -f $result.counts.critical, $result.counts.high, $result.counts.medium, $result.counts.info)
     Write-Host ""
-    Write-Host "Reviewer judgment still required: is HELP.md meaningful, are any tsconfig deviations justified." -ForegroundColor DarkGray
+    Write-Host "Reviewer judgment still required: is HELP.md meaningful. (TSCONFIG-DIFF notes go to the review's Additional Notes — never blocking.)" -ForegroundColor DarkGray
 }
 
 # A stale or unverifiable template outranks the findings: nothing below it can be trusted,

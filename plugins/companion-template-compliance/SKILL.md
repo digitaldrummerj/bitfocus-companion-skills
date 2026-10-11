@@ -72,7 +72,7 @@ All JS files above, **plus**:
 
 > **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
 
-> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences are usually GitHub Action pin churn (`actions/checkout@v4` vs the template's newer pin) — report them at 🟡 Medium, non-blocking, and don't tell a maintainer to overwrite a workflow they deliberately extended.
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences (a missing or different workflow, issue templates) are 🟡 Medium by default. The reviewer may raise one to blocking when it makes the module confusing to troubleshoot against the template, for example a CI Node version that doesn't match the runtime, or a missing template workflow. **One accepted customisation:** in `companion-module-checks.yaml`, uncommenting the template's `with:` / `upload-artifact: true` lines (the template tells you to) is not a divergence.
 
 ---
 
@@ -154,7 +154,7 @@ export default generateEslintConfig({ enableTypescript: true })
 
 ### `tsconfig.build.json` (TS only)
 
-**v2 template (base 2.x):**
+**v2 template, API 2.0 (base 2.0.x, node22):** (the API 2.1 template, base 2.1.x, is identical except that it extends `@companion-module/tools/tsconfig/node26/recommended.json`)
 ```json
 {
   "extends": "@companion-module/tools/tsconfig/node22/recommended-esm.json",
@@ -166,8 +166,7 @@ export default generateEslintConfig({ enableTypescript: true })
 
 The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution": "Node16"`; compare a v1 module against that one.
 
-> Deviations must be justified in the review. Two are accepted without justification:
-> - a module on base **≥ 2.1** with `runtime.type: "node26"` may extend `@companion-module/tools/tsconfig/node26/recommended(.json)` instead of the node22 preset;
+> Deviations must be justified in the review. One is accepted without justification:
 > - removing the template's commented-out jest hint from `compilerOptions.types` (see below).
 
 ### `tsconfig.json` (TS only)
@@ -302,7 +301,7 @@ All JS rules above, **plus**:
 | `maintainers` | must NOT be empty array `[]` |
 | `repository` | must be `"git+https://github.com/bitfocus/companion-module-{module-name}.git"` |
 | `type` | `"connection"` on base 2.x (required since 2.0.4); absent on v1 manifests — don't flag a v1 module for it |
-| `runtime.type` | `"node22"`. `"node26"` is also valid when base resolves to **≥ 2.1** (Companion 5.0+); on a 2.0.x module it is 🔴 |
+| `runtime.type` | Must match the template for the module's API level: `"node22"` on base 2.0.x, `"node26"` on base **≥ 2.1** (Companion 5.0+). `node26` on a 2.0.x module is 🔴 (it needs base ≥ 2.1); `node22` on a 2.1 module is 🔴 (it doesn't match the 2.1 template) |
 | `runtime.api` | `"nodejs-ipc"` |
 | `runtime.entrypoint` | Must reference a file that exists (build outputs under `dist/` are produced by the build) and resolve to the same file as `package.json` `main`. It does not have to be the template's filename |
 | `keywords` | see below |
@@ -313,12 +312,10 @@ All JS rules above, **plus**:
 The `keywords` array must NOT contain any of:
 - `"companion"`
 - `"module"`
-- `"stream deck"`
-- The manufacturer name (e.g. `"bitfocus"`, `"softouch"`)
-- The module/product name (e.g. `"easyworship"`, `"tallyccupro"`)
-- The full product name (e.g. `"EasyWorship"`, `"Generic SNMP"`)
+- `"stream deck"` / `"streamdeck"`
+- `"bitfocus"`
 
-Flag any keyword that matches these patterns — it adds no value and pollutes search.
+Flag only these. A keyword that repeats the module's manufacturer or product name (for example `"switch"` in `goalake-switch`, or `"easyworship"`) is not a finding.
 
 ---
 
@@ -371,7 +368,7 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
 | `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
 | `LICENSE` differs from the template (including the `Copyright (c) 2022 Bitfocus AS - Open Source` line) | **🟠 High** |
-| `.github/**` workflow / issue-template divergence | **🟡 Medium** (non-blocking) |
+| `.github/**` workflow / issue-template missing or different (except enabling `upload-artifact: true` in `companion-module-checks.yaml`, which is accepted) | **🟡 Medium** by default; the reviewer may raise it to blocking |
 
 ---
 
@@ -392,7 +389,7 @@ Found:             engines.node field missing entirely
 ```
 Template expects:  keywords = [] (or non-banned terms only)
 Found:             keywords = ["companion", "module", "easyworship"]
-  → Banned: "companion", "module", "easyworship" (product name)
+  → Banned: "companion", "module" ("easyworship" is fine)
 ```
 
 For missing files:

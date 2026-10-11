@@ -203,7 +203,7 @@ The tools v3 bump (eslint 10, newer typescript-eslint) also flags some untouched
 ```
 
 - Add `$schema` (recommended) and `"type": "connection"` (**required**: v2 refuses to load without it).
-- `runtime.type`: `node18` is no longer allowed. Use `node22`, or `node26` (**2.1+ (Companion 5.0+)**).
+- `runtime.type`: `node18` is no longer allowed. Use `node22` on 2.0, or `node26` on **2.1+ (Companion 5.0+)**, matching that level's template.
 - Keep every other field as it is: `id`, `name`, `shortname`, `maintainers`, `legacyIds`, `products`, `keywords`, `bonjourQueries`, `runtime.permissions`, and so on. Never change `id`.
 - `runtime.entrypoint` must point at the compiled file that holds the default export.
 

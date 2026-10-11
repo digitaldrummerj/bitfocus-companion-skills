@@ -50,12 +50,15 @@ claude --plugin-dir <path-to>/bitfocus-companion-skills/plugins/companion-module
 |---|---|
 | Orchestrator skill (`review-companion-module`), invoked by the `/review-module` command | `skills/review-companion-module/`, `commands/review-module.md` |
 | Review subagents: `companion-protocol-reviewer`, `companion-qa-reviewer`, `companion-compliance-reviewer` | `agents/` |
-| Scorecard / issue-list format | `skills/review-scorecard/` |
+| Finding verifier: `companion-finding-verifier` — tries to refute each AI-judgment Critical/High before it reaches the report | `agents/companion-finding-verifier.md` |
+| Report format: section order, 📋 Issues list, per-finding Source / Evidence / Confirm by, 📝 Additional Notes (no scorecard) | `skills/review-report-format/` |
+| markdownlint config every review must pass (Step 7a via `scripts/lint-review.ps1`; the workspace keeps a matching `.markdownlint.jsonc`) | `config/.markdownlint.jsonc` |
 | Running and interpreting `validate-template.ps1` (finding ids, freshness gate, accepted deviations) | `skills/review-template-check/` |
 | Same-tag follow-up reviews | `skills/review-follow-up-same-tag/` |
+| Live-testing a finding or fix in the user's local Companion: patched test package, old-format test page, Claude in Chrome import + verify | `skills/review-live-test/` |
 | Yarn 4 lockfile follow-ups | `skills/review-yarn4-lockfile-validation/` |
 | Workspace layout, review file naming, TRACKER rows | `skills/review-workspace-conventions/` |
-| Pipeline scripts: `bitfocus-queue`, `bitfocus-setup-module`, `module-facts`, `validate-template`, `api-scan`, `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
+| Pipeline scripts: `bitfocus-queue`, `bitfocus-setup-module`, `module-facts`, `validate-template`, `api-scan`, `lint-review` (Step 7a markdownlint, pinned, `reviews/` only), `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
 
 The skills call the scripts as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`, and the scripts locate everything at runtime:
 
@@ -64,6 +67,8 @@ The skills call the scripts as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`, 
 | The workspace | The current directory, or its nearest ancestor with `reviews/` | `COMPANION_REVIEW_ROOT` |
 | The clones and templates | Under the workspace | `COMPANION_MODULES_DIR`, `COMPANION_TEMPLATES_DIR` |
 | The installed compliance skill plugin | 1. a sibling source checkout<br>2. `~/.claude/plugins/installed_plugins.json`<br>3. the plugin cache | `COMPANION_SKILLS_DIR` (checked first) |
+
+Under `companion-module-templates/`, the module's `@companion-module/base` level picks the template: `companion-module-template-{js,ts}-v1` for 1.x, `…-v2.0.4` for 2.0 (pinned at the 2026-08-28 commits), and the plain `companion-module-template-{js,ts}` (`main`, base 2.1) for 2.1 and later. The pins are in `scripts/lib/ReviewState.ps1` (`Get-TemplatePins`). The pinned clones are never fetched; `update-templates.ps1` refreshes `main` only.
 
 ## Tests
 

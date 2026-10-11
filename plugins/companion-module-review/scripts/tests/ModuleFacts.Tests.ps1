@@ -134,6 +134,26 @@ try {
     } finally {
         $env:COMPANION_SKILLS_DIR = $prevSkills
     }
+
+    # Source links: repo web URL from the origin remote + the full commit the tag points to.
+    $lnk = Join-Path $root 'companion-module-linked'
+    Set-File (Join-Path $lnk 'package.json') '{"name":"linked","version":"1.0.0","dependencies":{"@companion-module/base":"~2.0.4"}}'
+    Set-File (Join-Path $lnk 'src/main.js') 'export default {}'
+    & git -C $lnk init -q 2>$null
+    & git -C $lnk -c user.name=t -c user.email=t@t commit -q --allow-empty -m one 2>$null
+    & git -C $lnk add -A 2>$null
+    & git -C $lnk -c user.name=t -c user.email=t@t commit -q -m two 2>$null
+    & git -C $lnk tag v1.0.0 2>$null
+    & git -C $lnk -c user.name=t -c user.email=t@t commit -q --allow-empty -m three 2>$null
+    & git -C $lnk remote add origin 'git@github.com:bitfocus/companion-module-linked.git' 2>$null
+    $tagSha = (& git -C $lnk rev-parse 'v1.0.0^{commit}').Trim()
+    $fl = (& pwsh -NoProfile -File $facts -ModuleDir $lnk -GitTag v1.0.0 -SkipTemplateCheck -SkipApiScan -Json 2>$null) | ConvertFrom-Json
+    Ok ($fl.repoWebUrl -eq 'https://github.com/bitfocus/companion-module-linked') "repoWebUrl normalized from the ssh origin"
+    Ok ($fl.reviewCommit -eq $tagSha)                     "reviewCommit is the commit the tag points to (not HEAD)"
+    Ok ($fl.sourceLinkBase -eq "https://github.com/bitfocus/companion-module-linked/blob/$tagSha") "sourceLinkBase = repoWebUrl/blob/<full sha>"
+
+    $fn = Facts $js
+    Ok ($null -eq $fn.sourceLinkBase)                     "no git repo and no repository field → no sourceLinkBase"
 }
 finally {
     if (Test-Path $root) { Remove-Item -Recurse -Force $root }

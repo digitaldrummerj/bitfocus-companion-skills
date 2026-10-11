@@ -1,6 +1,6 @@
 ---
 name: review-template-check
-description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (node26 on 2.1, test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
+description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
 ---
 
 # Skill: review-template-check (validate-template.ps1)
@@ -25,6 +25,16 @@ pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <module path
 - `-RunBuild` additionally runs `yarn install --immutable`, `yarn package` (build) and, for TS, `yarn lint`, and gates on success. Use it to satisfy the "build runs / lint runs" review gates. It is slower and needs network.
 - Add `-Json` for machine-readable output. Templates are auto-selected from `companion-module-templates/` in the workspace (override with `COMPANION_TEMPLATES_DIR`; the workspace itself with `COMPANION_REVIEW_ROOT`) or pass `-TemplateDir`.
 
+**Which template.** The module's installed `@companion-module/base` version (its `apiLevel`) picks the folder under `companion-module-templates/`:
+
+| Module API level | Template folder | Pinned at |
+| --- | --- | --- |
+| 1.x | `companion-module-template-{js,ts}-v1` | last v1.x commit (js `9e222b4`, ts `42609d8`) |
+| 2.0 | `companion-module-template-{js,ts}-v2.0.4` | 2026-08-28, base 2.0.4 / `node22` (js `e4caa76`, ts `d62230e`) |
+| 2.1+ | `companion-module-template-{js,ts}` | `main` (base 2.1 / `node26`), checked for freshness |
+
+The pins live in `Get-TemplatePins` / `Get-TemplateSuffix` (`scripts/lib/ReviewState.ps1`). If the pinned folder for the module's level is missing, the validator exits `2` naming it; it never falls back to `main`, because the wrong template produces false findings. Run the workspace `setup.ps1` to create it.
+
 **Every `Critical` finding blocks approval.** Each finding already states the file, expected value, and what was found — drop those straight into the review's side-by-side report.
 
 Exit codes: `0` clean · `1` Critical findings · `2` unusable `-ModuleDir` / no template · `3` the template clone is stale or unverifiable (see §1.5).
@@ -39,7 +49,7 @@ that has actually happened here: a pre-2026-06-24 clone flagged a module's corre
 delete their supply-chain hardening.
 
 | Finding | Meaning |
-|---------|---------|
+| --------- | --------- |
 | `TEMPLATE-STALE` (Critical) | Local HEAD ≠ `origin/main`. **Any** commit behind counts. |
 | `TEMPLATE-UNVERIFIED` (Critical) | The upstream couldn't be reached, or an auto-resolved template isn't a git clone. |
 
@@ -55,50 +65,63 @@ Templates are never refreshed automatically, and `setup.ps1` does not pull eithe
 review sessions share these clones, so an automatic pull would change the reference underneath
 a review already in progress. Refresh **between** sessions, not during one.
 
-The `-v1` clones sit in detached HEAD at the last v1.x commit by design and are exempt — but
-their v2 parent, which supplies the `.yarnrc.yml` expectations for v1 modules, is still
-checked. For a deliberate offline run, pass `-SkipTemplateFreshness` (or set
+The pinned clones (`-v1`, `-v2.0.4`) sit in detached HEAD by design and are exempt — but
+their `main` parent, which supplies the `.yarnrc.yml` expectations for pinned modules, is
+still checked. For a deliberate offline run, pass `-SkipTemplateFreshness` (or set
 `COMPANION_SKIP_TEMPLATE_FRESHNESS=1`) and record `Template freshness: skipped` in the review's
 meta table.
 
 ## 2. What the script checks (Critical = blocking, unless the row says otherwise)
 
 | Area | Finding ids |
-|------|-------------|
+| ------ | ------------- |
 | **(Checked first)** Template clone is not behind upstream — see §1.5 | `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED` |
 | Required files present; no `package-lock.json` | `FILE-MISSING`, `NPM-LOCK` |
-| Config-file parity vs template — exact match for `.gitattributes`, `.prettierignore`, TS `eslint.config.mjs`/`tsconfig*.json`, and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
-| **(Medium — visible, not blocking)** `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**` parity. Usually GitHub Action pin churn (`actions/checkout@v4` vs the template's `@v7`), which the maintainer didn't cause and shouldn't be blocked on | `CONFIG-DIFF`, `FILE-MISSING` |
+| Config-file parity vs template — exact match for `.gitattributes`, `.prettierignore`, TS `eslint.config.mjs`, and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
+| **(Medium by default — the reviewer may raise it to blocking)** `.github/workflows/**` and other `.github/**` parity (e.g. `.github/ISSUE_TEMPLATE/**`). The one accepted customisation, enabling `upload-artifact: true` in `companion-module-checks.yaml`, is not reported (see below) | `CONFIG-DIFF`, `FILE-MISSING` |
+| **(Info — 📝 Additional Notes, never blocking)** TS `tsconfig.json` / `tsconfig.build.json` differ from the template. Maintainers may tune their tsconfig as long as the module builds — a broken build is reported by `BUILD-*`/`LINT`, not here. A **missing** tsconfig is still a Critical `FILE-MISSING` | `TSCONFIG-DIFF` |
 | **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in this plugin's `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
 | Gitignored artifacts not committed (`node_modules`, `/pkg`, `*.tgz`, `/dist`, `/.yarn`, …) | `GITIGNORED-COMMITTED` |
 | **(High)** `LICENSE` matches the template **exactly** — the copyright line included (see below) | `LICENSE-DIFF` |
-| All source under `src/` (none at module root). Tool config files named `<tool>.config.(js|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
+| All source under `src/` (none at module root). Tool config files named `<tool>.config.(js\|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
 | `package.json`: version-vs-tag, `main` (references an existing entry file; filename may differ from the template), `repository.url`, required fields, `packageManager` (yarn@4), required scripts, devDependencies, lint-staged | `PKG-VERSION`, `PKG-MAIN`, `PKG-REPO`, `PKG-FIELD`, `PKG-YARN`, `PKG-SCRIPT`, `PKG-DEVDEP`, `PKG-LINTSTAGED`, `PKG-DEP` |
-| `manifest.json`: non-placeholder/non-empty maintainers, banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match template, except the API 2.1 `node26` allowance below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
+| `manifest.json`: non-placeholder/non-empty maintainers, banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match the template; see the runtime rule below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
 | `companion/HELP.md` not a stub | `HELP-STUB` |
 | TS husky `pre-commit` runs `lint-staged` | `HUSKY` |
 | Build / lint (with `-RunBuild`) | `BUILD-INSTALL`, `BUILD-PACKAGE`, `LINT` |
 
-**API 2.1 allowances.** Both upstream v2 templates still pin base `2.0.x` with `runtime.type: "node22"`, but a module on base **≥ 2.1** (Companion 5.0+) may legitimately move to Node 26. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports) and adjusts:
+**Runtime must match the module's own template.** Each API level allows exactly the runtime its template uses: 2.0 → `node22` (`-v2.0.4`), 2.1+ → `node26` (`main`). A module on API 2.1 is expected to match the 2.1 template, so staying on Node 22 is a finding. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports):
 
 | Situation | Result |
-|---|---|
-| base ≥ 2.1, `runtime.type: "node26"` | accepted — no `MAN-RUNTIME` |
+| --- | --- |
+| base ≥ 2.1, `runtime.type: "node26"` | matches the 2.1 template — no `MAN-RUNTIME` |
+| base ≥ 2.1, `runtime.type: "node22"` | `MAN-RUNTIME` (Critical): "should be 'node26' to match the API 2.1 template" — for TS the message also says to extend `@companion-module/tools/tsconfig/node26/recommended.json` in `tsconfig.build.json` |
 | base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22` |
-| base ≥ 2.1, `runtime.type: "node26"`, `tsconfig.build.json` extends `@companion-module/tools/tsconfig/node26/recommended(.json)` where the template has `node22/recommended-esm.json` | `TSCONFIG-NODE26` (Info, for you) instead of `CONFIG-DIFF` — any *other* tsconfig difference is still a Critical `CONFIG-DIFF` |
 
-`TSCONFIG-NODE26` is an environment note like `TEMPLATE-COVERAGE`: it does not go into the review markdown.
+A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is also a `TSCONFIG-DIFF` note. Report it inside the `MAN-RUNTIME` finding's fix, not as a separate note.
 
-**Accepted deviation: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is the editor/typecheck config; the build uses `tsconfig.build.json`, which stays an exact match. A module that ships tests may widen `tsconfig.json` with:
+**Accepted deviation: `upload-artifact: true` in `companion-module-checks.yaml`.** The template ships these lines commented out and tells the maintainer to uncomment them, so the built package is uploaded as a workflow artifact:
+
+```yaml
+    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main
+    with:
+      upload-artifact: true
+```
+
+The validator drops the `with:` and `upload-artifact: true` lines, commented or not, from both files before comparing. So a module that only enables this option is clean, with no finding and no note. Any other `with:` input, or any other change to the file, is still a Critical `CONFIG-DIFF`.
+
+**Accepted deviation: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is the editor/typecheck config; the build uses `tsconfig.build.json`. A module that ships tests may widen `tsconfig.json` with:
+
 - extra `include` / `exclude` entries (`tests/**/*.ts`, `scripts/**/*.ts`, `vitest.config.ts`, …)
 - extra `compilerOptions.types` entries (`vitest/globals`, `jest`, …)
 - `compilerOptions.rootDir` and `compilerOptions.noEmit`
 
-Every value the template sets must still be present and unchanged. If that holds, the validator reports an Info `TSCONFIG-DEV-SCOPE` listing what was widened, instead of a `CONFIG-DIFF`. Anything else in `tsconfig.json` (a different `extends`, another compiler option, a removed template `include`) is still a Critical `CONFIG-DIFF`. `TSCONFIG-DEV-SCOPE` does not go into the review markdown either.
+Every value the template sets must still be present and unchanged. If that holds, the validator reports an Info `TSCONFIG-DEV-SCOPE` listing what was widened, and nothing reaches the review. Anything else in `tsconfig.json` (a different `extends`, another compiler option, a removed template `include`) is a `TSCONFIG-DIFF` note. `TSCONFIG-DEV-SCOPE` does not go into the review markdown.
 
 **Accepted deviation: `eslint.config.mjs` with test-only overrides.** Modules that ship tests usually relax a couple of rules for test files (e.g. `n/no-unpublished-import` for vitest imports, `@typescript-eslint/unbound-method` for `vi.fn()` assertions). That needs the template's `export default generateEslintConfig({…})` turned into `const baseConfig = await generateEslintConfig({…})` plus `export default [...baseConfig, { files: [...], rules: {...} }]`. The const + `export default <name>` form is accepted too.
 
 The validator accepts it, reporting an Info `ESLINT-TEST-SCOPE` instead of a `CONFIG-DIFF`, only when all of these hold:
+
 - The imports are exactly the template's.
 - The `generateEslintConfig` options are identical.
 - `...baseConfig` comes first.
@@ -129,7 +152,7 @@ v2 templates deliberately don't commit one — that requirement is hardcoded, no
 
 **`.yarnrc.yml` is the one exception to that rule.** It is repo tooling rather than API
 surface, and Bitfocus only updates it on `main` — so it is always compared against the
-non-`-v1` template, for v1 and v2 modules alike. It is also compared **by parsed key**, not
+`main` (unsuffixed) template, for every API level. It is also compared **by parsed key**, not
 raw text: key order, quote style (`'@companion-module/*'` vs `"…"`), blank lines, and
 comments are **not** divergences and are never flagged. What *is* Critical:
 
@@ -147,28 +170,36 @@ Bitfocus rather than the maintainer.
 ## 3. Judgment items the script can't fully decide
 
 - **HELP.md quality.** The script only catches stubs (placeholder string, `## Your module`, <5 meaningful lines). You still judge whether the content is *useful*: what the module does, how to configure it (host/port/auth), available actions/feedbacks/variables, troubleshooting. Thin-but-real docs are acceptable; empty scaffolding is not.
-- **`.github/**` divergences.** Reported at **Medium**, so they appear in the review under Medium but do not block. Judge whether it is worth mentioning at all: an out-of-date `actions/checkout` pin is worth a one-line note; a workflow the maintainer deliberately extended (extra matrix entries, an added job) is not a defect. Do not tell a maintainer to blindly overwrite a workflow they customised.
-- **`tsconfig` deviations.** A `CONFIG-DIFF` on `tsconfig*.json` is reported as Critical, but a deliberate, justified deviation (e.g. `nodenext` resolution) may be acceptable — confirm the maintainer's rationale before insisting. **Exception (do not flag):** removing the template's commented-out jest hint in `compilerOptions.types` — i.e. `"types": ["node"]` instead of the template's `"types": ["node" /* , "jest" ] // uncomment this if using jest */]` — is an accepted divergence, not a defect. The validator already strips that dead comment before comparing, so it will not raise `CONFIG-DIFF` for it; if you still see it raised elsewhere, treat it as a non-issue.
+- **`.github/**` divergences: Medium by default, raised at your judgment.** The validator reports a missing or different workflow at **Medium**. Decide per finding whether it should block, and if it should, move it to the blocking list as High with "raised to High by the review maintainer". Divergences worth raising are the ones that make the module confusing to troubleshoot against the template, such as:
+  - a CI Node version that doesn't match the module's runtime (`node-version: 22.x` on a `node26` module);
+  - a missing template workflow, such as `release.yaml`;
+  - a workflow that no longer runs the template's checks.
+
+  An older `actions/checkout` pin on its own can stay Medium. The fix is to copy the template's workflow. Enabling `upload-artifact: true` in `companion-module-checks.yaml` is the accepted customisation: the validator ignores it, so never report it.
+- **`tsconfig` differences are never blocking.** A `TSCONFIG-DIFF` goes into the review's **📝 Additional Notes** section as one line per file (what differs, from the validator message) — not into Critical/High/Medium, not into 📋 Issues, and with no demand to change it. If the module builds and lints (`-RunBuild` passed), the maintainer's tsconfig choices are theirs. If the build fails, report the `BUILD-*`/`LINT` finding — that is the blocking item, even when a tsconfig change caused it. Removing the template's commented-out jest hint in `compilerOptions.types` is stripped before comparing and produces no note at all.
 - **Entry-point filename.** `package.json main` and `manifest runtime.entrypoint` do **not** have to match the template's `src/main.js` / `../src/main.js`. A non-template name (e.g. `src/index.js`) is fine as long as both fields are present, reference a file that **exists**, and resolve to the **same** file. The validator already checks this: `PKG-MAIN`/`MAN-RUNTIME` fire only when the referenced file is missing, and `ENTRY-MISMATCH` fires only when `main` and `entrypoint` point to different files. Do **not** ask the maintainer to rename their entry to `main.js` when it loads correctly.
 - **Manifest `name` vs `id`.** These are **not** required to match, and the validator no longer checks it. `id` is the slug (the repository/module identifier); `name` is the human-facing module name and is *expected* to differ — e.g. `id: fblab-bpm2osc` / `name: BPM2OSC`, `id: lindy-38359-matrix` / `name: Lindy 38359 HDMI Matrix`. Do **not** raise this by hand or tell a maintainer to set `name` to the slug.
 - **Manifest version normalization.** `companion/manifest.json` `version` of `"0.0.0"` is acceptable/preferred in source control. If a real version string is committed instead, it must exactly match `package.json`. Treat `package.json` (vs the git tag) and the manifest as **separate** checks.
 - **`runtime.apiVersion` placeholder.** `companion/manifest.json` `runtime.apiVersion` of `"0.0.0"` is **not** a defect — like top-level `version`, it is the expected source-control placeholder that the BitFocus **publish pipeline fills in** at submission time. All four official templates (js, ts, js-v1, ts-v1) ship `runtime.apiVersion: "0.0.0"`. This holds for **both v1 and v2** modules. Do **not** flag `"0.0.0"` here or tell the maintainer to set a "real" value (e.g. `"1.0.0"`).
-- **Banned keywords nuance.** The script flags the static-banned terms (`companion`, `module`, `stream deck`, `bitfocus`) and keywords matching the module id. Also flag the **manufacturer or product name** (e.g. `easyworship`, `tallyccupro`) — these add no search value.
+- **Banned keywords.** The script flags only the fixed list (`companion`, `module`, `stream deck`, `streamdeck`, `bitfocus`). A keyword that repeats the module id or part of it (the manufacturer or product name, for example `switch` in `goalake-switch`) is **not** a finding, so don't add one by hand.
 
 ## 4. Reporting
 
 Use the script's expected-vs-found for side-by-side guidance the maintainer can act on:
 
-```
+```text
 Template expects:  "repository.url": "git+https://github.com/bitfocus/companion-module-{name}.git"
 Found:             "repository.url": "git+https://github.com/personal-user/companion-module-name.git"
 ```
-```
+
+```text
 manifest.json maintainers[0].name = "Your name"  ← placeholder, must be replaced
 ```
 
+`TSCONFIG-DIFF` goes to **📝 Additional Notes** only (never blocking, never in 📋 Issues).
+
 Findings addressed to *you* rather than the maintainer — `TEMPLATE-STALE`,
-`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-NODE26`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE` — never appear in the review markdown.
+`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE` — never appear in the review markdown.
 
 If the script cannot run (templates unavailable), fall back to comparing the module directly
 against the matching template repo in `companion-module-templates/` (run `setup.ps1` to clone
