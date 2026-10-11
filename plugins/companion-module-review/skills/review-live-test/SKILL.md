@@ -1,6 +1,6 @@
 ---
 name: review-live-test
-description: Live-test a Companion module finding or fix in the user's local Companion. Builds a patched copy of the module outside the review clone, writes an old-format test page with the affected actions, then drives Companion with headless Playwright to import the module package, switch the connection version, import the page and read back each button's action fields. Use when a finding depends on how Companion really behaves (upgrade scripts, option formats, migrations), or to prove a suggested fix works before sending a review.
+description: Live-test a Companion module finding or fix in the user's local Companion. Builds a patched copy of the module outside the review clone, writes an old-format test page with the affected actions, then drives Companion with headless Playwright to import the module package, switch the connection version, import the page and read back each button's action fields. Use when a finding depends on how Companion really behaves (upgrade scripts, option formats, migrations, subscriptions), or to prove a suggested fix works before sending a review. When the module needs a device the reviewer doesn't have, it can (after asking) build a stand-in server from the module's own client code.
 ---
 
 # Live-Test a Module Finding or Fix in Companion
@@ -17,6 +17,7 @@ Reproduces a finding, or checks a suggested fix, in the user's real Companion, s
   - Never import onto a page with real buttons.
 - **Never click Reset configuration** on the Import / Export page, and never delete connections or pages.
 - **Fallback only, Claude in Chrome:** use the user's real Chrome only if the headless server is unavailable. In that browser, password managers break automation: with **LastPass** on, a module whose connection settings contain a password field (e.g. biamp-tesira's **Login username** / **Login password**, the device credentials, not a Companion login) gets LastPass icons injected. Those block every click and screenshot ("Cannot access a chrome-extension:// URL of different extension") once the Change Module Version dialog opens. Ask the user to turn LastPass off first, and stop after two failures.
+- **Never build a stand-in device server without asking.** The reviewer may have the real device or app. See Phase 2b.
 - **File pickers:** in Playwright, `browser_click` the upload button. The page then reports a file-chooser modal state; answer it with `browser_file_upload` and the absolute path. Files must be under the workspace (the server's allowed root).
 
 ## Phase 1 — Build the test package
@@ -37,7 +38,7 @@ Reproduces a finding, or checks a suggested fix, in the user's real Companion, s
    - Copy the `.tgz` up to `test-pages/`.
 5. **Check before going to Companion:**
    - Type check: `yarn tsc -p tsconfig.build.json --noEmit` (TS modules).
-   - For upgrade-script fixes, run the built `dist/upgrades.js` with `node` on the exact options Companion would pass. Companion 5 always passes options wrapped as `{ isExpression: false, value: … }`.
+   - For upgrade-script fixes, run the built `dist/upgrades.js` with `node` on the exact options Companion would pass. Companion 5 passes options wrapped as `{ isExpression: false, value: … }` to an **API 2** module's upgrade script, and **bare** values to an **API 1** module's script (it wraps the script's output when it stores it).
    - Run `yarn test` and note any test that fails *because* of the fix. Report it; don't edit the module's tests.
 
 For a **baseline**, test the unfixed `<reviewTag>` package first (the `.tgz` the validator's `-RunBuild` already produced in the clone), so the user sees the bug and then the fix.
@@ -52,9 +53,35 @@ Key fields:
 
 - the connection's `moduleId`;
 - `moduleVersionId` set to the version under test;
-- `lastUpgradeIndex` = (number of `UpgradeScripts` in the **old** version) − 1. `-1` means none ran yet.
+- `lastUpgradeIndex` = (number of `UpgradeScripts` in the **old** version) − 1. `-1` means none ran yet;
+- the connection `config` (old version's field ids), pointing at the real device or the stand-in server from Phase 2b.
 
 Write it to `test-pages/<module>-<scenario>.companionconfig`.
+
+## Phase 2b — If the finding needs the device: ask first, then maybe build a stand-in server
+
+Some findings only show once the module is talking to its device: actions or feedbacks that are built only after the module connects, what a press actually sends, subscriptions and variables. Proven on devcore-mixingstation v2.0.0 (H1, H3, H4, L1; 2026-10-11): with no device the module only offered its two static actions; with a stand-in server it built every action and logged the exact (doubled) path each press sent.
+
+1. **Ask the reviewer first** (AskUserQuestion), naming the device or app the module needs. Options:
+   - **Use a real device / app I have** → ask for its host and port, put them in the test page's connection config, and go to Phase 3.
+   - **Build a stand-in server** → continue below.
+   - **Test without a device** → only check what doesn't need one (stored options, the editor, the internal page export) and say so in the report.
+
+   Never build the server without this answer.
+
+2. **Derive the protocol from the module's own client code**, not from the vendor's documentation. The question is only "what does this module send, and what does it expect back?":
+   - the transport and framing (WebSocket, TCP lines, UDP/OSC, HTTP) and how requests are matched to replies;
+   - every request the module sends, with its path or command;
+   - the reply shapes it expects (its TypeScript models or the fields its parsers read);
+   - the state it waits for before building its definitions (e.g. an app state of "connected").
+3. **Write the server** to `companion-modules-reviewing/test-pages/<module>-mock/` (gitignored), as a short Node script. Reuse libraries from the module's own `node_modules` (e.g. `ws`) by passing the path as an argument; don't install anything. Follow **`references/stand-in-device-server.md`**. The server should:
+   - answer every request with small, realistic fake data (a few channels, inputs, etc.), with a current value per valid path;
+   - send an error reply for anything it doesn't know;
+   - **log every request** to a file, flagging unknown paths (`!!`). That log is usually the main evidence (e.g. `SET on unknown path ch.3.ch.3.mix.lvl`).
+4. **Run it in the background** on a free, non-default port (check with `lsof -iTCP:<port> -sTCP:LISTEN`), and point the test page's connection config at `127.0.0.1:<port>`.
+5. **Afterwards:** stop the server (`pkill -f <script name>`; the background task then reports exit code 144, which is expected), and leave the script and its log in `test-pages/` with the other test assets.
+
+**What a stand-in can and can't prove.** It proves what the **module** sends and what **Companion** does: request paths, subscribe/unsubscribe calls, stored options, variables and definitions. It does **not** prove how the real device behaves: replies to bad requests, timing, when values are pushed. Those are guesses, and findings that rest on them stay out of the review. In the report, call it a "stand-in server", say it was built from the module's client code, and quote its log.
 
 ## Phase 3 — Run it in Companion (headless Playwright)
 
