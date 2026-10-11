@@ -1,12 +1,11 @@
 ---
 name: review-live-test
-disable-model-invocation: true
-description: Reviewer-triggered only (/companion-module-review:review-live-test); never start it on your own. Live-test a Companion module finding or fix in the user's local Companion. Builds a patched copy of the module outside the review clone, writes an old-format test page with the affected actions, then drives Companion with headless Playwright to import the module package, switch the connection version, import the page and read back each button's action fields. Use when a finding depends on how Companion really behaves (upgrade scripts, option formats, migrations, subscriptions), or to prove a suggested fix works before sending a review. When the module needs a device the reviewer doesn't have, it can (after asking) build a stand-in server from the module's own client code.
+description: Use ONLY when the reviewer explicitly asks for a live test, in plain words (e.g. "let's test H1 in Companion") or with /companion-module-review:review-live-test. Never use it on your own while running a review or writing the findings report; suggest it instead. Live-test a Companion module finding or fix in the user's local Companion. Builds a patched copy of the module outside the review clone, writes an old-format test page with the affected actions, then drives Companion with headless Playwright to import the module package, switch the connection version, import the page and read back each button's action fields. Use when a finding depends on how Companion really behaves (upgrade scripts, option formats, migrations, subscriptions), or to prove a suggested fix works before sending a review. When the module needs a device the reviewer doesn't have, it can (after asking) build a stand-in server from the module's own client code.
 ---
 
 # Live-Test a Module Finding or Fix in Companion
 
-**Run this only when the reviewer starts it** with `/companion-module-review:review-live-test` (the skill has `disable-model-invocation: true`, so it never loads on its own). Never start a live test yourself. When a finding depends on how Companion behaves, you may *suggest* one and name the command, then wait for the reviewer.
+**Run this only when the reviewer asks for it**: in plain words ("let's test H1 in Companion", "import the old config and check the upgrade") or with `/companion-module-review:review-live-test`. Never start a live test on your own, and never as part of a review run (the `review-companion-module` pipeline, its reviewer subagents, or while writing the findings report). When a finding depends on how Companion behaves, you may *suggest* a live test, then wait for the reviewer.
 
 Reproduces a finding, or checks a suggested fix, in the user's real Companion, so neither the review nor the maintainer has to rely on reading code. Proven on biamp-tesira v4.0.0 (C1/C2, 2026-10-08): the bug showed 0 / blank fields and the fix showed 250 / "Custom attribute".
 
