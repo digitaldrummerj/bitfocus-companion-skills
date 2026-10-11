@@ -108,7 +108,7 @@ Apply the verdicts:
 - **`refuted`** → drop it from the report. Record `<title> — <REASON>` for the Step 8 summary.
 - **`uncertain`** → keep it at the verifier's `SEVERITY`; Source `🔎 <reviewer> — ⚠️ needs your check`; include the verifier's CONFIRM BY so the human knows what to check.
 
-If the verifier's `SEVERITY` is Medium or lower, the finding moves out of the blocking sections. When an `uncertain` verdict (or one of the ❓ assumptions) depends on how Companion itself behaves, such as upgrade-script input, option formats or migrations, offer the user a live test with **`companion-module-review:review-live-test`** instead of leaving it open. Findings below High from the reviewers are not verified.
+If the verifier's `SEVERITY` is Medium or lower, the finding moves out of the blocking sections. When an `uncertain` verdict (or one of the ❓ assumptions) depends on how Companion itself behaves, such as upgrade-script input, option formats or migrations, suggest a live test (the reviewer starts it with **`/companion-module-review:review-live-test`**) instead of leaving it open. Never start one yourself: the live-test skill runs only when the reviewer asks. Findings below High from the reviewers are not verified.
 
 ## Step 7 — Assemble the review
 
