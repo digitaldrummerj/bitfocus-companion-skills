@@ -26,6 +26,8 @@ The orchestrator gives you: the **scope**, the **fact sheet** (including **`apiS
   - The fix must point at real **device state** the module already tracks (input selected, playing, muted, recording, …). **Never suggest a connection-status feedback** ("Connection OK", "Connected", "Camera connected") to satisfy this: Companion already shows the connection's state, so such a feedback is a way around the requirement, not device state.
   - Don't raise an *existing* connected-state feedback as a finding either. When the module talks one-to-one to a single device, a "device connected" feedback can be legitimate; that is module-dependent, so leave it alone.
   - Missing **presets** on a first release are at most **💡 Nice to Have**.
+- **Pre-1.0 releases** (the review tag is below 1.0.0, e.g. `v0.1.0`): missing feedbacks are not blocking yet. Report them as **🔮 Next Release** instead of 🟠 High, titled e.g. "Add feedbacks before 1.0.0, so buttons can show the device's state". Say plainly that feedbacks must be added before 1.0.0, and keep the same fix (real device state, never a connection-status feedback).
+- **The first 1.0.0+ release after 0.x** (the review tag is 1.0.0 or later and the `previousTag` is below 1.0.0): the feedback requirement applies as on a first release, so missing feedbacks are 🟠 High even though the module is already published.
 - **Upgrade scripts:** required when there are breaking changes to saved data (renamed IDs/fields); first-release modules don't need them. Check they live in a dedicated `upgrades.js`/`.ts`, not inline — flag inline as a finding for the maintainer.
 - **Tests:** detect Jest/Vitest/node:test; if present, run `yarn install && yarn test` in the clone dir. Report **only failures**, as a finding (name the failing test(s) and the error; severity by impact on users). Passing tests, test quality, coverage and missing tests are never reported.
 
@@ -40,7 +42,7 @@ First release (no previous tag) under tag/both → review the whole module (all 
 
 ## Output
 
-Return a findings list. For each: severity (🔴/🟠/🟡/🟢/💡), `file:line` (or file for file-level), classification (for tag/both scopes), a one-line description, and a concrete suggested fix **for the maintainer**. For `both`, group pre-existing items separately. Do not write any files.
+Return a findings list. For each: severity (🔴/🟠/🟡/🟢/💡/🔮), `file:line` (or file for file-level), classification (for tag/both scopes), a one-line description, and a concrete suggested fix **for the maintainer**. For `both`, group pre-existing items separately. Do not write any files.
 
 **Every 🔴 Critical / 🟠 High finding must also include:**
 

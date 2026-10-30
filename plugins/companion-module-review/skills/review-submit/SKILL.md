@@ -76,11 +76,14 @@ The **Versions** tab lists one row per version: tag, submitted date, status and 
 
 1. Click that row's **Approve**. Check the dialog title is "Approve `<name>` `<tag>`?". The dialog says approving starts the build.
 2. **If the review has non-blocking findings,** type into the comments box: `Approved. A few optional suggestions are here: <review link>`. The button then reads **Approve with comments**. With no non-blocking findings, leave the box empty.
+   - **If the user asked for a note** with the approval (e.g. "approve it with a note that before 1.0.0 please add feedbacks"), press Enter after the link line and type the note as its own paragraph, in the user's words, e.g. `Before 1.0.0, please add feedbacks.` With no non-blocking findings, the note is the whole comment. Never add a note the user didn't ask for.
 3. Click **Approve** / **Approve with comments**.
 
 ### Confirm, then close the tab
 
-Re-run the Step 1 versions check. The status must now be `REJECTED` (changes requested) or `APPROVED`. Close the tab.
+Re-open the manage page, wait ~2 s, and read the reviewed tag's row (match it by tag, e.g. with `javascript_tool` over the table rows). It must now read **Changes Requested** or **Approved**. Close the tab.
+
+The portal page is the source of truth here. The public versions API can lag behind it: right after an approval it has returned `PENDING` while the page already showed Approved. If you also check the API, retry it for up to ~30 s before treating `PENDING` as a failure, and never click Approve or Request changes a second time because of a stale API answer.
 
 ## Step 4 — After an approval: watch the build
 
@@ -101,7 +104,9 @@ The review counts as delivered either way. A failed build is for the user to loo
 
 ## If the portal step fails
 
-The review is pushed but the maintainer hasn't been notified. Say so plainly, then:
+**Lost tab group.** If the browser tools keep flipping between "Tab … is not in Claude's tab group" and "This session has no tab group of its own", or clicks report success but nothing opens, more than one browser (e.g. Chrome and Brave) is running the Claude in Chrome extension, and the tools can't tell them apart. Check the version's status with the Step 1 API call first (the click may not have landed, or may have), then ask the user to close every browser but the one they use for the portal, and retry once they have.
+
+If it still fails, the review is pushed but the maintainer hasn't been notified. Say so plainly, then:
 
 - Set the row back to ⬜.
 - Commit `fix: TRACKER — <name> <tag> not yet delivered`, and push.

@@ -349,5 +349,21 @@ Assert-Equal 'failed'    (Get-BuildOutcome -Version (V 'FAILED' $false)) "portal
 Assert-Equal 'published' (Get-BuildOutcome -Version (V 'APPROVED' $true) -RunStatus 'completed' -RunConclusion 'failure') "published wins over a run that failed after publishing (folivora-btt v2.0.5)"
 
 Write-Host ""
+Write-Host "Stale TRACKER rows — ⬜ but no longer pending"
+function TR($submitted, $module, $version) { [pscustomobject]@{ Submitted = $submitted; Module = $module; Version = $version; Date = '2026-10-30'; ReviewFile = '' } }
+function PV($module, $tag) { [pscustomobject]@{ moduleName = $module; gitTag = $tag } }
+$trRows = @(
+    (TR $false 'cuetone-cueplayer' 'v1.1.0'),   # approved by hand in the portal
+    (TR $false 'smartpi-dva' 'v0.1.0'),         # still pending
+    (TR $true 'warecotech-warecue' 'v1.1.1'),   # delivered
+    (TR $false 'mod-v' '1.2.0')                 # pending, tag written without the v
+)
+$stale = @(Get-StaleTrackerRows -TrackerRows $trRows -PendingVersions @((PV 'smartpi-dva' 'v0.1.0'), (PV 'mod-v' 'v1.2.0')))
+Assert-Equal 1 $stale.Count "only the ⬜ row whose version left the queue is stale"
+Assert-Equal 'cuetone-cueplayer' $stale[0].Module "…and it is the one approved by hand"
+Assert-Equal 0 @(Get-StaleTrackerRows -TrackerRows @((TR $true 'a' 'v1.0.0')) -PendingVersions @()).Count "a ✅ row is never stale"
+Assert-Equal 1 @(Get-StaleTrackerRows -TrackerRows @((TR $false 'a' 'v1.0.0')) -PendingVersions @()).Count "an empty queue makes every ⬜ row stale"
+
+Write-Host ""
 Write-Host "$($script:pass) passed, $($script:fail) failed" -ForegroundColor ($(if ($script:fail) { 'Red' } else { 'Green' }))
 if ($script:fail) { exit 1 }
