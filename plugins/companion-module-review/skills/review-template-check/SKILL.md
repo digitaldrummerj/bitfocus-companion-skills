@@ -1,6 +1,6 @@
 ---
 name: review-template-check
-description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, test-scoped eslint overrides, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
+description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, eslint configs that extend the template's generateEslintConfig, comment-only .gitattributes additions, re-indented .github files, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
 ---
 
 # Skill: review-template-check (validate-template.ps1)
@@ -77,8 +77,8 @@ meta table.
 | ------ | ------------- |
 | **(Checked first)** Template clone is not behind upstream — see §1.5 | `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED` |
 | Required files present; no `package-lock.json` | `FILE-MISSING`, `NPM-LOCK` |
-| Config-file parity vs template — exact match for `.gitattributes`, `.prettierignore`, TS `eslint.config.mjs`, and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
-| **(Medium by default — the reviewer may raise it to blocking)** `.github/workflows/**` and other `.github/**` parity (e.g. `.github/ISSUE_TEMPLATE/**`). The one accepted customisation, enabling `upload-artifact: true` in `companion-module-checks.yaml`, is not reported (see below) | `CONFIG-DIFF`, `FILE-MISSING` |
+| Config-file parity vs template — exact match for `.gitattributes` (comment lines ignored), `.prettierignore`, TS `eslint.config.mjs` (extending the template's config is accepted, see below), and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
+| **(High when the file exists and differs · Medium when it is missing)** `.github/workflows/**` and other `.github/**` parity (e.g. `.github/ISSUE_TEMPLATE/**`). A file the module has must match the template, so a content difference is a High `CONFIG-DIFF`; a missing file is a Medium `FILE-MISSING`. Indentation-only differences are not reported. The one accepted customisation, enabling `upload-artifact: true` in `companion-module-checks.yaml`, is not reported either (see below) | `CONFIG-DIFF`, `FILE-MISSING` |
 | **(Info — 📝 Additional Notes, never blocking)** TS `tsconfig.json` / `tsconfig.build.json` differ from the template. Maintainers may tune their tsconfig as long as the module builds — a broken build is reported by `BUILD-*`/`LINT`, not here. A **missing** tsconfig is still a Critical `FILE-MISSING` | `TSCONFIG-DIFF` |
 | **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in this plugin's `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
 | Gitignored artifacts not committed (`node_modules`, `/pkg`, `*.tgz`, `/dist`, `/.yarn`, …) | `GITIGNORED-COMMITTED` |
@@ -108,7 +108,7 @@ A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is 
       upload-artifact: true
 ```
 
-The validator drops the `with:` and `upload-artifact: true` lines, commented or not, from both files before comparing. So a module that only enables this option is clean, with no finding and no note. Any other `with:` input, or any other change to the file, is still a Critical `CONFIG-DIFF`.
+The validator drops the `with:` and `upload-artifact: true` lines, commented or not, from both files before comparing. So a module that only enables this option is clean, with no finding and no note. Any other `with:` input, or any other change to the file, is still a High `CONFIG-DIFF`.
 
 **Accepted deviation: `tsconfig.json` widened to type-check tests.** `tsconfig.json` is the editor/typecheck config; the build uses `tsconfig.build.json`. A module that ships tests may widen `tsconfig.json` with:
 
@@ -118,17 +118,18 @@ The validator drops the `with:` and `upload-artifact: true` lines, commented or 
 
 Every value the template sets must still be present and unchanged. If that holds, the validator reports an Info `TSCONFIG-DEV-SCOPE` listing what was widened, and nothing reaches the review. Anything else in `tsconfig.json` (a different `extends`, another compiler option, a removed template `include`) is a `TSCONFIG-DIFF` note. `TSCONFIG-DEV-SCOPE` does not go into the review markdown.
 
-**Accepted deviation: `eslint.config.mjs` with test-only overrides.** Modules that ship tests usually relax a couple of rules for test files (e.g. `n/no-unpublished-import` for vitest imports, `@typescript-eslint/unbound-method` for `vi.fn()` assertions). That needs the template's `export default generateEslintConfig({…})` turned into `const baseConfig = await generateEslintConfig({…})` plus `export default [...baseConfig, { files: [...], rules: {...} }]`. The const + `export default <name>` form is accepted too.
+**Accepted deviation: `eslint.config.mjs` that extends the template's config.** The template's config is a single `export default generateEslintConfig({…})`. A module may build on it: assign the result (`const baseConfig = await generateEslintConfig({…})`) and export `[...baseConfig, …]`, add its own imports (`typescript-eslint`, a plugin such as `eslint-plugin-simple-import-sort`), pass extra options (`ignores`, …), and add config blocks before or after the base config (test overrides, `tseslint.configs.disableTypeChecked` for `vitest.config.ts`, `parserOptions.project`, plugin rules, `src/` overrides). Reviewers accept all of these: the module's own lint setup is its choice.
 
-The validator accepts it, reporting an Info `ESLINT-TEST-SCOPE` instead of a `CONFIG-DIFF`, only when all of these hold:
+The validator reports Info `ESLINT-TEST-SCOPE` when the only additions are test-scoped overrides (`files` limited to `tests/**`, `__tests__/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*` or a root `*.config.*` file), and Info `ESLINT-EXTENDS`, naming the extra imports, options and blocks, for any other extension. Neither goes into the review.
 
-- The imports are exactly the template's.
-- The `generateEslintConfig` options are identical.
-- `...baseConfig` comes first.
-- Every extra entry is an object using only `files` / `rules` / `languageOptions` / `name`.
-- Every `files` glob is a test or tooling path: `tests/**`, `__tests__/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*`, or a root `*.config.*` file.
+Still a Critical `CONFIG-DIFF`, with the reason in the message:
 
-Anything that can change how `src/` is linted is still a Critical `CONFIG-DIFF`, and the message says why: an override on `src/**`, a rule block with no `files:`, changed options, extra imports or plugins, an entry placed before the base config. `ESLINT-TEST-SCOPE` does not go into the review markdown.
+- a template import is missing;
+- the config no longer calls `generateEslintConfig`;
+- one of the template's own options is missing or changed (e.g. `enableTypescript: false`);
+- the generated config is built but not part of what is exported.
+
+**Accepted deviation: comment lines in `.gitattributes`.** Comment and blank lines are dropped from both files before comparing, so a module that explains the template's `* text=auto eol=lf` rule in a comment is clean. Any other rule, or a changed rule, is still a Critical `CONFIG-DIFF`.
 
 Expectations are derived from the matched template, so v1 modules are checked against the
 v1 template and are not flagged for v2-only differences (e.g. v1 manifests correctly have
@@ -170,12 +171,7 @@ Bitfocus rather than the maintainer.
 ## 3. Judgment items the script can't fully decide
 
 - **HELP.md quality.** The script only catches stubs (placeholder string, `## Your module`, <5 meaningful lines). You still judge whether the content is *useful*: what the module does, how to configure it (host/port/auth), available actions/feedbacks/variables, troubleshooting. Thin-but-real docs are acceptable; empty scaffolding is not.
-- **`.github/**` divergences: Medium by default, raised at your judgment.** The validator reports a missing or different workflow at **Medium**. Decide per finding whether it should block, and if it should, move it to the blocking list as High with "raised to High by the review maintainer". Divergences worth raising are the ones that make the module confusing to troubleshoot against the template, such as:
-  - a CI Node version that doesn't match the module's runtime (`node-version: 22.x` on a `node26` module);
-  - a missing template workflow, such as `release.yaml`;
-  - a workflow that no longer runs the template's checks.
-
-  An older `actions/checkout` pin on its own can stay Medium. The fix is to copy the template's workflow. Enabling `upload-artifact: true` in `companion-module-checks.yaml` is the accepted customisation: the validator ignores it, so never report it.
+- **`.github/**` severity is decided by the validator; don't change it.** A `.github` file the module has must match the template: any content difference is a High `CONFIG-DIFF` (blocking). That covers a rewritten `release.yaml` that no longer calls `bitfocus/actions` module-checks, `node.yaml` drift (extra `permissions`, other action versions, a Codecov job), an older `actions/checkout` pin, and a dropped template-repo `if:` guard. A missing `.github` file (no `release.yaml`, `node.yaml` or issue forms) is a Medium `FILE-MISSING`. Indentation-only differences are not reported. The fix is to copy the template's file. Enabling `upload-artifact: true` in `companion-module-checks.yaml` is the accepted customisation: the validator ignores it, so never report it. Give each High one Evidence line (the differing lines with `file:line`) and a Confirm by line.
 - **`tsconfig` differences are never blocking.** A `TSCONFIG-DIFF` goes into the review's **📝 Additional Notes** section as one line per file (what differs, from the validator message) — not into Critical/High/Medium, not into 📋 Issues, and with no demand to change it. If the module builds and lints (`-RunBuild` passed), the maintainer's tsconfig choices are theirs. If the build fails, report the `BUILD-*`/`LINT` finding — that is the blocking item, even when a tsconfig change caused it. Removing the template's commented-out jest hint in `compilerOptions.types` is stripped before comparing and produces no note at all.
 - **Entry-point filename.** `package.json main` and `manifest runtime.entrypoint` do **not** have to match the template's `src/main.js` / `../src/main.js`. A non-template name (e.g. `src/index.js`) is fine as long as both fields are present, reference a file that **exists**, and resolve to the **same** file. The validator already checks this: `PKG-MAIN`/`MAN-RUNTIME` fire only when the referenced file is missing, and `ENTRY-MISMATCH` fires only when `main` and `entrypoint` point to different files. Do **not** ask the maintainer to rename their entry to `main.js` when it loads correctly.
 - **Manifest `name` vs `id`.** These are **not** required to match, and the validator no longer checks it. `id` is the slug (the repository/module identifier); `name` is the human-facing module name and is *expected* to differ — e.g. `id: fblab-bpm2osc` / `name: BPM2OSC`, `id: lindy-38359-matrix` / `name: Lindy 38359 HDMI Matrix`. Do **not** raise this by hand or tell a maintainer to set `name` to the slug.
@@ -199,7 +195,7 @@ manifest.json maintainers[0].name = "Your name"  ← placeholder, must be replac
 `TSCONFIG-DIFF` goes to **📝 Additional Notes** only (never blocking, never in 📋 Issues).
 
 Findings addressed to *you* rather than the maintainer — `TEMPLATE-STALE`,
-`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE` — never appear in the review markdown.
+`TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE`, `ESLINT-EXTENDS` — never appear in the review markdown.
 
 If the script cannot run (templates unavailable), fall back to comparing the module directly
 against the matching template repo in `companion-module-templates/` (run `setup.ps1` to clone

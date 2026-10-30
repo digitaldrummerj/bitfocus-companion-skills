@@ -85,7 +85,7 @@ Templates are never refreshed automatically because concurrent review sessions s
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> -RunBuild -Json
 ```
 
-Interpret the output with the **`companion-module-review:review-template-check`** skill (invoke it with the Skill tool: finding ids, accepted deviations, environment findings). Every `Critical` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) `Medium` findings (currently `.github/**` parity) are reported but non-blocking.
+Interpret the output with the **`companion-module-review:review-template-check`** skill (invoke it with the Skill tool: finding ids, accepted deviations, environment findings). Every `Critical` and `High` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) A `.github/**` file the module has but that differs from the template is High; a missing one is `Medium`, reported but non-blocking.
 
 `TEMPLATE-STALE`, `TEMPLATE-UNVERIFIED`, and `TEMPLATE-COVERAGE` are **environment** findings about your workspace, not the module — they never appear in the review markdown. The first two should have already stopped you at Step 3a; `TEMPLATE-COVERAGE` means the template gained a file the validator has no rule for, so mention it to the user and move on.
 

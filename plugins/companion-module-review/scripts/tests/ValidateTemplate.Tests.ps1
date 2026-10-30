@@ -432,36 +432,55 @@ try {
     $rconst = Invoke-Validator $esConst $esTpl
     Ok ((Get-EslintFindings $rconst 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rconst 'ESLINT-TEST-SCOPE').Count -eq 1) "the const + export default form with test-file globs is accepted"
 
+    # Extending the template's generateEslintConfig is accepted (reviewer rule, 2026-10-30):
+    # extra imports, extra options, src/ or global blocks, blocks before the base config.
+    function Test-Extends($name, $text, $label) {
+        $r = Invoke-Validator (New-EslintModule $name $text) $esTpl
+        $info = Get-EslintFindings $r 'ESLINT-EXTENDS'
+        Ok ((Get-EslintFindings $r 'CONFIG-DIFF').Count -eq 0 -and $info.Count -eq 1 -and $info[0].severity -eq 'Info') $label
+        return $info
+    }
+
     Write-Host "eslint.config.mjs with an override that reaches src/"
-    $esSrc = New-EslintModule 'essrc' ($esHead + "export default [`n`t...baseConfig,`n`t{ files: ['src/**/*.ts'], rules: { 'no-unused-vars': 'off' } },`n]")
-    $rsrc = Invoke-Validator $esSrc $esTpl
-    $srcDiff = Get-EslintFindings $rsrc 'CONFIG-DIFF'
-    Ok ($srcDiff.Count -eq 1 -and $srcDiff[0].severity -eq 'Critical' -and $srcDiff[0].message -match 'non-test files: src/') "an override on src/** is still a Critical CONFIG-DIFF naming it"
+    $null = Test-Extends 'essrc' ($esHead + "export default [`n`t...baseConfig,`n`t{ files: ['src/**/*.ts'], rules: { 'no-unused-vars': 'off' } },`n]") "an override on src/** extends the template: Info ESLINT-EXTENDS, no CONFIG-DIFF"
 
     Write-Host "eslint.config.mjs with an unscoped (global) rule override"
-    $esGlobal = New-EslintModule 'esglobal' ($esHead + "export default [`n`t...baseConfig,`n`t{ rules: { 'prettier/prettier': 'off' } },`n]")
-    $rglobal = Invoke-Validator $esGlobal $esTpl
-    Ok (@(Get-EslintFindings $rglobal 'CONFIG-DIFF' | Where-Object { $_.message -match 'no files: scope' }).Count -eq 1) "a rule block without files: is still a CONFIG-DIFF"
+    $null = Test-Extends 'esglobal' ($esHead + "export default [`n`t...baseConfig,`n`t{ rules: { 'prettier/prettier': 'off' } },`n]") "a rule block without files: extends the template"
 
-    Write-Host "eslint.config.mjs with changed generateEslintConfig options"
-    $esOpts = New-EslintModule 'esopts' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]")
-    $ropts = Invoke-Validator $esOpts $esTpl
-    Ok (@(Get-EslintFindings $ropts 'CONFIG-DIFF' | Where-Object { $_.message -match 'options differ' }).Count -eq 1) "changed generateEslintConfig options are still a CONFIG-DIFF"
+    Write-Host "eslint.config.mjs with an extra generateEslintConfig option"
+    $optInfo = Test-Extends 'esopts' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]") "an extra option (ignores) extends the template"
+    Ok ($optInfo.Count -eq 1 -and $optInfo[0].message -match 'options ignores') "…and the note names the extra option"
+
+    Write-Host "eslint.config.mjs passing an extra option straight to export default"
+    $null = Test-Extends 'esoptsdirect' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})") "export default generateEslintConfig({ …template options, ignores }) extends the template"
 
     Write-Host "eslint.config.mjs with an extra plugin import"
-    $esImp = New-EslintModule 'esimport' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport vitest from '@vitest/eslint-plugin'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]")
-    $rimp = Invoke-Validator $esImp $esTpl
-    Ok (@(Get-EslintFindings $rimp 'CONFIG-DIFF' | Where-Object { $_.message -match 'imports differ' }).Count -eq 1) "an extra import is still a CONFIG-DIFF"
+    $impInfo = Test-Extends 'esimport' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport vitest from '@vitest/eslint-plugin'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]") "an extra plugin import extends the template"
+    Ok ($impInfo.Count -eq 1 -and $impInfo[0].message -match '@vitest/eslint-plugin') "…and the note names the extra import"
+
+    Write-Host "eslint.config.mjs with typescript-eslint disableTypeChecked for vitest.config.ts"
+    $null = Test-Extends 'estseslint' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport tseslint from 'typescript-eslint'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{`n`t`tfiles: ['vitest.config.ts'],`n`t`t...tseslint.configs.disableTypeChecked,`n`t},`n`t{ files: ['src/__tests__/**/*.ts'], rules: { 'n/no-unpublished-import': 'off' } },`n]") "the typescript-eslint disableTypeChecked block extends the template"
 
     Write-Host "eslint.config.mjs with a config placed before the base"
-    $esFirst = New-EslintModule 'esfirst' ($esHead + "export default [`n`t{ ignores: ['.squad/**'] },`n`t...baseConfig,`n]")
-    $rfirst = Invoke-Validator $esFirst $esTpl
-    Ok (@(Get-EslintFindings $rfirst 'CONFIG-DIFF' | Where-Object { $_.message -match 'not spread first' }).Count -eq 1) "anything before the base config is still a CONFIG-DIFF"
+    $null = Test-Extends 'esfirst' ($esHead + "export default [`n`t{ ignores: ['.squad/**'] },`n`t...baseConfig,`n]") "a block before the base config extends the template"
+
+    Write-Host "eslint.config.mjs that changes a template option"
+    $rchg = Invoke-Validator (New-EslintModule 'eschanged' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: false,`n})")) $esTpl
+    $chg = Get-EslintFindings $rchg 'CONFIG-DIFF'
+    Ok ($chg.Count -eq 1 -and $chg[0].severity -eq 'Critical' -and $chg[0].message -match "changes the template's generateEslintConfig options") "changing a template option is still a Critical CONFIG-DIFF"
+
+    Write-Host "eslint.config.mjs that drops generateEslintConfig"
+    $rnone = Invoke-Validator (New-EslintModule 'esnone' ("import js from '@eslint/js'`n`nexport default [js.configs.recommended]")) $esTpl
+    Ok (@(Get-EslintFindings $rnone 'CONFIG-DIFF' | Where-Object { $_.message -match 'template import missing|does not use' }).Count -eq 1) "a config that no longer uses generateEslintConfig is a CONFIG-DIFF"
+
+    Write-Host "eslint.config.mjs that builds the base config but doesn't export it"
+    $runused = Invoke-Validator (New-EslintModule 'esunused' ($esHead + "export default [`n`t{ files: ['src/**/*.ts'], rules: {} },`n]")) $esTpl
+    Ok (@(Get-EslintFindings $runused 'CONFIG-DIFF' | Where-Object { $_.message -match 'not part of the exported config' }).Count -eq 1) "a generated config left out of the export is a CONFIG-DIFF"
 
     Write-Host "eslint.config.mjs identical to the template"
     $esSame = New-EslintModule 'essame' $esTplText
     $rsame2 = Invoke-Validator $esSame $esTpl
-    Ok ((Get-EslintFindings $rsame2 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-TEST-SCOPE').Count -eq 0) "an unchanged eslint config has no finding at all"
+    Ok ((Get-EslintFindings $rsame2 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-TEST-SCOPE').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-EXTENDS').Count -eq 0) "an unchanged eslint config has no finding at all"
 
     # ── .yarnrc.yml divergences ──────────────────────────────────────────────
     # Compared by parsed key against the *main* template (never the pinned -v1 one),
@@ -568,6 +587,15 @@ try {
     Write-Host "LICENSE — CRLF line endings, same text"
     $lCrlf = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'liccrlf' $yarnrcTpl '~2.0.4' ($licenseTpl -replace "`n", "`r`n")) $tpl)
     Ok ($lCrlf.Count -eq 0) "does not flag a CRLF checkout of the correct LICENSE text"
+
+    Write-Host ".gitattributes — comment lines added around the template rule"
+    Set-File (Join-Path $good '.gitattributes') "# Normalize line endings: store as LF in the repo.`n# Keeps prettier from flagging CRLF on Windows checkouts.`n* text=auto eol=lf"
+    $ga1 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga1 'CONFIG-DIFF' '.gitattributes').Count -eq 0) "comment-only additions to .gitattributes are not reported"
+    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.png binary"
+    $ga2 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga2 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…but an extra rule next to the comments still is"
+    Set-File (Join-Path $good '.gitattributes') "* text=auto eol=lf"
 
     # ── BAD module ───────────────────────────────────────────────────────────
     $bad = Join-Path $root 'companion-module-bar'
@@ -749,7 +777,7 @@ try {
     $d1 = Invoke-Validator $good $dtpl
     $miss = Find-Findings $d1 'FILE-MISSING' '.github/workflows/node.yaml'
     Ok ($miss.Count -eq 1)                                        "a template-tracked file missing from the module is reported"
-    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing CI workflow is Medium by default (the reviewer may raise it)"
+    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing .github workflow stays Medium"
     Ok ((Find-Findings $d1 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "a missing file is not ALSO reported as a content diff"
 
     Write-Host "Derived file set — module-owned files are never compared"
@@ -768,10 +796,20 @@ try {
     $d3 = Invoke-Validator $good $dtpl
     $diff = Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/node.yaml'
     Ok ($diff.Count -eq 1)                                     "a diverging .github workflow is reported"
-    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium by default"
+    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'High')   "…at High: a .github file the module has must match"
     Ok ($d3.counts.critical -eq 0)                             "…so it doesn't raise the critical count"
     Ok ((Find-Findings $d3 'FILE-MISSING' '.github/workflows/node.yaml').Count -eq 0) "…and not also as missing"
     Ok ((Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/checks.yaml').Count -eq 0) "an identical .github workflow is not flagged"
+
+    Write-Host "Derived file set — a .github workflow that is only re-indented"
+    Set-File (Join-Path $dtpl '.github/workflows/indent.yaml') "name: indent`non:`n  push:`njobs:`n  check:`n    runs-on: ubuntu-latest"
+    Set-File (Join-Path $good '.github/workflows/indent.yaml') "name: indent`non:`n    push:`njobs:`n    check:`n        runs-on: ubuntu-latest"
+    $d3b = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d3b 'CONFIG-DIFF' '.github/workflows/indent.yaml').Count -eq 0) "indentation-only differences in .github are not reported"
+    Set-File (Join-Path $good '.github/workflows/indent.yaml') "name: indent`non:`n    push:`njobs:`n    check:`n        runs-on: windows-latest"
+    $d3c = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d3c 'CONFIG-DIFF' '.github/workflows/indent.yaml').Count -eq 1) "…but a real change alongside the re-indent still is"
+    Remove-Item -Force (Join-Path $good '.github/workflows/indent.yaml'), (Join-Path $dtpl '.github/workflows/indent.yaml')
 
     Write-Host "CI workflows — the upload-artifact customisation in companion-module-checks.yaml"
     $checksTpl = "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    # with:`n    #   upload-artifact: true # uncomment this to upload the built package"
@@ -783,7 +821,7 @@ try {
     $d5 = Invoke-Validator $good $dtpl
     Ok ((Find-Findings $d5 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "enabling upload-artifact is the accepted customisation"
     $it = Find-Findings $d5 'CONFIG-DIFF' '.github/ISSUE_TEMPLATE/bug.md'
-    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'Medium')    "other .github files (issue templates) stay Medium"
+    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'High')      "other .github files (issue templates) that differ are High too"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl
     $d6 = Invoke-Validator $good $dtpl
@@ -792,7 +830,7 @@ try {
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true`n      prerelease: true"
     $d7 = Invoke-Validator $good $dtpl
     $wx = Find-Findings $d7 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml'
-    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'Medium')    "any other with: input is still a CONFIG-DIFF (Medium)"
+    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'High')      "any other with: input is still a CONFIG-DIFF (High)"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@v1`n    with:`n      upload-artifact: true"
     $d8 = Invoke-Validator $good $dtpl

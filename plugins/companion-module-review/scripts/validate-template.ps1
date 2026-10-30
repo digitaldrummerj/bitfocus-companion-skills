@@ -586,6 +586,80 @@ function Test-EslintTestScope {
     return $res
 }
 
+function Test-EslintExtendsTemplate {
+    <# Does eslint.config.mjs still build on the template's config, only ADDING to it?
+
+       Reviewers accept a module that keeps the template's generateEslintConfig call and layers
+       its own setup on top: extra imports (typescript-eslint, a plugin such as
+       simple-import-sort), extra options passed to generateEslintConfig (ignores, …), and extra
+       config blocks before or after the base config (disableTypeChecked for vitest.config.ts,
+       parserOptions.project, plugin rules, src/ overrides). Those are the module's choice.
+
+       Still a CONFIG-DIFF: the template's imports are not all there; generateEslintConfig is not
+       called; one of the template's own options is missing or changed (enableTypescript: false);
+       or the generated config is not part of what is exported. #>
+    param([Parameter(Mandatory)][string]$ModuleFile, [Parameter(Mandatory)][string]$TemplateFile)
+
+    $res = [pscustomobject]@{ Acceptable = $false; Extras = @(); Reason = $null }
+    $mod = Remove-JsComments (Get-Content -Raw -LiteralPath $ModuleFile)
+    $tpl = Remove-JsComments (Get-Content -Raw -LiteralPath $TemplateFile)
+    $squash = { param($s) ($s -replace '\s+', ' ').Trim() -replace ',\s*([}\]])', '$1' }
+
+    $tplCall = [regex]::Match($tpl, 'generateEslintConfig\s*\(')
+    if (-not $tplCall.Success) { $res.Reason = 'template eslint config has an unexpected shape'; return $res }
+    $tplArgs = Get-JsBracketBody $tpl ($tplCall.Index + $tplCall.Length - 1)
+
+    # Imports: every template import must still be there; extra ones are the module's own.
+    $importsOf = { param($s) @([regex]::Matches($s, '(?m)^\s*import\s[^\n]*') | ForEach-Object { & $squash $_.Value }) }
+    $tplImports = @(& $importsOf $tpl)
+    $modImports = @(& $importsOf $mod)
+    $missingImports = @($tplImports | Where-Object { $modImports -notcontains $_ })
+    if ($missingImports.Count -gt 0) { $res.Reason = "template import missing: $($missingImports -join '; ')"; return $res }
+    $extraImports = @($modImports | Where-Object { $tplImports -notcontains $_ } |
+        ForEach-Object { if ($_ -match 'from\s+[''"]([^''"]+)[''"]') { $Matches[1] } else { $_ } })
+
+    $modCall = [regex]::Match($mod, 'generateEslintConfig\s*\(')
+    if (-not $modCall.Success) { $res.Reason = "does not use the template's generateEslintConfig"; return $res }
+    $modArgs = Get-JsBracketBody $mod ($modCall.Index + $modCall.Length - 1)
+    if ($null -eq $modArgs) { $res.Reason = 'unbalanced generateEslintConfig call'; return $res }
+
+    # Options: every option the template passes must be passed unchanged; extra options are fine.
+    $propsOf = {
+        param($argText)
+        $t = $argText.Trim()
+        if (-not $t.StartsWith('{')) { return @() }
+        @(Split-JsTopLevel (Get-JsBracketBody $t 0) | ForEach-Object { & $squash $_ })
+    }
+    $keyOf = { param($p) if ($p -match '^[''"]?([A-Za-z_$][\w$]*)[''"]?\s*:') { $Matches[1] } else { $p } }
+    $tplProps = @(& $propsOf $tplArgs)
+    $modProps = @(& $propsOf $modArgs)
+    $changed = @($tplProps | Where-Object { $modProps -notcontains $_ })
+    if ($changed.Count -gt 0) { $res.Reason = "changes the template's generateEslintConfig options ($($changed -join ', '))"; return $res }
+    $tplKeys = @($tplProps | ForEach-Object { & $keyOf $_ })
+    $extraOptions = @($modProps | ForEach-Object { & $keyOf $_ } | Where-Object { $tplKeys -notcontains $_ })
+
+    # The generated config must be what is exported, or spread into it.
+    $direct = [regex]::IsMatch($mod, 'export\s+default\s+(?:await\s+)?generateEslintConfig\s*\(')
+    $blocks = $false
+    if (-not $direct) {
+        $assign = [regex]::Match($mod.Substring(0, $modCall.Index + $modCall.Length),'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?generateEslintConfig\s*\($')
+        if (-not $assign.Success) { $res.Reason = 'generateEslintConfig result is neither exported nor assigned'; return $res }
+        $name = [regex]::Escape($assign.Groups[1].Value)
+        $spread = [regex]::IsMatch($mod, "\.\.\.\s*$name\b")
+        $exported = [regex]::IsMatch($mod, "export\s+default\s+$name\b")
+        if (-not ($spread -or $exported)) { $res.Reason = "the generated config ($($assign.Groups[1].Value)) is not part of the exported config"; return $res }
+        $blocks = $spread
+    }
+
+    $extras = [System.Collections.Generic.List[string]]::new()
+    if ($extraImports.Count -gt 0) { $extras.Add("imports $($extraImports -join ', ')") }
+    if ($extraOptions.Count -gt 0) { $extras.Add("generateEslintConfig options $($extraOptions -join ', ')") }
+    if ($blocks) { $extras.Add('extra config blocks') }
+    $res.Acceptable = $true
+    $res.Extras = @($extras)
+    return $res
+}
+
 function Read-YarnrcMap {
     # .yarnrc.yml is a flat, two-level file in practice (scalars plus the occasional
     # block sequence such as npmPreapprovedPackages), so a small hand-rolled parser is
@@ -663,24 +737,30 @@ function Get-TemplateTrackedFiles {
 #   covered-elsewhere a dedicated section below owns this file's content
 #   module-owned      legitimately differs per module; never compared
 #   skip-binary       not text; a line diff would be meaningless
+# Optional per-row flags:
+#   MissingSeverity   severity of FILE-MISSING when it differs from a content CONFIG-DIFF
+#   IgnoreComments    drop '#' comment lines (and blank lines) from both sides before comparing
+#   IgnoreIndent      compare with leading whitespace stripped, so re-indenting alone is clean
 # A path matching NO row is still compared (as 'exact') but raises TEMPLATE-COVERAGE, so a
 # newly-added template file can never slip through unjudged.
 $templateFileRules = @(
     @{ Pattern = '.yarnrc.yml';             Kind = 'yarnrc';           Severity = 'Critical'; Source = 'yarnrc' }
     @{ Pattern = '.gitignore';              Kind = 'gitignore-subset'; Severity = 'Critical' }
     @{ Pattern = 'tsconfig*.json';          Kind = 'tsconfig';         Severity = 'Critical' }
-    @{ Pattern = '.gitattributes';          Kind = 'exact';            Severity = 'Critical' }
+    # Comment lines explaining the rule are fine; only the rule itself must match.
+    @{ Pattern = '.gitattributes';          Kind = 'exact';            Severity = 'Critical'; IgnoreComments = $true }
     @{ Pattern = '.prettierignore';         Kind = 'exact';            Severity = 'Critical' }
+    # Extending the template's generateEslintConfig is accepted (see Test-EslintExtendsTemplate).
     @{ Pattern = 'eslint.config.mjs';       Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = '.husky/*';                Kind = 'exact';            Severity = 'Critical' }
-    # CI workflows are compared at Medium by default; the reviewer decides whether a given
-    # divergence (old action pins, a missing release workflow, a CI Node version that doesn't
-    # match the runtime) should be raised to blocking. The one accepted customisation is
-    # enabling the commented-out `with: upload-artifact: true` in companion-module-checks.yaml
-    # (see Remove-UploadArtifactOption), which is not reported at all.
-    @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'Medium' }
-    # Anything else under .github (issue templates, ...) is compared at Medium too.
-    @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'Medium' }
+    # A .github file the module HAS must match the template: a content difference is High
+    # (blocking), because a drifted workflow confuses later troubleshooting. A MISSING .github
+    # file is a lesser gap and stays Medium. Re-indenting alone is not a difference. The one
+    # accepted customisation is enabling the commented-out `with: upload-artifact: true` in
+    # companion-module-checks.yaml (see Remove-UploadArtifactOption), which is not reported at all.
+    @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
+    # Anything else under .github (issue templates, ...) follows the same rule.
+    @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
     @{ Pattern = 'LICENSE';                 Kind = 'covered-elsewhere' }   # §3b LICENSE-DIFF
     @{ Pattern = 'package.json';            Kind = 'covered-elsewhere' }   # §4 PKG-*
     @{ Pattern = 'companion/manifest.json'; Kind = 'covered-elsewhere' }   # §5 MAN-*
@@ -710,15 +790,19 @@ function Resolve-TemplateFileRule {
     param([Parameter(Mandatory)][string]$Rel)
     foreach ($r in $templateFileRules) {
         if ($Rel -like $r.Pattern) {
+            $sev = if ($r.ContainsKey('Severity')) { $r.Severity } else { 'Critical' }
             return [pscustomobject]@{
-                Kind      = $r.Kind
-                Severity  = if ($r.ContainsKey('Severity')) { $r.Severity } else { 'Critical' }
-                Source    = if ($r.ContainsKey('Source'))   { $r.Source }   else { 'template' }
-                Defaulted = $false
+                Kind            = $r.Kind
+                Severity        = $sev
+                MissingSeverity = if ($r.ContainsKey('MissingSeverity')) { $r.MissingSeverity } else { $sev }
+                IgnoreComments  = $r.ContainsKey('IgnoreComments') -and $r.IgnoreComments
+                IgnoreIndent    = $r.ContainsKey('IgnoreIndent') -and $r.IgnoreIndent
+                Source          = if ($r.ContainsKey('Source'))   { $r.Source }   else { 'template' }
+                Defaulted       = $false
             }
         }
     }
-    return [pscustomobject]@{ Kind = 'exact'; Severity = 'Critical'; Source = 'template'; Defaulted = $true }
+    return [pscustomobject]@{ Kind = 'exact'; Severity = 'Critical'; MissingSeverity = 'Critical'; IgnoreComments = $false; IgnoreIndent = $false; Source = 'template'; Defaulted = $true }
 }
 
 foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
@@ -733,7 +817,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
     if (-not (Test-Path $modFile)) {
         # Presence and content are decided in one pass so a missing file is reported once,
         # as FILE-MISSING, and never also as a CONFIG-DIFF against an empty file.
-        Add-Finding 'FILE-MISSING' $rule.Severity $rel 'Required file is missing (tracked by the template)'
+        Add-Finding 'FILE-MISSING' $rule.MissingSeverity $rel 'Required file is missing (tracked by the template)'
         continue
     }
     if ($rule.Defaulted) {
@@ -777,6 +861,14 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $modLines = Remove-UploadArtifactOption $modLines
         $tplLines = Remove-UploadArtifactOption $tplLines
     }
+    if ($rule.IgnoreComments) {
+        $modLines = @($modLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' })
+        $tplLines = @($tplLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' })
+    }
+    if ($rule.IgnoreIndent) {
+        $modLines = @($modLines | ForEach-Object { $_.TrimStart() })
+        $tplLines = @($tplLines | ForEach-Object { $_.TrimStart() })
+    }
     if ($rule.Kind -eq 'gitignore-subset') {
         # Subset rule: every template entry must be present in the module's .gitignore.
         # Extra module entries are allowed and not flagged. Blank and comment lines in
@@ -806,8 +898,9 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($($dev.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
-        # Accepted deviation: eslint.config.mjs may add rule overrides scoped to test/tooling
-        # files only (the base config and its options unchanged). See Test-EslintTestScope.
+        # Accepted deviations: eslint.config.mjs may add rule overrides scoped to test/tooling
+        # files (Test-EslintTestScope), or more generally extend the template's
+        # generateEslintConfig with its own imports, options and blocks (Test-EslintExtendsTemplate).
         if ($rel -eq 'eslint.config.mjs') {
             $es = Test-EslintTestScope -ModuleFile $modFile -TemplateFile $tplFile
             if ($es.Acceptable) {
@@ -818,7 +911,14 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
                 }
                 continue
             }
-            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($es.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
+            $ext = Test-EslintExtendsTemplate -ModuleFile $modFile -TemplateFile $tplFile
+            if ($ext.Acceptable) {
+                Add-Finding 'ESLINT-EXTENDS' 'Info' $rel (
+                    "Extends the template's generateEslintConfig ($($ext.Extras -join '; ')) — " +
+                    "an accepted deviation; the template's own imports and options are unchanged.")
+                continue
+            }
+            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($($ext.Reason); $(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
         if ($rule.Kind -eq 'tsconfig') {

@@ -72,7 +72,7 @@ All JS files above, **plus**:
 
 > **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
 
-> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences (a missing or different workflow, issue templates) are 🟡 Medium by default. The reviewer may raise one to blocking when it makes the module confusing to troubleshoot against the template, for example a CI Node version that doesn't match the runtime, or a missing template workflow. **One accepted customisation:** in `companion-module-checks.yaml`, uncommenting the template's `with:` / `upload-artifact: true` lines (the template tells you to) is not a divergence.
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. A `.github/**` file the module has must match the template: a different workflow or issue template is 🟠 High (blocking), because a drifted file confuses later troubleshooting. A missing `.github` file is 🟡 Medium. Indentation-only differences are not a divergence. **One accepted customisation:** in `companion-module-checks.yaml`, uncommenting the template's `with:` / `upload-artifact: true` lines (the template tells you to) is not a divergence.
 
 ---
 
@@ -99,6 +99,8 @@ All JS files above, **plus**:
 ```
 * text=auto eol=lf
 ```
+
+Comment lines are fine (for example one explaining the rule); only the rule itself must match.
 
 ### `.gitignore`
 
@@ -189,23 +191,27 @@ The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution"
 
 Not a finding, as long as every value the template sets is still present and unchanged. A different `extends`, any other added or changed compiler option, or a removed template `include` entry is still a divergence.
 
-**Accepted divergence: `eslint.config.mjs` with test-only overrides.** To relax rules for tests (e.g. `n/no-unpublished-import`, `@typescript-eslint/unbound-method`), a module may change the template's `export default generateEslintConfig({…})` into:
+**Accepted divergence: `eslint.config.mjs` that extends the template's config.** A module may keep the template's `generateEslintConfig` call and build on it:
 
 ```js
+import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'
+import tseslint from 'typescript-eslint'
+
 const baseConfig = await generateEslintConfig({ enableTypescript: true })
 export default [
 	...baseConfig,
-	{ files: ['tests/**/*.ts', 'vitest.config.ts'], rules: { 'n/no-unpublished-import': 'off' } },
+	{ files: ['vitest.config.ts'], ...tseslint.configs.disableTypeChecked },
+	{ files: ['tests/**/*.ts'], rules: { 'n/no-unpublished-import': 'off' } },
 ]
 ```
 
-Not a finding, provided all of these hold:
-- The imports are the template's.
-- The `generateEslintConfig` options are unchanged.
-- `...baseConfig` comes first.
-- Every extra block is scoped by `files:` to test or tooling paths (`tests/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*`, root `*.config.*`).
+Extra imports and plugins, extra `generateEslintConfig` options (such as `ignores`), and extra config blocks before or after the base config (including `src/` overrides) are the module's choice, not a finding.
 
-A block that targets `src/**`, has no `files:`, or adds plugins, imports or changed options is still a divergence.
+Still a divergence:
+- a template import is removed;
+- `generateEslintConfig` is no longer called;
+- one of the template's own options is removed or changed (e.g. `enableTypescript: false`);
+- the generated config is not part of what is exported.
 
 ---
 
@@ -368,7 +374,8 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
 | `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
 | `LICENSE` differs from the template (including the `Copyright (c) 2022 Bitfocus AS - Open Source` line) | **🟠 High** |
-| `.github/**` workflow / issue-template missing or different (except enabling `upload-artifact: true` in `companion-module-checks.yaml`, which is accepted) | **🟡 Medium** by default; the reviewer may raise it to blocking |
+| `.github/**` workflow / issue template present but different (except enabling `upload-artifact: true` in `companion-module-checks.yaml`, which is accepted, and indentation-only changes) | **🟠 High** |
+| `.github/**` workflow / issue template missing | **🟡 Medium** |
 
 ---
 
