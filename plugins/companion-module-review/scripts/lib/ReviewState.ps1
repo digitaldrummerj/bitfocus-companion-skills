@@ -879,3 +879,63 @@ function Select-PendingVersionsByType {
     )
     return @(@($Versions) | Where-Object { $_ -and $_.PSObject.Properties.Name -contains 'moduleType' -and $_.moduleType -eq $ModuleType })
 }
+
+# ── New module vs update: has the module ever been published? ────────────────
+
+function Get-StoreModuleListUrl {
+    <# The public module-store list of one module type (no auth): every module with at least one
+       published version. The portal's review page badges a module "New module" when it has no
+       latestPublished version; /api/v1/modules-pending-review doesn't carry that field, so a
+       queue entry missing from this list is a new module. #>
+    param([string]$ModuleType = $script:ReviewableModuleType)
+    $short = $ModuleType -replace '^companion-', ''
+    return "https://developer.bitfocus.io/api/v1/companion/modules/$short"
+}
+
+function Get-PublishedModuleIds {
+    <# Case-insensitive set of module ids from the store list's `modules` array
+       (see Get-StoreModuleListUrl). Kept apart from the fetch so it can be tested offline. #>
+    param([AllowNull()][object[]]$StoreModules)
+    $ids = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($m in @($StoreModules)) {
+        if ($m -and $m.PSObject.Properties.Name -contains 'id' -and $m.id) { [void]$ids.Add([string]$m.id) }
+    }
+    return , $ids
+}
+
+# ── Approval build: did the approved version build and publish? ───────────────
+
+function Get-BuildRunId {
+    <# The GitHub Actions run id from a version's buildLogUrl
+       (https://github.com/bitfocus/companion-bundled-modules/actions/runs/<id>), or $null. #>
+    param([AllowNull()][string]$BuildLogUrl)
+    if ($BuildLogUrl -match '^https://github\.com/[^/]+/[^/]+/actions/runs/(\d+)') { return $Matches[1] }
+    return $null
+}
+
+function Get-BuildOutcome {
+    <# Where an approved version's build stands, from its versions-API entry
+       (/public/modules/<type>/<name>/versions: status, published, buildLogUrl) and, once
+       there is a run, its `gh run view` status/conclusion:
+         rejected  — the version was rejected (nothing to build)
+         failed    — the portal marked the version FAILED, or the run finished without
+                     succeeding and the version isn't published
+         published — the version is published. Checked before the run: a run can fail after
+                     publishing (folivora-btt v2.0.5 failed only its "Report to api" step and
+                     is published), while a real build failure sets status FAILED
+                     (analogway-eks500 v1.0.1, failed in "Build module")
+         waiting   — not approved yet, no run yet, run still going, or run succeeded but
+                     `published` hasn't caught up yet #>
+    param(
+        [Parameter(Mandatory)][object]$Version,
+        [AllowNull()][string]$RunStatus,
+        [AllowNull()][string]$RunConclusion
+    )
+    if ($Version.status -eq 'REJECTED') { return 'rejected' }
+    if ($Version.status -eq 'FAILED')   { return 'failed' }
+    if ($Version.published -eq $true)   { return 'published' }
+    if ($Version.status -ne 'APPROVED') { return 'waiting' }
+    if ($RunStatus -ne 'completed')     { return 'waiting' }
+    if ($RunConclusion -eq 'success')   { return 'waiting' }
+    return 'failed'
+}

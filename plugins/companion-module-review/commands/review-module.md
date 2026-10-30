@@ -18,4 +18,15 @@ Interpret the arguments:
 
 Scopes: `tag` = only the `previousTag..reviewTag` diff (new/regression only); `module` = the whole current module, flat by severity; `both` = whole module classified new vs pre-existing.
 
-Follow the skill's ordered pipeline (queue → setup → fact sheet → validate-template → parallel review subagents → assemble the review + TRACKER row). This is **report-only**: do not modify the module, create fix branches, or push to its repo. When done, tell me the review file path, the scope, the verdict, and the blocking count.
+Follow the skill's ordered pipeline:
+1. Ask the delivery mode: hold for my review, or deliver automatically.
+2. Pick the target from the queue.
+3. Set up the module.
+4. Assign me as reviewer in the portal.
+5. Build the fact sheet.
+6. Run validate-template.
+7. Dispatch the parallel review subagents.
+8. Assemble the review and its TRACKER row.
+9. Deliver it in auto mode; otherwise wait for my "submit".
+
+This is **report-only** for the module: do not modify it, create fix branches, or push to its repo. When done, tell me the review file path, the scope, the verdict, and the blocking count.

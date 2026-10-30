@@ -18,6 +18,7 @@ All of it runs inside a **companion-module-review workspace**: a repo that holds
   4. validate the template
   5. run the parallel reviewers
   6. produce one review file and a TRACKER row
+  7. assign you as reviewer in the developer portal at the start, and deliver the review there when you say "submit" (or automatically, if you chose that for the cycle): request changes with the findings link, or approve and watch the build
 
 ## Installation
 
@@ -58,7 +59,9 @@ claude --plugin-dir <path-to>/bitfocus-companion-skills/plugins/companion-module
 | Live-testing a finding or fix in the user's local Companion: patched test package, old-format test page, Claude in Chrome import + verify | `skills/review-live-test/` |
 | Yarn 4 lockfile follow-ups | `skills/review-yarn4-lockfile-validation/` |
 | Workspace layout, review file naming, TRACKER rows | `skills/review-workspace-conventions/` |
-| Pipeline scripts: `bitfocus-queue`, `bitfocus-setup-module`, `module-facts`, `validate-template`, `api-scan`, `lint-review` (Step 7a markdownlint, pinned, `reviews/` only), `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
+| Assigning yourself as reviewer in the developer portal (your logged-in Chrome), for one module or a whole batch up front | `skills/review-assign-reviewer/` |
+| Delivering a review: push it, then request changes with the findings link or approve in the portal, then watch the build | `skills/review-submit/` |
+| Pipeline scripts: `bitfocus-queue` (marks new modules), `bitfocus-setup-module`, `bitfocus-watch-build` (approval build: published / failed / timed out), `module-facts`, `validate-template`, `api-scan`, `lint-review` (Step 7a markdownlint, pinned, `reviews/` only), `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
 
 The skills call the scripts as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`, and the scripts locate everything at runtime:
 

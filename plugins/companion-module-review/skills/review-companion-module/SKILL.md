@@ -5,7 +5,7 @@ description: Review a Bitfocus Companion module for release approval and produce
 
 # Review a Companion Module (orchestrator)
 
-You are the review **coordinator**. Run the pipeline below **in order**, then assemble one review file. This is **REPORT ONLY**: never modify the module's code, create fix branches, or push to its repo. The maintainer applies the fixes. Your only output is the review markdown under `reviews/` (plus a `TRACKER.md` row).
+You are the review **coordinator**. Run the pipeline below **in order**, then assemble one review file. This is **REPORT ONLY**: never modify the module's code, create fix branches, or push to its repo. The maintainer applies the fixes. Your only output is the review markdown under `reviews/` (plus a `TRACKER.md` row). The only things that touch the developer portal are assigning the reviewer (Step 2b) and, when delivering, **`companion-module-review:review-submit`**: requesting changes or approving there. Delivery happens in auto mode, or on the user's "submit" (Step 0b).
 
 All commands run from the root of the current workspace — the companion-module-review repo you're running in (it holds `reviews/`, `companion-modules-reviewing/` and `companion-module-templates/`). The scripts ship with this plugin: invoke them as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`. They find the workspace from the current directory (override with `COMPANION_REVIEW_ROOT`). If a script reports that no workspace or no templates were found, tell the user to run `pwsh setup.ps1` in the workspace.
 
@@ -19,6 +19,15 @@ Pick the scope from the request (default **`tag`** if unspecified):
 
 State the chosen scope to the user before proceeding.
 
+## Step 0b — Ask the delivery mode (once per review cycle)
+
+Ask with AskUserQuestion, once at the start of the cycle (one review, or a whole batch), unless the prompt already says which:
+
+- **Hold for my review** (default): write the review and stop at Step 8. The user reads it and says "submit".
+- **Deliver automatically**: as soon as the review is lint-clean, deliver it with **`companion-module-review:review-submit`**. That means push it, then click **Request changes** with the findings message or **Approve** in the portal, then watch the build.
+
+Both portal actions email the maintainer and can't be undone, so never assume auto.
+
 ## Step 1 — Pick the target
 
 - If the user named a module (e.g. "allenheath-sq"), use it (strip any `companion-module-` prefix).
@@ -31,7 +40,11 @@ State the chosen scope to the user before proceeding.
 pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/bitfocus-setup-module.ps1 -ModuleName <name> -Json
 ```
 
-Add `-ReviewTag <version>` when the user specified a version (omit it otherwise — the oldest pending version is used). Clones into `companion-modules-reviewing/` **and checks out the resolved tag**, so the fact sheet (Step 3), the validate-template build (Step 4), and the `previousTag..reviewTag` diff (Step 5) all reflect that exact version. Returns `{ module, reviewTag, previousTag, directory }`; `previousTag` is needed for `tag`/`both`, not for `module` scope. If a specified version isn't pending, the script errors and lists the module's pending versions — relay that. If it errors that the module is already reviewed with feedback pending, surface that; only re-run with `-Force` if the user confirms.
+Add `-ReviewTag <version>` when the user specified a version (omit it otherwise — the oldest pending version is used). Clones into `companion-modules-reviewing/` **and checks out the resolved tag**, so the fact sheet (Step 3), the validate-template build (Step 4), and the `previousTag..reviewTag` diff (Step 5) all reflect that exact version. Returns `{ module, reviewTag, previousTag, newModule, directory }`; `previousTag` is needed for `tag`/`both`, not for `module` scope. `newModule` is `true` when the module has no approved version, i.e. it has never been published (the portal's "New module" badge); it feeds the **Release** row in Step 7. If a specified version isn't pending, the script errors and lists the module's pending versions — relay that. If it errors that the module is already reviewed with feedback pending, surface that; only re-run with `-Force` if the user confirms.
+
+## Step 2b — Assign yourself as reviewer
+
+Invoke **`companion-module-review:review-assign-reviewer`** with the module, so nobody else picks it up while you review. Skip this when the prompt says assignment was already done (a batch assigns everything up front). The skill never takes over a module someone else holds, and it never blocks the review. If it can't assign, note what it reported and carry on.
 
 ## Step 3 — Generate the shared fact sheet
 
@@ -81,12 +94,12 @@ Interpret the output with the **`companion-module-review:review-template-check`*
 - **`tag`:** `git -C <directory> diff <previousTag>..<reviewTag>` — the changed files/hunks are the review surface; every code finding is NEW/REGRESSION.
 - **`module`:** no diff; the whole current `src/` is the surface; findings are reported flat (no classification).
 - **`both`:** whole module is the surface AND each finding is classified NEW / REGRESSION / PRE-EXISTING via the same diff (only NEW/REGRESSION block; pre-existing medium-and-lower are non-blocking notes).
-- **First release** (`previousTag` = "(none — first release)") under `tag`/`both`: there's no diff, so fall back to a full review and note it in the report.
+- **First release** (`newModule` is `true`; `previousTag` = "(none — first release)") under `tag`/`both`: there's no diff, so fall back to a full review and note it in the report. A re-review of a module that has still never been published is a first release too: diff against the previously reviewed tag for the follow-up, but the **Release** row still says new module.
 - **Re-review:** if a prior review for this module exists under `reviews/<name>/`, invoke the **`companion-module-review:review-follow-up-same-tag`** skill and frame this as a follow-up that *verifies the maintainer's fixes* — still report-only.
 
 ## Step 6 — Dispatch the review subagents (in parallel)
 
-Launch all three with the Agent tool in one message, using the plugin's namespaced agent types (`companion-module-review:companion-protocol-reviewer`, `companion-module-review:companion-qa-reviewer`, `companion-module-review:companion-compliance-reviewer`). Give each: the **scope** (Step 0), the **fact sheet**, the clone `directory`, the `previousTag`, and the `apiSkill` name. Give the compliance reviewer also `apiLevel`, `baseVersion`, `apiSkillDir`, `apiReferences`, and `apiScan`. Each returns findings (severity, `file:line`, classification when scope ≠ module, description, suggested fix **for the maintainer**) — they never edit the module.
+Launch all three with the Agent tool in one message, using the plugin's namespaced agent types (`companion-module-review:companion-protocol-reviewer`, `companion-module-review:companion-qa-reviewer`, `companion-module-review:companion-compliance-reviewer`). Give each: the **scope** (Step 0), the **fact sheet**, the clone `directory`, the `previousTag`, and the `apiSkill` name. Give the compliance reviewer also `apiLevel`, `baseVersion`, `apiSkillDir`, `apiReferences`, `apiScan`, and `newModule` (Step 2; it applies the first-release rules). Each returns findings (severity, `file:line`, classification when scope ≠ module, description, suggested fix **for the maintainer**) — they never edit the module.
 
 - `companion-protocol-reviewer` — connection lifecycle, sockets, OSC/TCP/UDP/HTTP/Bonjour, timeouts, `destroy()` cleanup, `InstanceStatus`.
 - `companion-qa-reviewer` — bugs, edge cases, error handling, performance, async correctness, silent failures.
@@ -118,7 +131,14 @@ Invoke the **`companion-module-review:review-report-format`** skill for the sect
 | **Template** | `companion-module-template-js-v1` @ `9e222b4` (2026-03-26, pinned) · `.yarnrc.yml` from `companion-module-template-js` @ `0f916f9` (2026-06-24) |
 ```
 
-Take the values from the validator's `templateRevision` / `yarnrcTemplate`; v2 modules have no second clause. Add an **`API`** row from the fact sheet:
+Take the values from the validator's `templateRevision` / `yarnrcTemplate`; v2 modules have no second clause. Right after the **Version** row, add a **`Release`** row from Step 2's `newModule` / `previousTag`, using one of these two forms:
+
+```markdown
+| **Release** | New module — never published |
+| **Release** | Update — last published v4.0.0 |
+```
+
+Add an **`API`** row from the fact sheet:
 
 ```markdown
 | **API** | 2.1 (base 2.1.3, yarn.lock) — requires Companion 5.0+ |
@@ -156,7 +176,7 @@ The script refuses anything that isn't a `.md` file under the workspace's `revie
 
 The rules are in **`companion-module-review:review-report-format`** → Markdown Lint. Never finish with lint errors: the maintainer's editor shows every one.
 
-## Step 8 — Stop (report only)
+## Step 8 — Stop, or deliver (auto mode)
 
 Tell the user the review file path, the scope, the verdict (✅ Approved / ❌ Changes Required), and a verification summary so they know where their own checking is needed:
 
@@ -168,4 +188,20 @@ Assumptions to confirm: K  (A1 → C1, H2; A2 → H1; …)   (or "none")
 
 Confirmed or corrected assumptions are fed back into the review skills (the api-compliance references, the reviewer agents), so later reviews don't have to assume the same thing.
 
-The ⚠️ items are the only blocking findings the user must check against the code; verified ones only need a glance at the quoted Evidence. Do **not** modify the module, create a `fix/...` branch, or push anything to the module's repo. The user reviews the report, then delivers it to the maintainer.
+The ⚠️ items are the only blocking findings the user must check against the code; verified ones only need a glance at the quoted Evidence. Do **not** modify the module, create a `fix/...` branch, or push anything to the module's repo.
+
+Then, by the Step 0b delivery mode:
+
+- **Hold** (default): stop. The user reviews the report and says "submit", which runs **`companion-module-review:review-submit`**.
+- **Deliver automatically**: run **`companion-module-review:review-submit`** now, unless the prompt says this review is part of a batch. A batch delivers afterwards, from the main session.
+
+## Reviewing several modules (a batch)
+
+When the user queues up several modules:
+
+1. Ask the Step 0 scope and the Step 0b delivery mode **once** for the whole batch.
+2. **Before any review starts**, assign the user to **every** module in the batch. Run **`companion-module-review:review-assign-reviewer`** with the full list from the main session, so nobody else picks one up while the batch runs.
+3. Run the reviews. Tell each one that assignment is already done and that it must **not** deliver. Parallel reviews must never drive the browser or push to git.
+4. After the reviews finish:
+   - **Auto mode:** deliver each one with `review-submit`, one at a time, in queue order, from the main session.
+   - **Hold mode:** wait for the user to say "submit".

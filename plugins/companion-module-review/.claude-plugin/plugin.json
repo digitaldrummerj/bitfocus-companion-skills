@@ -1,7 +1,7 @@
 {
   "name": "companion-module-review",
   "description": "Companion module review workspace tooling: the /review-module orchestrator, review and finding-verifier subagents, report-format and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "Justin James"
   },

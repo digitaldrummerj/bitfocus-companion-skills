@@ -13,7 +13,7 @@
       2. Resolve the target (auto-select oldest reviewable, or the named module)
       3. Guard against re-reviewing an already-reviewed module (see -Force)
       4. Verify the target version has status PENDING (not WITHDRAWN or other)
-      5. Look up the previous approved tag for diff context
+      5. Look up the previous approved tag for diff context (none = new module, never published)
       6. Clone the GitHub repo into the workspace if not already present
       7. Print a summary for the Coordinator to hand off to the review team
 
@@ -204,12 +204,16 @@ $previousTag = $versionsData.versions |
     Sort-Object createdAt -Descending |
     Select-Object -First 1 -ExpandProperty gitTag
 
-if (-not $previousTag) {
+# No approved version = never published = the portal's "New module" badge.
+$newModule = -not $previousTag
+
+if ($newModule) {
     $previousTag = '(none — first release)'
-    Write-Status "No previous approved tag found — treat as first release." 'Yellow'
+    Write-Status "No previous approved tag found — new module (never published); treat as first release." 'Yellow'
 } else {
     Write-Status "Previous approved tag: $previousTag"
 }
+$release = if ($newModule) { 'New module (never published)' } else { "Update (last published $previousTag)" }
 
 # ── Step 6: Clone if not already present ─────────────────────────────────────
 
@@ -242,6 +246,7 @@ if ($Json) {
         module      = $name
         reviewTag   = $pendingTag
         previousTag = $previousTag
+        newModule   = $newModule
         directory   = $cloneDir
     } | ConvertTo-Json
     exit 0
@@ -254,6 +259,7 @@ Write-Host ("─" * 60)
 Write-Host "Module:        $name"
 Write-Host "Review tag:    $pendingTag"
 Write-Host "Previous tag:  $previousTag"
+Write-Host "Release:       $release"
 Write-Host "Directory:     $cloneDir"
 Write-Host ("─" * 60)
 Write-Host ""

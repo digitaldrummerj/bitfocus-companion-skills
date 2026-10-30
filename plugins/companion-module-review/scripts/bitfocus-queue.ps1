@@ -20,6 +20,10 @@
       reviewed - feedback pending  — reviewed, feedback not yet submitted (hidden from "Next up")
       re-review?                   — previously reviewed AND submitted, back in the queue (re-push)
 
+    Modules that have never been published (the portal's "New module" badge) are marked
+    "new module", from the public module-store list. If that list can't be fetched the
+    queue still prints, with "?" in place of the marker.
+
     Status validation (PENDING vs WITHDRAWN) happens in bitfocus-setup-module.ps1
     before any action is taken.
 .PARAMETER ModuleType
@@ -78,6 +82,15 @@ if (-not $versions -or $versions.Count -eq 0) {
 
 # Parse TRACKER.md once for the whole queue.
 $trackerRows = @(Get-TrackerRows -TrackerPath $trackerPath)
+
+# Published module ids, to tell a new module from an update. Optional: on failure, newModule is $null.
+$publishedIds = $null
+try {
+    $store = Invoke-RestMethod -Uri (Get-StoreModuleListUrl -ModuleType $ModuleType) -TimeoutSec 30
+    $publishedIds = Get-PublishedModuleIds -StoreModules @($store.modules)
+} catch {
+    if (-not $Json) { Write-Host "Could not fetch the module-store list — new-module markers unavailable ($($_.Exception.Message))" -ForegroundColor DarkYellow }
+}
 $now = [DateTimeOffset]::UtcNow
 
 # Enrich each version with days-waiting, clone status, and local review state.
@@ -92,6 +105,7 @@ $rows = foreach ($v in $versions) {
         moduleName     = $v.moduleName
         moduleType     = $v.moduleType
         gitTag         = $v.gitTag
+        newModule      = if ($null -ne $publishedIds) { -not $publishedIds.Contains($v.moduleName) } else { $null }
         daysWaiting    = $days
         cloned         = Test-Path $clonePath
         state          = $state.State
@@ -126,13 +140,24 @@ foreach ($r in $rows) {
         're-review'        { 'Magenta' }
         default            { 'Gray' }
     }
+    $release = switch ($r.newModule) {
+        $true   { "  |  new module" }
+        $null   { "  |  ?" }
+        default { "" }
+    }
     $rankLabel = "$rank.".PadRight(4)
     Write-Host ("$rankLabel $($r.moduleName) @ $($r.gitTag)  |  $($r.daysWaiting) days  |  $clone  |  ") -NoNewline
-    Write-Host $label -ForegroundColor $color
+    Write-Host $label -ForegroundColor $color -NoNewline
+    Write-Host $release -ForegroundColor Cyan
     $rank++
 }
 
 Write-Host ("─" * 78)
+if ($null -ne $publishedIds) {
+    $newCount    = @($rows | Where-Object { $_.newModule } | ForEach-Object moduleName | Sort-Object -Unique).Count
+    $updateCount = @($rows | Where-Object { $_.newModule -eq $false } | ForEach-Object moduleName | Sort-Object -Unique).Count
+    Write-Host "$newCount new modules (never published), $updateCount updates — counted per module, not per version" -ForegroundColor Cyan
+}
 if ($pendingCount -gt 0) {
     Write-Host "$pendingCount already reviewed, feedback pending — hidden from Next up" -ForegroundColor DarkYellow
 }

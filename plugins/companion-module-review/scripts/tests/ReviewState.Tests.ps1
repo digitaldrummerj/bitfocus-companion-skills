@@ -292,6 +292,23 @@ Assert-Equal 0 (@(Select-PendingVersionsByType -Versions $null).Count) "a null q
 Assert-Equal 'https://developer.bitfocus.io/modules/review?type=companion-connection' (Get-PendingReviewPageUrl) "review page link defaults to connection modules"
 
 Write-Host ""
+Write-Host "New module vs update — published module ids"
+Assert-Equal 'https://developer.bitfocus.io/api/v1/companion/modules/connection' (Get-StoreModuleListUrl) "store list defaults to connection modules"
+Assert-Equal 'https://developer.bitfocus.io/api/v1/companion/modules/surface' (Get-StoreModuleListUrl -ModuleType 'companion-surface') "store list maps companion-surface to surface"
+$store = @(
+    [pscustomobject]@{ id = 'biamp-tesira'; latestVersionNumber = 'v4.0.0' }
+    [pscustomobject]@{ id = 'Behringer-Wing'; latestVersionNumber = 'v2.3.0' }
+    [pscustomobject]@{ name = 'no-id' }
+)
+$ids = Get-PublishedModuleIds -StoreModules $store
+Assert-Equal 2 $ids.Count "entries without an id are skipped"
+Assert-Equal $true $ids.Contains('biamp-tesira') "a listed module is published (update)"
+Assert-Equal $true $ids.Contains('behringer-wing') "the id lookup ignores case"
+Assert-Equal $false $ids.Contains('cuetime-stagedisplay') "an unlisted module is new"
+Assert-Equal 0 (Get-PublishedModuleIds -StoreModules @()).Count "an empty store list gives an empty set"
+Assert-Equal 0 (Get-PublishedModuleIds -StoreModules $null).Count "a null store list gives an empty set"
+
+Write-Host ""
 Write-Host "Template suffix and pins by API level"
 Assert-Equal '-v1'     (Get-TemplateSuffix '1')   "API 1 uses the pinned -v1 template"
 Assert-Equal '-v2.0.4' (Get-TemplateSuffix '2.0') "API 2.0 uses the pinned -v2.0.4 template"
@@ -310,6 +327,26 @@ Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWeb
 Assert-Equal 'https://github.com/bitfocus/companion-module-x' (ConvertTo-RepoWebUrl 'https://github.com/bitfocus/companion-module-x/') "plain https url is kept (trailing slash dropped)"
 Assert-Equal $null (ConvertTo-RepoWebUrl '/Users/me/clones/companion-module-x') "a local path is not a web url"
 Assert-Equal $null (ConvertTo-RepoWebUrl '') "empty input → null"
+
+Write-Host ""
+Write-Host "Approval build — run id and outcome"
+Assert-Equal '27629980676' (Get-BuildRunId 'https://github.com/bitfocus/companion-bundled-modules/actions/runs/27629980676') "run id from a buildLogUrl"
+Assert-Equal '123' (Get-BuildRunId 'https://github.com/bitfocus/companion-bundled-modules/actions/runs/123/job/9') "run id from a job url"
+Assert-Equal $null (Get-BuildRunId $null) "no buildLogUrl → null"
+Assert-Equal $null (Get-BuildRunId 'https://example.com/runs/123') "a non-Actions url → null"
+function V($status, $published) { [pscustomobject]@{ status = $status; published = $published } }
+Assert-Equal 'waiting'   (Get-BuildOutcome -Version (V 'PENDING'  $false)) "still pending → waiting"
+Assert-Equal 'rejected'  (Get-BuildOutcome -Version (V 'REJECTED' $false)) "rejected → rejected"
+Assert-Equal 'waiting'   (Get-BuildOutcome -Version (V 'APPROVED' $false)) "approved, no run yet → waiting"
+Assert-Equal 'waiting'   (Get-BuildOutcome -Version (V 'APPROVED' $false) -RunStatus 'in_progress') "run in progress → waiting"
+Assert-Equal 'waiting'   (Get-BuildOutcome -Version (V 'APPROVED' $false) -RunStatus 'completed' -RunConclusion 'success') "run succeeded, not yet published → waiting"
+Assert-Equal 'published' (Get-BuildOutcome -Version (V 'APPROVED' $true)  -RunStatus 'completed' -RunConclusion 'success') "published → published"
+Assert-Equal 'published' (Get-BuildOutcome -Version (V 'APPROVED' $true)) "published without a run lookup → published"
+Assert-Equal 'failed'    (Get-BuildOutcome -Version (V 'APPROVED' $false) -RunStatus 'completed' -RunConclusion 'failure') "run failed → failed"
+Assert-Equal 'failed'    (Get-BuildOutcome -Version (V 'APPROVED' $false) -RunStatus 'completed' -RunConclusion 'cancelled') "run cancelled → failed"
+Assert-Equal 'failed'    (Get-BuildOutcome -Version (V 'FAILED' $false) -RunStatus 'completed' -RunConclusion 'failure') "portal status FAILED → failed (analogway-eks500 v1.0.1)"
+Assert-Equal 'failed'    (Get-BuildOutcome -Version (V 'FAILED' $false)) "portal status FAILED → failed even before the run is looked up"
+Assert-Equal 'published' (Get-BuildOutcome -Version (V 'APPROVED' $true) -RunStatus 'completed' -RunConclusion 'failure') "published wins over a run that failed after publishing (folivora-btt v2.0.5)"
 
 Write-Host ""
 Write-Host "$($script:pass) passed, $($script:fail) failed" -ForegroundColor ($(if ($script:fail) { 'Red' } else { 'Green' }))

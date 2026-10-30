@@ -60,6 +60,6 @@ After writing the review file, add a row to `reviews/TRACKER.md` (bottom of the 
 | ⬜ | {short-module-name} | {version} | {YYYY-MM-DD} | [review]({short-module-name}/review-{short-module-name}-{version}-{timestamp}.md) |
 ```
 
-- `⬜` = feedback not yet submitted to the maintainer (default; the user changes it to ✅ after delivering).
+- `⬜` = feedback not yet submitted to the maintainer (default). `companion-module-review:review-submit` sets it to ✅ when it delivers the review.
 - `{YYYY-MM-DD}` = review date (UTC); the link path is relative to `reviews/`.
 - On a re-review (new version), **add a new row** — don't edit or remove the existing entry.
