@@ -440,6 +440,25 @@ function Remove-JsComments {
     return $sb.ToString()
 }
 
+function Hide-JsStrings {
+    # Replace the contents of JS string literals with spaces, keeping every index the same,
+    # so pattern searches only ever match real code.
+    param([string]$Text)
+    $chars = $Text.ToCharArray()
+    $quote = $null
+    for ($i = 0; $i -lt $chars.Length; $i++) {
+        $c = $chars[$i]
+        if ($quote) {
+            if ($c -eq '\' -and $i + 1 -lt $chars.Length) { $chars[$i] = ' '; $chars[$i + 1] = ' '; $i++; continue }
+            if ($c -eq $quote) { $quote = $null; continue }
+            if ($c -ne "`n") { $chars[$i] = ' ' }
+            continue
+        }
+        if ($c -eq "'" -or $c -eq '"' -or $c -eq '`') { $quote = $c }
+    }
+    return -join $chars
+}
+
 function Split-JsTopLevel {
     # Split the inside of a JS array/object literal on commas at nesting depth 0.
     param([string]$Text)
@@ -604,6 +623,9 @@ function Test-EslintExtendsTemplate {
     $mod = Remove-JsComments (Get-Content -Raw -LiteralPath $ModuleFile)
     $tpl = Remove-JsComments (Get-Content -Raw -LiteralPath $TemplateFile)
     $squash = { param($s) ($s -replace '\s+', ' ').Trim() -replace ',\s*([}\]])', '$1' }
+    # Same text with string contents blanked (same length), so a call, spread or export that
+    # only appears inside a string literal can't satisfy the checks below.
+    $modCode = Hide-JsStrings $mod
 
     $tplCall = [regex]::Match($tpl, 'generateEslintConfig\s*\(')
     if (-not $tplCall.Success) { $res.Reason = 'template eslint config has an unexpected shape'; return $res }
@@ -618,8 +640,10 @@ function Test-EslintExtendsTemplate {
     $extraImports = @($modImports | Where-Object { $tplImports -notcontains $_ } |
         ForEach-Object { if ($_ -match 'from\s+[''"]([^''"]+)[''"]') { $Matches[1] } else { $_ } })
 
-    $modCall = [regex]::Match($mod, 'generateEslintConfig\s*\(')
-    if (-not $modCall.Success) { $res.Reason = "does not use the template's generateEslintConfig"; return $res }
+    $modCalls = [regex]::Matches($modCode, '\bgenerateEslintConfig\s*\(')
+    if ($modCalls.Count -eq 0) { $res.Reason = "does not use the template's generateEslintConfig"; return $res }
+    if ($modCalls.Count -gt 1) { $res.Reason = 'calls generateEslintConfig more than once'; return $res }
+    $modCall = $modCalls[0]
     $modArgs = Get-JsBracketBody $mod ($modCall.Index + $modCall.Length - 1)
     if ($null -eq $modArgs) { $res.Reason = 'unbalanced generateEslintConfig call'; return $res }
 
@@ -633,20 +657,28 @@ function Test-EslintExtendsTemplate {
     $keyOf = { param($p) if ($p -match '^[''"]?([A-Za-z_$][\w$]*)[''"]?\s*:') { $Matches[1] } else { $p } }
     $tplProps = @(& $propsOf $tplArgs)
     $modProps = @(& $propsOf $modArgs)
+    if ($modArgs.Trim() -and -not $modArgs.Trim().StartsWith('{')) { $res.Reason = 'generateEslintConfig options are not an object literal'; return $res }
+    # A spread or a repeated key could override a template option after the checked copy.
+    $spreadProps = @($modProps | Where-Object { $_.StartsWith('...') })
+    if ($spreadProps.Count -gt 0) { $res.Reason = "generateEslintConfig options use a spread ($($spreadProps -join ', '))"; return $res }
+    $dupKeys = @($modProps | ForEach-Object { & $keyOf $_ } | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+    if ($dupKeys.Count -gt 0) { $res.Reason = "generateEslintConfig options repeat a key ($($dupKeys -join ', '))"; return $res }
     $changed = @($tplProps | Where-Object { $modProps -notcontains $_ })
     if ($changed.Count -gt 0) { $res.Reason = "changes the template's generateEslintConfig options ($($changed -join ', '))"; return $res }
     $tplKeys = @($tplProps | ForEach-Object { & $keyOf $_ })
     $extraOptions = @($modProps | ForEach-Object { & $keyOf $_ } | Where-Object { $tplKeys -notcontains $_ })
 
     # The generated config must be what is exported, or spread into it.
-    $direct = [regex]::IsMatch($mod, 'export\s+default\s+(?:await\s+)?generateEslintConfig\s*\(')
+    $direct = [regex]::IsMatch($modCode, 'export\s+default\s+(?:await\s+)?generateEslintConfig\s*\(')
     $blocks = $false
     if (-not $direct) {
-        $assign = [regex]::Match($mod.Substring(0, $modCall.Index + $modCall.Length),'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?generateEslintConfig\s*\($')
+        $assign = [regex]::Match($modCode.Substring(0, $modCall.Index + $modCall.Length), '(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?generateEslintConfig\s*\($')
         if (-not $assign.Success) { $res.Reason = 'generateEslintConfig result is neither exported nor assigned'; return $res }
         $name = [regex]::Escape($assign.Groups[1].Value)
-        $spread = [regex]::IsMatch($mod, "\.\.\.\s*$name\b")
-        $exported = [regex]::IsMatch($mod, "export\s+default\s+$name\b")
+        # The whole config must be spread or exported: `...base.slice(0, 0)` or
+        # `export default base.filter(…)` would keep the name but drop its contents.
+        $spread = [regex]::IsMatch($modCode, "\.\.\.\s*$name\b(?!\s*[.\[(])")
+        $exported = [regex]::IsMatch($modCode, "export\s+default\s+$name\b(?!\s*[.\[(])")
         if (-not ($spread -or $exported)) { $res.Reason = "the generated config ($($assign.Groups[1].Value)) is not part of the exported config"; return $res }
         $blocks = $spread
     }

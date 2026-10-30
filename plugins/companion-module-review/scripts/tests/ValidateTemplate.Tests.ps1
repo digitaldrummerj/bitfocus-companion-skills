@@ -477,6 +477,19 @@ try {
     $runused = Invoke-Validator (New-EslintModule 'esunused' ($esHead + "export default [`n`t{ files: ['src/**/*.ts'], rules: {} },`n]")) $esTpl
     Ok (@(Get-EslintFindings $runused 'CONFIG-DIFF' | Where-Object { $_.message -match 'not part of the exported config' }).Count -eq 1) "a generated config left out of the export is a CONFIG-DIFF"
 
+    # Hardening: the extends check must not be satisfiable by tricks that override or drop
+    # the template's config while still looking like an extension.
+    function Test-NotExtends($name, $text, $pattern, $label) {
+        $r = Invoke-Validator (New-EslintModule $name $text) $esTpl
+        Ok (@(Get-EslintFindings $r 'CONFIG-DIFF' | Where-Object { $_.message -match $pattern }).Count -eq 1 -and (Get-EslintFindings $r 'ESLINT-EXTENDS').Count -eq 0) $label
+    }
+    Write-Host "eslint.config.mjs extends-check hardening"
+    Test-NotExtends 'esdupkey' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`tenableTypescript: false,`n})") 'repeat a key' "a repeated option key is a CONFIG-DIFF"
+    Test-NotExtends 'esoptspread' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst over = { enableTypescript: false }`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`t...over,`n})") 'use a spread' "a spread inside the options is a CONFIG-DIFF"
+    Test-NotExtends 'esslice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig.slice(0, 0),`n`t{ rules: {} },`n]") 'not part of the exported config' "spreading baseConfig.slice(...) is a CONFIG-DIFF"
+    Test-NotExtends 'esstring' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst note = 'generateEslintConfig({ enableTypescript: true })'`nexport default [{ rules: {} }]") 'does not use' "a generateEslintConfig call inside a string doesn't count"
+    Test-NotExtends 'estwice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst a = await generateEslintConfig({`n`tenableTypescript: true,`n})`nconst b = await generateEslintConfig({`n`tenableTypescript: false,`n})`nexport default [...b]") 'more than once' "calling generateEslintConfig twice is a CONFIG-DIFF"
+
     Write-Host "eslint.config.mjs identical to the template"
     $esSame = New-EslintModule 'essame' $esTplText
     $rsame2 = Invoke-Validator $esSame $esTpl
