@@ -82,11 +82,13 @@ $yarnrcTpl   = "nodeLinker: node-modules`nenableScripts: false`nnpmMinimalAgeGat
 $yarnrcCosmetic = "npmPreapprovedPackages:`n  - '@companion-module/*'`n`nenableScripts: false`n`nnodeLinker: node-modules`n`nnpmMinimalAgeGate: 3d"
 # The pre-2026-06-24 template contents, still shipped by older modules.
 $yarnrcOld   = "nodeLinker: node-modules"
-# LICENSE must match the template exactly — the copyright line included. The three
-# variants below cover the ways a module can diverge.
+# LICENSE must carry the template's licence text. The copyright line is the module author's
+# and is never compared; wrapping and the "The MIT License" title spelling don't matter.
 $licenseTpl       = "MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
 $licenseCopyright = "MIT License`n`nCopyright (c) 2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
-$licenseBody      = "The MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
+$licenseTheMit    = "The MIT License`n`nCopyright (c) 2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
+$licenseRewrapped = "MIT License`n`nCopyright (c) 2024-2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining`na copy of this software."
+$licenseBody      = "MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, for a fee, to any person obtaining a copy`nof this software."
 $licenseShort     = "MIT License`n`nCopyright (c) 2025 Template Author"
 
 $root = Join-Path ([System.IO.Path]::GetTempPath()) "validatetpl-$([System.IO.Path]::GetRandomFileName())"
@@ -464,6 +466,9 @@ try {
     Write-Host "eslint.config.mjs with a config placed before the base"
     $null = Test-Extends 'esfirst' ($esHead + "export default [`n`t{ ignores: ['.squad/**'] },`n`t...baseConfig,`n]") "a block before the base config extends the template"
 
+    Write-Host "eslint.config.mjs spreading the generated config straight into the exported array"
+    $null = Test-Extends 'esinline' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default [`n`t...(await generateEslintConfig({`n`t`tenableTypescript: true,`n`t`tignores: ['src/register-js-to-ts.mjs'],`n`t})),`n`t{ files: ['**/*.spec.ts'], rules: { '@typescript-eslint/no-floating-promises': 'off' } },`n]") "export default [ ...(await generateEslintConfig({…})), … ] extends the template (astrastudio-onairscreen shape)"
+
     Write-Host "eslint.config.mjs that changes a template option"
     $rchg = Invoke-Validator (New-EslintModule 'eschanged' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: false,`n})")) $esTpl
     $chg = Get-EslintFindings $rchg 'CONFIG-DIFF'
@@ -487,6 +492,7 @@ try {
     Test-NotExtends 'esdupkey' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`tenableTypescript: false,`n})") 'repeat a key' "a repeated option key is a CONFIG-DIFF"
     Test-NotExtends 'esoptspread' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst over = { enableTypescript: false }`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`t...over,`n})") 'use a spread' "a spread inside the options is a CONFIG-DIFF"
     Test-NotExtends 'esslice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig.slice(0, 0),`n`t{ rules: {} },`n]") 'not part of the exported config' "spreading baseConfig.slice(...) is a CONFIG-DIFF"
+    Test-NotExtends 'esinlineslice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default [`n`t...(await generateEslintConfig({`n`t`tenableTypescript: true,`n`t})).slice(0, 0),`n`t{ rules: {} },`n]") 'neither exported nor assigned' "spreading (await generateEslintConfig(…)).slice(...) is a CONFIG-DIFF"
     Test-NotExtends 'esstring' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst note = 'generateEslintConfig({ enableTypescript: true })'`nexport default [{ rules: {} }]") 'does not use' "a generateEslintConfig call inside a string doesn't count"
     Test-NotExtends 'estwice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst a = await generateEslintConfig({`n`tenableTypescript: true,`n})`nconst b = await generateEslintConfig({`n`tenableTypescript: false,`n})`nexport default [...b]") 'more than once' "calling generateEslintConfig twice is a CONFIG-DIFF"
 
@@ -574,9 +580,9 @@ try {
     Ok ($v1Old.Count -eq 1 -and $v1Old[0].message -match 'Missing template keys') `
         "judges v1 modules against the main template's yarnrc, not the pinned -v1 copy"
 
-    # ── LICENSE must match the template exactly ──────────────────────────────
-    # The template's LICENSE is the licence itself, copyright line included — not a
-    # scaffold to personalise. Any divergence is a High finding.
+    # ── LICENSE must carry the template's licence text ───────────────────────
+    # The copyright line belongs to the module author (MIT: you never replace the holder; the
+    # year is when the module was created), so it is not compared. Changed licence text is High.
     function Get-LicenseFindings($result) {
         return @($result.findings | Where-Object { $_.id -eq 'LICENSE-DIFF' })
     }
@@ -587,15 +593,25 @@ try {
 
     Write-Host "LICENSE — copyright line differs only"
     $lCopy = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'liccopy' $yarnrcTpl '~2.0.4' $licenseCopyright) $tpl)
-    Ok ($lCopy.Count -eq 1 -and $lCopy[0].severity -eq 'High') `
-        "flags a differing copyright line at High (the copyright line is no longer exempt)"
-    Ok ($lCopy.Count -eq 1 -and $lCopy[0].message -match "line 3: found 'Copyright \(c\) 2026 Jane Dev'") `
-        "names the differing copyright line"
+    Ok ($lCopy.Count -eq 0) "does not flag the author's own copyright holder and year"
 
-    Write-Host "LICENSE — fewer lines than the template"
+    Write-Host "LICENSE — 'The MIT License' title"
+    $lThe = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licthe' $yarnrcTpl '~2.0.4' $licenseTheMit) $tpl)
+    Ok ($lThe.Count -eq 0) "does not flag the 'The MIT License' spelling of the title"
+
+    Write-Host "LICENSE — same text, wrapped differently"
+    $lWrap = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licwrap' $yarnrcTpl '~2.0.4' $licenseRewrapped) $tpl)
+    Ok ($lWrap.Count -eq 0) "does not flag the same licence text wrapped at different line breaks"
+
+    Write-Host "LICENSE — licence text changed"
+    $lText = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'lictext' $yarnrcTpl '~2.0.4' $licenseBody) $tpl)
+    Ok ($lText.Count -eq 1 -and $lText[0].severity -eq 'High') "flags changed licence text at High"
+    Ok ($lText.Count -eq 1 -and $lText[0].message -match "found 'for a fee,") "names the first differing words"
+
+    Write-Host "LICENSE — licence text missing"
     $lShort = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licshort' $yarnrcTpl '~2.0.4' $licenseShort) $tpl)
     Ok ($lShort.Count -eq 1 -and $lShort[0].message -match '<missing>') `
-        "flags a truncated LICENSE and reports the missing line"
+        "flags a truncated LICENSE and reports the missing text"
 
     Write-Host "LICENSE — CRLF line endings, same text"
     $lCrlf = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'liccrlf' $yarnrcTpl '~2.0.4' ($licenseTpl -replace "`n", "`r`n")) $tpl)
@@ -605,10 +621,38 @@ try {
     Set-File (Join-Path $good '.gitattributes') "# Normalize line endings: store as LF in the repo.`n# Keeps prettier from flagging CRLF on Windows checkouts.`n* text=auto eol=lf"
     $ga1 = Invoke-Validator $good $tpl
     Ok ((Find-Findings $ga1 'CONFIG-DIFF' '.gitattributes').Count -eq 0) "comment-only additions to .gitattributes are not reported"
-    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.png binary"
+    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.png binary`n*.companionconfig binary"
+    $ga3 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga3 'CONFIG-DIFF' '.gitattributes').Count -eq 0) "extra '<pattern> binary' rules are not reported"
+    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.js eol=crlf"
     $ga2 = Invoke-Validator $good $tpl
-    Ok ((Find-Findings $ga2 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…but an extra rule next to the comments still is"
+    Ok ((Find-Findings $ga2 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…but any other extra rule still is"
+    Set-File (Join-Path $good '.gitattributes') "*.png binary"
+    $ga4 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga4 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…and binary rules don't excuse a missing template rule"
     Set-File (Join-Path $good '.gitattributes') "* text=auto eol=lf"
+
+    Write-Host "Manifest — empty maintainer email"
+    $goodMan = Join-Path $good 'companion/manifest.json'
+    $goodManText = Get-Content -Raw $goodMan
+    Set-File $goodMan ($goodManText -replace '"jane@example\.com"', '""')
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-PLACEHOLDER' $null).Count -eq 0) "an empty maintainer email is not a placeholder (a contact is not required)"
+    Set-File $goodMan ($goodManText -replace '"jane@example\.com"', '"Your email"')
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-PLACEHOLDER' $null).Count -eq 1) "…but the template's 'Your email' placeholder still is"
+    Set-File $goodMan $goodManText
+
+    Write-Host ".prettierignore — extra entries only"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE.md`n# generated`nsrc/generated.ts"
+    $pi1 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi1.Count -eq 1 -and $pi1[0].message -match 'Extra entries not in template: src/generated\.ts') `
+        "lists the extra entries so the reviewer can drop it when they are generated files"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE"
+    $pi2 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi2.Count -eq 1 -and $pi2[0].message -notmatch 'Extra entries') "a changed template entry is a plain CONFIG-DIFF"
+    Set-File (Join-Path $good '.prettierignore') "# keep prettier off these`npackage.json`n/LICENSE.md"
+    $pi3 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi3.Count -eq 0) "comment-only additions to .prettierignore are not reported"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE.md"
 
     # ── BAD module ───────────────────────────────────────────────────────────
     $bad = Join-Path $root 'companion-module-bar'
@@ -850,6 +894,24 @@ try {
     Ok ((Find-Findings $d8 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 1) "upload-artifact doesn't excuse another change in the file"
     Remove-Item -Recurse -Force (Join-Path $good '.github/ISSUE_TEMPLATE'), (Join-Path $good '.github/workflows/companion-module-checks.yaml')
     Remove-Item -Recurse -Force (Join-Path $dtpl '.github/ISSUE_TEMPLATE'), (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml')
+
+    Write-Host "CI workflows — comments and the template's optional test job"
+    $nodeTpl = "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest # pinned runner`n    steps:`n      - run: yarn lint`n`n  # Uncomment this to enable running unit tests`n  # test:`n  #   runs-on: ubuntu-latest`n  #   steps:`n  #     - run: yarn test"
+    Set-File (Join-Path $dtpl '.github/workflows/node.yaml') $nodeTpl
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "removing the template's comments (and the commented-out test job) is not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`n# our CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n`n  test:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn test"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "enabling the template's commented-out test job is not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n`n  test:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn test --coverage"
+    $wt = Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml'
+    Ok ($wt.Count -eq 1 -and $wt[0].severity -eq 'High') "…but a test job that differs from the template's is still reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: windows-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 1) `
+        "…and so is a change to a line that runs"
+    Set-File (Join-Path $dtpl '.github/workflows/node.yaml') "name: node`njobs: {}"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: node`njobs: {}"
 
     Write-Host "Derived file set — a template file with no rule"
     Set-File (Join-Path $dtpl '.editorconfig') "root = true`nindent_style = tab"

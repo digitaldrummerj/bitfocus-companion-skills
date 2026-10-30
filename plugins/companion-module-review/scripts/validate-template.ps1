@@ -671,7 +671,23 @@ function Test-EslintExtendsTemplate {
     # The generated config must be what is exported, or spread into it.
     $direct = [regex]::IsMatch($modCode, 'export\s+default\s+(?:await\s+)?generateEslintConfig\s*\(')
     $blocks = $false
-    if (-not $direct) {
+    # Spread straight into the exported array: `export default [ ...(await generateEslintConfig({…})), {…} ]`.
+    # The call must sit inside that array, and its whole result must be spread (nothing such as
+    # `.slice(0, 0)` applied to it after the call).
+    $inline = $false
+    if (-not $direct -and [regex]::IsMatch($modCode.Substring(0, $modCall.Index), '\.\.\.\s*(\(\s*)?(?:await\s+)?$')) {
+        $exp = [regex]::Match($modCode, 'export\s+default\s+\[')
+        if ($exp.Success) {
+            $arrOpen = $exp.Index + $exp.Length - 1
+            $arrBody = Get-JsBracketBody $modCode $arrOpen
+            $callClose = $modCall.Index + $modCall.Length + $modArgs.Length
+            $inArray = ($null -ne $arrBody) -and ($modCall.Index -gt $arrOpen) -and ($callClose -lt $arrOpen + 1 + $arrBody.Length)
+            $after = $modCode.Substring($callClose + 1)
+            $inline = $inArray -and [regex]::IsMatch($after, '^\s*\)?\s*[,\]]')
+        }
+    }
+    if ($inline) { $blocks = $true }
+    elseif (-not $direct) {
         $assign = [regex]::Match($modCode.Substring(0, $modCall.Index + $modCall.Length), '(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?generateEslintConfig\s*\($')
         if (-not $assign.Success) { $res.Reason = 'generateEslintConfig result is neither exported nor assigned'; return $res }
         $name = [regex]::Escape($assign.Groups[1].Value)
@@ -779,17 +795,22 @@ $templateFileRules = @(
     @{ Pattern = '.yarnrc.yml';             Kind = 'yarnrc';           Severity = 'Critical'; Source = 'yarnrc' }
     @{ Pattern = '.gitignore';              Kind = 'gitignore-subset'; Severity = 'Critical' }
     @{ Pattern = 'tsconfig*.json';          Kind = 'tsconfig';         Severity = 'Critical' }
-    # Comment lines explaining the rule are fine; only the rule itself must match.
+    # Comment lines explaining the rule are fine, and so are extra `<pattern> binary` rules that
+    # mark file types as binary; only the template's rule itself must match.
     @{ Pattern = '.gitattributes';          Kind = 'exact';            Severity = 'Critical'; IgnoreComments = $true }
+    # Extra entries for generated files are fine, but only the reviewer can tell what is
+    # generated: when the module keeps every template entry and only adds some, the finding
+    # lists the extras so the reviewer can drop it (see review-template-check).
     @{ Pattern = '.prettierignore';         Kind = 'exact';            Severity = 'Critical' }
     # Extending the template's generateEslintConfig is accepted (see Test-EslintExtendsTemplate).
     @{ Pattern = 'eslint.config.mjs';       Kind = 'exact';            Severity = 'Critical' }
     @{ Pattern = '.husky/*';                Kind = 'exact';            Severity = 'Critical' }
     # A .github file the module HAS must match the template: a content difference is High
     # (blocking), because a drifted workflow confuses later troubleshooting. A MISSING .github
-    # file is a lesser gap and stays Medium. Re-indenting alone is not a difference. The one
-    # accepted customisation is enabling the commented-out `with: upload-artifact: true` in
-    # companion-module-checks.yaml (see Remove-UploadArtifactOption), which is not reported at all.
+    # file is a lesser gap and stays Medium. Re-indenting alone is not a difference, and neither
+    # is adding, removing or rewording comments. Enabling anything the template ships commented
+    # out (the node.yaml `test:` job, `with: upload-artifact: true` in
+    # companion-module-checks.yaml) is accepted too (see Test-WorkflowMatchesTemplate).
     @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
     # Anything else under .github (issue templates, ...) follows the same rule.
     @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
@@ -816,6 +837,51 @@ function Remove-UploadArtifactOption {
     return @($Lines | Where-Object {
         $_ -notmatch '^\s*#?\s*with:\s*(#.*)?$' -and $_ -notmatch '^\s*#?\s*upload-artifact:\s*true\s*(#.*)?$'
     })
+}
+
+function Remove-YamlComment {
+    # Strip a whole-line or trailing `# ...` comment from a trimmed YAML line. A `#` that is not
+    # preceded by whitespace (e.g. inside a URL or an anchor) is left alone.
+    param([string]$Line)
+    $t = $Line.Trim()
+    if ($t.StartsWith('#')) { return '' }
+    return ($t -replace '\s+#(\s.*)?$', '').TrimEnd()
+}
+
+function Test-WorkflowMatchesTemplate {
+    <# Comments are not part of the CI a workflow runs, so adding, removing or rewording them is
+       not a divergence. The template also ships optional parts commented out, such as the
+       node.yaml `test:` job under "# Uncomment this to enable running unit tests" and
+       `with: upload-artifact: true` in companion-module-checks.yaml. Enabling those is accepted.
+       So the module's non-comment lines must be exactly the template's non-comment lines, in
+       order, where any of the template's commented-out lines may also appear uncommented in its
+       place. Indentation is ignored (the caller has already trimmed it). #>
+    param([string[]]$ModuleLines, [string[]]$TemplateLines)
+    $mod = @($ModuleLines | ForEach-Object { Remove-YamlComment $_ } | Where-Object { $_ -ne '' })
+    $items = @(foreach ($l in $TemplateLines) {
+        $t = $l.Trim()
+        if ($t -eq '') { continue }
+        if ($t.StartsWith('#')) {
+            $u = Remove-YamlComment ($t -replace '^#\s?', '')
+            if ($u -ne '') { [pscustomobject]@{ Text = $u; Optional = $true } }
+        } else {
+            [pscustomobject]@{ Text = (Remove-YamlComment $t); Optional = $false }
+        }
+    })
+    $n = $items.Count; $m = $mod.Count
+    # ok[i,j]: template items i.. can produce exactly module lines j..
+    $ok = New-Object 'bool[,]' ($n + 1), ($m + 1)
+    for ($i = $n; $i -ge 0; $i--) {
+        for ($j = $m; $j -ge 0; $j--) {
+            if ($i -eq $n) { $ok[$i, $j] = ($j -eq $m); continue }
+            $it = $items[$i]
+            $v = $false
+            if ($j -lt $m -and $mod[$j] -ceq $it.Text -and $ok[($i + 1), ($j + 1)]) { $v = $true }
+            elseif ($it.Optional -and $ok[($i + 1), $j]) { $v = $true }
+            $ok[$i, $j] = $v
+        }
+    }
+    return $ok[0, 0]
 }
 
 function Resolve-TemplateFileRule {
@@ -897,6 +963,11 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $modLines = @($modLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' })
         $tplLines = @($tplLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' })
     }
+    if ($rel -eq '.gitattributes') {
+        # Extra rules that only mark file types as binary (e.g. `*.png binary`) make git detect
+        # those files correctly and are accepted; the template's own rule must still be there.
+        $modLines = @($modLines | Where-Object { ($tplLines -ccontains $_) -or ($_ -notmatch '^\S+\s+binary\s*$') })
+    }
     if ($rule.IgnoreIndent) {
         $modLines = @($modLines | ForEach-Object { $_.TrimStart() })
         $tplLines = @($tplLines | ForEach-Object { $_.TrimStart() })
@@ -959,6 +1030,24 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             Add-Finding 'TSCONFIG-DIFF' 'Info' $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
             continue
         }
+        if ($rule.Kind -eq 'workflow') {
+            if (Test-WorkflowMatchesTemplate -ModuleLines $modLines -TemplateLines $tplLines) { continue }
+            # Report the first difference between the lines that actually run, not a comment.
+            $modCode = @($modLines | ForEach-Object { Remove-YamlComment $_ } | Where-Object { $_ -ne '' })
+            $tplCode = @($tplLines | ForEach-Object { Remove-YamlComment $_ } | Where-Object { $_ -ne '' })
+            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($(Get-FirstLineDiff $modCode $tplCode))"
+            continue
+        }
+        if ($rel -eq '.prettierignore') {
+            $missingEntries = @($tplLines | Where-Object { $_ -ne '' -and -not $_.StartsWith('#') -and $modLines -cnotcontains $_ })
+            $extraEntries = @($modLines | Where-Object { $_ -ne '' -and -not $_.StartsWith('#') -and $tplLines -cnotcontains $_ })
+            if ($missingEntries.Count -eq 0 -and $extraEntries.Count -gt 0) {
+                Add-Finding 'CONFIG-DIFF' $rule.Severity $rel ("Extra entries not in template: $($extraEntries -join ', ') " +
+                    "(drop this finding if every extra entry is a generated file)")
+                continue
+            }
+            if ($missingEntries.Count -eq 0) { continue }   # only comments or blank lines differ
+        }
         Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Differs from template ($(Get-FirstLineDiff $modLines $tplLines))"
     }
 }
@@ -993,19 +1082,43 @@ if ($tplGitignore -and (Test-Path (Join-Path $ModuleDir '.git'))) {
     }
 }
 
-# ── 3b. LICENSE must match the template exactly ──────────────────────────────
-# The template's LICENSE is the licence Bitfocus ships for every module, copyright line
-# included — it is not a scaffold with placeholders to fill in. So this is a plain exact
-# match: a different licence body, or a different copyright holder/year, is a divergence.
-# Line endings and trailing whitespace are normalized away by Read-NormalizedLines, so a
-# CRLF checkout of the correct text is not a finding.
+# ── 3b. LICENSE must carry the template's licence text ───────────────────────
+# The template's LICENSE is the MIT licence. Its copyright line belongs to the module author:
+# with an MIT licence you never replace the holder, and the year is the year the module was
+# created. So the copyright line(s) are not compared at all. What must match is the licence
+# itself, compared word by word so line wrapping is not a difference, and with the
+# "The MIT License" spelling of the title accepted. A different licence, or changed licence
+# text, is a divergence. Line endings and trailing whitespace never matter.
+function Get-LicenseWords {
+    param([string[]]$Lines)
+    $body = @($Lines | Where-Object { $_ -notmatch '^\s*copyright\b' })
+    $words = @((($body -join ' ') -split '\s+') | Where-Object { $_ -ne '' })
+    if ($words.Count -ge 3 -and $words[0] -eq 'The' -and $words[1] -eq 'MIT' -and $words[2] -eq 'License') {
+        $words = @($words[1..($words.Count - 1)])
+    }
+    return ,$words
+}
+function Get-FirstWordDiff {
+    param([string[]]$ModuleWords, [string[]]$TemplateWords)
+    $max = [math]::Max($ModuleWords.Count, $TemplateWords.Count)
+    for ($i = 0; $i -lt $max; $i++) {
+        $m = if ($i -lt $ModuleWords.Count) { $ModuleWords[$i] } else { $null }
+        $t = if ($i -lt $TemplateWords.Count) { $TemplateWords[$i] } else { $null }
+        if ($m -cne $t) {
+            $mText = if ($i -lt $ModuleWords.Count) { ($ModuleWords[$i..([math]::Min($i + 7, $ModuleWords.Count - 1))] -join ' ') } else { '<missing>' }
+            $tText = if ($i -lt $TemplateWords.Count) { ($TemplateWords[$i..([math]::Min($i + 7, $TemplateWords.Count - 1))] -join ' ') } else { '<missing>' }
+            return "found '$mText', template '$tText'"
+        }
+    }
+    return ''
+}
 $modLicense = Join-Path $ModuleDir 'LICENSE'
 $tplLicense = Join-Path $TemplateDir 'LICENSE'
 if ((Test-Path $modLicense) -and (Test-Path $tplLicense)) {
-    $modL = @(Read-NormalizedLines $modLicense)
-    $tplL = @(Read-NormalizedLines $tplLicense)
-    if (($modL -join "`n") -ne ($tplL -join "`n")) {
-        Add-Finding 'LICENSE-DIFF' 'High' 'LICENSE' "Differs from template ($(Get-FirstLineDiff $modL $tplL))"
+    $modW = Get-LicenseWords @(Read-NormalizedLines $modLicense)
+    $tplW = Get-LicenseWords @(Read-NormalizedLines $tplLicense)
+    if (($modW -join ' ') -cne ($tplW -join ' ')) {
+        Add-Finding 'LICENSE-DIFF' 'High' 'LICENSE' "Licence text differs from the template ($(Get-FirstWordDiff $modW $tplW))"
     }
 }
 
@@ -1101,7 +1214,9 @@ if (Test-Path $manifestPath) {
         } else {
             foreach ($m in $man.maintainers) {
                 $badName  = (Has-Prop $m 'name')  -and ($m.name  -match '^(Your name)?$')
-                $badEmail = (Has-Prop $m 'email') -and ($m.email -match '^(Your email)?$')
+                # An empty email is allowed: a contact is nice to have but not required. Only the
+                # template's literal "Your email" placeholder is flagged (2026-10-30).
+                $badEmail = (Has-Prop $m 'email') -and ($m.email -eq 'Your email')
                 if ($badName -or $badEmail) {
                     Add-Finding 'MAN-PLACEHOLDER' 'Critical' 'companion/manifest.json' "Placeholder maintainer: name='$($m.name)' email='$($m.email)'"
                 }
