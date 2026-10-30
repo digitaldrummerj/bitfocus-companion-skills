@@ -82,11 +82,13 @@ $yarnrcTpl   = "nodeLinker: node-modules`nenableScripts: false`nnpmMinimalAgeGat
 $yarnrcCosmetic = "npmPreapprovedPackages:`n  - '@companion-module/*'`n`nenableScripts: false`n`nnodeLinker: node-modules`n`nnpmMinimalAgeGate: 3d"
 # The pre-2026-06-24 template contents, still shipped by older modules.
 $yarnrcOld   = "nodeLinker: node-modules"
-# LICENSE must match the template exactly — the copyright line included. The three
-# variants below cover the ways a module can diverge.
+# LICENSE must carry the template's licence text. The copyright line is the module author's
+# and is never compared; wrapping and the "The MIT License" title spelling don't matter.
 $licenseTpl       = "MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
 $licenseCopyright = "MIT License`n`nCopyright (c) 2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
-$licenseBody      = "The MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
+$licenseTheMit    = "The MIT License`n`nCopyright (c) 2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining a copy`nof this software."
+$licenseRewrapped = "MIT License`n`nCopyright (c) 2024-2026 Jane Dev`n`nPermission is hereby granted, free of charge, to any person obtaining`na copy of this software."
+$licenseBody      = "MIT License`n`nCopyright (c) 2025 Template Author`n`nPermission is hereby granted, for a fee, to any person obtaining a copy`nof this software."
 $licenseShort     = "MIT License`n`nCopyright (c) 2025 Template Author"
 
 $root = Join-Path ([System.IO.Path]::GetTempPath()) "validatetpl-$([System.IO.Path]::GetRandomFileName())"
@@ -432,36 +434,72 @@ try {
     $rconst = Invoke-Validator $esConst $esTpl
     Ok ((Get-EslintFindings $rconst 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rconst 'ESLINT-TEST-SCOPE').Count -eq 1) "the const + export default form with test-file globs is accepted"
 
+    # Extending the template's generateEslintConfig is accepted (reviewer rule, 2026-10-30):
+    # extra imports, extra options, src/ or global blocks, blocks before the base config.
+    function Test-Extends($name, $text, $label) {
+        $r = Invoke-Validator (New-EslintModule $name $text) $esTpl
+        $info = Get-EslintFindings $r 'ESLINT-EXTENDS'
+        Ok ((Get-EslintFindings $r 'CONFIG-DIFF').Count -eq 0 -and $info.Count -eq 1 -and $info[0].severity -eq 'Info') $label
+        return $info
+    }
+
     Write-Host "eslint.config.mjs with an override that reaches src/"
-    $esSrc = New-EslintModule 'essrc' ($esHead + "export default [`n`t...baseConfig,`n`t{ files: ['src/**/*.ts'], rules: { 'no-unused-vars': 'off' } },`n]")
-    $rsrc = Invoke-Validator $esSrc $esTpl
-    $srcDiff = Get-EslintFindings $rsrc 'CONFIG-DIFF'
-    Ok ($srcDiff.Count -eq 1 -and $srcDiff[0].severity -eq 'Critical' -and $srcDiff[0].message -match 'non-test files: src/') "an override on src/** is still a Critical CONFIG-DIFF naming it"
+    $null = Test-Extends 'essrc' ($esHead + "export default [`n`t...baseConfig,`n`t{ files: ['src/**/*.ts'], rules: { 'no-unused-vars': 'off' } },`n]") "an override on src/** extends the template: Info ESLINT-EXTENDS, no CONFIG-DIFF"
 
     Write-Host "eslint.config.mjs with an unscoped (global) rule override"
-    $esGlobal = New-EslintModule 'esglobal' ($esHead + "export default [`n`t...baseConfig,`n`t{ rules: { 'prettier/prettier': 'off' } },`n]")
-    $rglobal = Invoke-Validator $esGlobal $esTpl
-    Ok (@(Get-EslintFindings $rglobal 'CONFIG-DIFF' | Where-Object { $_.message -match 'no files: scope' }).Count -eq 1) "a rule block without files: is still a CONFIG-DIFF"
+    $null = Test-Extends 'esglobal' ($esHead + "export default [`n`t...baseConfig,`n`t{ rules: { 'prettier/prettier': 'off' } },`n]") "a rule block without files: extends the template"
 
-    Write-Host "eslint.config.mjs with changed generateEslintConfig options"
-    $esOpts = New-EslintModule 'esopts' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]")
-    $ropts = Invoke-Validator $esOpts $esTpl
-    Ok (@(Get-EslintFindings $ropts 'CONFIG-DIFF' | Where-Object { $_.message -match 'options differ' }).Count -eq 1) "changed generateEslintConfig options are still a CONFIG-DIFF"
+    Write-Host "eslint.config.mjs with an extra generateEslintConfig option"
+    $optInfo = Test-Extends 'esopts' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]") "an extra option (ignores) extends the template"
+    Ok ($optInfo.Count -eq 1 -and $optInfo[0].message -match 'options ignores') "…and the note names the extra option"
+
+    Write-Host "eslint.config.mjs passing an extra option straight to export default"
+    $null = Test-Extends 'esoptsdirect' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`tignores: ['dist/**'],`n})") "export default generateEslintConfig({ …template options, ignores }) extends the template"
 
     Write-Host "eslint.config.mjs with an extra plugin import"
-    $esImp = New-EslintModule 'esimport' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport vitest from '@vitest/eslint-plugin'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]")
-    $rimp = Invoke-Validator $esImp $esTpl
-    Ok (@(Get-EslintFindings $rimp 'CONFIG-DIFF' | Where-Object { $_.message -match 'imports differ' }).Count -eq 1) "an extra import is still a CONFIG-DIFF"
+    $impInfo = Test-Extends 'esimport' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport vitest from '@vitest/eslint-plugin'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{ files: ['tests/**/*.ts'], rules: {} },`n]") "an extra plugin import extends the template"
+    Ok ($impInfo.Count -eq 1 -and $impInfo[0].message -match '@vitest/eslint-plugin') "…and the note names the extra import"
+
+    Write-Host "eslint.config.mjs with typescript-eslint disableTypeChecked for vitest.config.ts"
+    $null = Test-Extends 'estseslint' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`nimport tseslint from 'typescript-eslint'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig,`n`t{`n`t`tfiles: ['vitest.config.ts'],`n`t`t...tseslint.configs.disableTypeChecked,`n`t},`n`t{ files: ['src/__tests__/**/*.ts'], rules: { 'n/no-unpublished-import': 'off' } },`n]") "the typescript-eslint disableTypeChecked block extends the template"
 
     Write-Host "eslint.config.mjs with a config placed before the base"
-    $esFirst = New-EslintModule 'esfirst' ($esHead + "export default [`n`t{ ignores: ['.squad/**'] },`n`t...baseConfig,`n]")
-    $rfirst = Invoke-Validator $esFirst $esTpl
-    Ok (@(Get-EslintFindings $rfirst 'CONFIG-DIFF' | Where-Object { $_.message -match 'not spread first' }).Count -eq 1) "anything before the base config is still a CONFIG-DIFF"
+    $null = Test-Extends 'esfirst' ($esHead + "export default [`n`t{ ignores: ['.squad/**'] },`n`t...baseConfig,`n]") "a block before the base config extends the template"
+
+    Write-Host "eslint.config.mjs spreading the generated config straight into the exported array"
+    $null = Test-Extends 'esinline' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default [`n`t...(await generateEslintConfig({`n`t`tenableTypescript: true,`n`t`tignores: ['src/register-js-to-ts.mjs'],`n`t})),`n`t{ files: ['**/*.spec.ts'], rules: { '@typescript-eslint/no-floating-promises': 'off' } },`n]") "export default [ ...(await generateEslintConfig({…})), … ] extends the template (astrastudio-onairscreen shape)"
+
+    Write-Host "eslint.config.mjs that changes a template option"
+    $rchg = Invoke-Validator (New-EslintModule 'eschanged' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: false,`n})")) $esTpl
+    $chg = Get-EslintFindings $rchg 'CONFIG-DIFF'
+    Ok ($chg.Count -eq 1 -and $chg[0].severity -eq 'Critical' -and $chg[0].message -match "changes the template's generateEslintConfig options") "changing a template option is still a Critical CONFIG-DIFF"
+
+    Write-Host "eslint.config.mjs that drops generateEslintConfig"
+    $rnone = Invoke-Validator (New-EslintModule 'esnone' ("import js from '@eslint/js'`n`nexport default [js.configs.recommended]")) $esTpl
+    Ok (@(Get-EslintFindings $rnone 'CONFIG-DIFF' | Where-Object { $_.message -match 'template import missing|does not use' }).Count -eq 1) "a config that no longer uses generateEslintConfig is a CONFIG-DIFF"
+
+    Write-Host "eslint.config.mjs that builds the base config but doesn't export it"
+    $runused = Invoke-Validator (New-EslintModule 'esunused' ($esHead + "export default [`n`t{ files: ['src/**/*.ts'], rules: {} },`n]")) $esTpl
+    Ok (@(Get-EslintFindings $runused 'CONFIG-DIFF' | Where-Object { $_.message -match 'not part of the exported config' }).Count -eq 1) "a generated config left out of the export is a CONFIG-DIFF"
+
+    # Hardening: the extends check must not be satisfiable by tricks that override or drop
+    # the template's config while still looking like an extension.
+    function Test-NotExtends($name, $text, $pattern, $label) {
+        $r = Invoke-Validator (New-EslintModule $name $text) $esTpl
+        Ok (@(Get-EslintFindings $r 'CONFIG-DIFF' | Where-Object { $_.message -match $pattern }).Count -eq 1 -and (Get-EslintFindings $r 'ESLINT-EXTENDS').Count -eq 0) $label
+    }
+    Write-Host "eslint.config.mjs extends-check hardening"
+    Test-NotExtends 'esdupkey' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`tenableTypescript: false,`n})") 'repeat a key' "a repeated option key is a CONFIG-DIFF"
+    Test-NotExtends 'esoptspread' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst over = { enableTypescript: false }`nexport default generateEslintConfig({`n`tenableTypescript: true,`n`t...over,`n})") 'use a spread' "a spread inside the options is a CONFIG-DIFF"
+    Test-NotExtends 'esslice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst baseConfig = await generateEslintConfig({`n`tenableTypescript: true,`n})`n`nexport default [`n`t...baseConfig.slice(0, 0),`n`t{ rules: {} },`n]") 'not part of the exported config' "spreading baseConfig.slice(...) is a CONFIG-DIFF"
+    Test-NotExtends 'esinlineslice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nexport default [`n`t...(await generateEslintConfig({`n`t`tenableTypescript: true,`n`t})).slice(0, 0),`n`t{ rules: {} },`n]") 'neither exported nor assigned' "spreading (await generateEslintConfig(…)).slice(...) is a CONFIG-DIFF"
+    Test-NotExtends 'esstring' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst note = 'generateEslintConfig({ enableTypescript: true })'`nexport default [{ rules: {} }]") 'does not use' "a generateEslintConfig call inside a string doesn't count"
+    Test-NotExtends 'estwice' ("import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'`n`nconst a = await generateEslintConfig({`n`tenableTypescript: true,`n})`nconst b = await generateEslintConfig({`n`tenableTypescript: false,`n})`nexport default [...b]") 'more than once' "calling generateEslintConfig twice is a CONFIG-DIFF"
 
     Write-Host "eslint.config.mjs identical to the template"
     $esSame = New-EslintModule 'essame' $esTplText
     $rsame2 = Invoke-Validator $esSame $esTpl
-    Ok ((Get-EslintFindings $rsame2 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-TEST-SCOPE').Count -eq 0) "an unchanged eslint config has no finding at all"
+    Ok ((Get-EslintFindings $rsame2 'CONFIG-DIFF').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-TEST-SCOPE').Count -eq 0 -and (Get-EslintFindings $rsame2 'ESLINT-EXTENDS').Count -eq 0) "an unchanged eslint config has no finding at all"
 
     # ── .yarnrc.yml divergences ──────────────────────────────────────────────
     # Compared by parsed key against the *main* template (never the pinned -v1 one),
@@ -542,9 +580,9 @@ try {
     Ok ($v1Old.Count -eq 1 -and $v1Old[0].message -match 'Missing template keys') `
         "judges v1 modules against the main template's yarnrc, not the pinned -v1 copy"
 
-    # ── LICENSE must match the template exactly ──────────────────────────────
-    # The template's LICENSE is the licence itself, copyright line included — not a
-    # scaffold to personalise. Any divergence is a High finding.
+    # ── LICENSE must carry the template's licence text ───────────────────────
+    # The copyright line belongs to the module author (MIT: you never replace the holder; the
+    # year is when the module was created), so it is not compared. Changed licence text is High.
     function Get-LicenseFindings($result) {
         return @($result.findings | Where-Object { $_.id -eq 'LICENSE-DIFF' })
     }
@@ -555,19 +593,66 @@ try {
 
     Write-Host "LICENSE — copyright line differs only"
     $lCopy = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'liccopy' $yarnrcTpl '~2.0.4' $licenseCopyright) $tpl)
-    Ok ($lCopy.Count -eq 1 -and $lCopy[0].severity -eq 'High') `
-        "flags a differing copyright line at High (the copyright line is no longer exempt)"
-    Ok ($lCopy.Count -eq 1 -and $lCopy[0].message -match "line 3: found 'Copyright \(c\) 2026 Jane Dev'") `
-        "names the differing copyright line"
+    Ok ($lCopy.Count -eq 0) "does not flag the author's own copyright holder and year"
 
-    Write-Host "LICENSE — fewer lines than the template"
+    Write-Host "LICENSE — 'The MIT License' title"
+    $lThe = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licthe' $yarnrcTpl '~2.0.4' $licenseTheMit) $tpl)
+    Ok ($lThe.Count -eq 0) "does not flag the 'The MIT License' spelling of the title"
+
+    Write-Host "LICENSE — same text, wrapped differently"
+    $lWrap = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licwrap' $yarnrcTpl '~2.0.4' $licenseRewrapped) $tpl)
+    Ok ($lWrap.Count -eq 0) "does not flag the same licence text wrapped at different line breaks"
+
+    Write-Host "LICENSE — licence text changed"
+    $lText = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'lictext' $yarnrcTpl '~2.0.4' $licenseBody) $tpl)
+    Ok ($lText.Count -eq 1 -and $lText[0].severity -eq 'High') "flags changed licence text at High"
+    Ok ($lText.Count -eq 1 -and $lText[0].message -match "found 'for a fee,") "names the first differing words"
+
+    Write-Host "LICENSE — licence text missing"
     $lShort = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'licshort' $yarnrcTpl '~2.0.4' $licenseShort) $tpl)
     Ok ($lShort.Count -eq 1 -and $lShort[0].message -match '<missing>') `
-        "flags a truncated LICENSE and reports the missing line"
+        "flags a truncated LICENSE and reports the missing text"
 
     Write-Host "LICENSE — CRLF line endings, same text"
     $lCrlf = Get-LicenseFindings (Invoke-Validator (New-YarnrcModule 'liccrlf' $yarnrcTpl '~2.0.4' ($licenseTpl -replace "`n", "`r`n")) $tpl)
     Ok ($lCrlf.Count -eq 0) "does not flag a CRLF checkout of the correct LICENSE text"
+
+    Write-Host ".gitattributes — comment lines added around the template rule"
+    Set-File (Join-Path $good '.gitattributes') "# Normalize line endings: store as LF in the repo.`n# Keeps prettier from flagging CRLF on Windows checkouts.`n* text=auto eol=lf"
+    $ga1 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga1 'CONFIG-DIFF' '.gitattributes').Count -eq 0) "comment-only additions to .gitattributes are not reported"
+    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.png binary`n*.companionconfig binary"
+    $ga3 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga3 'CONFIG-DIFF' '.gitattributes').Count -eq 0) "extra '<pattern> binary' rules are not reported"
+    Set-File (Join-Path $good '.gitattributes') "# line endings`n* text=auto eol=lf`n*.js eol=crlf"
+    $ga2 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga2 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…but any other extra rule still is"
+    Set-File (Join-Path $good '.gitattributes') "*.png binary"
+    $ga4 = Invoke-Validator $good $tpl
+    Ok ((Find-Findings $ga4 'CONFIG-DIFF' '.gitattributes').Count -eq 1) "…and binary rules don't excuse a missing template rule"
+    Set-File (Join-Path $good '.gitattributes') "* text=auto eol=lf"
+
+    Write-Host "Manifest — empty maintainer email"
+    $goodMan = Join-Path $good 'companion/manifest.json'
+    $goodManText = Get-Content -Raw $goodMan
+    Set-File $goodMan ($goodManText -replace '"jane@example\.com"', '""')
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-PLACEHOLDER' $null).Count -eq 0) "an empty maintainer email is not a placeholder (a contact is not required)"
+    Set-File $goodMan ($goodManText -replace '"jane@example\.com"', '"Your email"')
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-PLACEHOLDER' $null).Count -eq 1) "…but the template's 'Your email' placeholder still is"
+    Set-File $goodMan $goodManText
+
+    Write-Host ".prettierignore — extra entries only"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE.md`n# generated`nsrc/generated.ts"
+    $pi1 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi1.Count -eq 1 -and $pi1[0].message -match 'Extra entries not in template: src/generated\.ts') `
+        "lists the extra entries so the reviewer can drop it when they are generated files"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE"
+    $pi2 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi2.Count -eq 1 -and $pi2[0].message -notmatch 'Extra entries') "a changed template entry is a plain CONFIG-DIFF"
+    Set-File (Join-Path $good '.prettierignore') "# keep prettier off these`npackage.json`n/LICENSE.md"
+    $pi3 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
+    Ok ($pi3.Count -eq 0) "comment-only additions to .prettierignore are not reported"
+    Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE.md"
 
     # ── BAD module ───────────────────────────────────────────────────────────
     $bad = Join-Path $root 'companion-module-bar'
@@ -749,7 +834,7 @@ try {
     $d1 = Invoke-Validator $good $dtpl
     $miss = Find-Findings $d1 'FILE-MISSING' '.github/workflows/node.yaml'
     Ok ($miss.Count -eq 1)                                        "a template-tracked file missing from the module is reported"
-    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing CI workflow is Medium by default (the reviewer may raise it)"
+    Ok ($miss.Count -eq 1 -and $miss[0].severity -eq 'Medium')     "a missing .github workflow stays Medium"
     Ok ((Find-Findings $d1 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "a missing file is not ALSO reported as a content diff"
 
     Write-Host "Derived file set — module-owned files are never compared"
@@ -768,10 +853,20 @@ try {
     $d3 = Invoke-Validator $good $dtpl
     $diff = Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/node.yaml'
     Ok ($diff.Count -eq 1)                                     "a diverging .github workflow is reported"
-    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'Medium') "…at Medium by default"
+    Ok ($diff.Count -eq 1 -and $diff[0].severity -eq 'High')   "…at High: a .github file the module has must match"
     Ok ($d3.counts.critical -eq 0)                             "…so it doesn't raise the critical count"
     Ok ((Find-Findings $d3 'FILE-MISSING' '.github/workflows/node.yaml').Count -eq 0) "…and not also as missing"
     Ok ((Find-Findings $d3 'CONFIG-DIFF' '.github/workflows/checks.yaml').Count -eq 0) "an identical .github workflow is not flagged"
+
+    Write-Host "Derived file set — a .github workflow that is only re-indented"
+    Set-File (Join-Path $dtpl '.github/workflows/indent.yaml') "name: indent`non:`n  push:`njobs:`n  check:`n    runs-on: ubuntu-latest"
+    Set-File (Join-Path $good '.github/workflows/indent.yaml') "name: indent`non:`n    push:`njobs:`n    check:`n        runs-on: ubuntu-latest"
+    $d3b = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d3b 'CONFIG-DIFF' '.github/workflows/indent.yaml').Count -eq 0) "indentation-only differences in .github are not reported"
+    Set-File (Join-Path $good '.github/workflows/indent.yaml') "name: indent`non:`n    push:`njobs:`n    check:`n        runs-on: windows-latest"
+    $d3c = Invoke-Validator $good $dtpl
+    Ok ((Find-Findings $d3c 'CONFIG-DIFF' '.github/workflows/indent.yaml').Count -eq 1) "…but a real change alongside the re-indent still is"
+    Remove-Item -Force (Join-Path $good '.github/workflows/indent.yaml'), (Join-Path $dtpl '.github/workflows/indent.yaml')
 
     Write-Host "CI workflows — the upload-artifact customisation in companion-module-checks.yaml"
     $checksTpl = "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    # with:`n    #   upload-artifact: true # uncomment this to upload the built package"
@@ -783,7 +878,7 @@ try {
     $d5 = Invoke-Validator $good $dtpl
     Ok ((Find-Findings $d5 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "enabling upload-artifact is the accepted customisation"
     $it = Find-Findings $d5 'CONFIG-DIFF' '.github/ISSUE_TEMPLATE/bug.md'
-    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'Medium')    "other .github files (issue templates) stay Medium"
+    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'High')      "other .github files (issue templates) that differ are High too"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl
     $d6 = Invoke-Validator $good $dtpl
@@ -792,13 +887,41 @@ try {
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@main`n    with:`n      upload-artifact: true`n      prerelease: true"
     $d7 = Invoke-Validator $good $dtpl
     $wx = Find-Findings $d7 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml'
-    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'Medium')    "any other with: input is still a CONFIG-DIFF (Medium)"
+    Ok ($wx.Count -eq 1 -and $wx[0].severity -eq 'High')      "any other with: input is still a CONFIG-DIFF (High)"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') "name: Companion Module Checks`njobs:`n  check:`n    uses: bitfocus/actions/.github/workflows/module-checks.yaml@v1`n    with:`n      upload-artifact: true"
     $d8 = Invoke-Validator $good $dtpl
     Ok ((Find-Findings $d8 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 1) "upload-artifact doesn't excuse another change in the file"
     Remove-Item -Recurse -Force (Join-Path $good '.github/ISSUE_TEMPLATE'), (Join-Path $good '.github/workflows/companion-module-checks.yaml')
     Remove-Item -Recurse -Force (Join-Path $dtpl '.github/ISSUE_TEMPLATE'), (Join-Path $dtpl '.github/workflows/companion-module-checks.yaml')
+
+    Write-Host "CI workflows — comments and the template's optional test job"
+    $nodeTpl = "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest # pinned runner`n    steps:`n      - run: yarn lint`n`n  # Uncomment this to enable running unit tests`n  # test:`n  #   runs-on: ubuntu-latest`n  #   steps:`n  #     - run: yarn test"
+    Set-File (Join-Path $dtpl '.github/workflows/node.yaml') $nodeTpl
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "removing the template's comments (and the commented-out test job) is not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`n# our CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n`n  test:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn test"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "enabling the template's commented-out test job is not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n`n  test:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn test --coverage"
+    $wt = Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml'
+    Ok ($wt.Count -eq 1 -and $wt[0].severity -eq 'High') "…but a test job that differs from the template's is still reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: windows-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 1) `
+        "…and so is a change to a line that runs"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    # Note: lint runs on every push, see the README.`n    # keep this job first: later jobs depend on it`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "prose comments added by the module are not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n      # - run: yarn build"
+    $wc = Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml'
+    Ok ($wc.Count -eq 1 -and $wc[0].message -match 'Comments out code that is not in the template: # - run: yarn build') `
+        "commented-out code that isn't in the template is still reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    # runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 1) `
+        "commenting out one of the template's lines is still reported"
+    Set-File (Join-Path $dtpl '.github/workflows/node.yaml') "name: node`njobs: {}"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: node`njobs: {}"
 
     Write-Host "Derived file set — a template file with no rule"
     Set-File (Join-Path $dtpl '.editorconfig') "root = true`nindent_style = tab"

@@ -28,6 +28,7 @@ Companion handles network drops and configuration changes well: it calls `config
 - **Report:** a concrete, likely failure a user hits in normal use that comes from the module's own logic (for example an action that sends the wrong command, or a status that never shows the connection failed).
 - **Don't report:** hypothetical timing and race findings:
   - settings saved while a request or poll is in flight;
+  - an error or crash that only happens while the connection is torn down (settings saved, connection disabled or deleted) during a connection attempt or while the device is unreachable, for example the `ws` "closed before the connection was established" error after `removeAllListeners()`. Companion restarts the module, and the next connect works;
   - late events from an old socket;
   - overlapping polls;
   - status briefly flapping during a reconnect;

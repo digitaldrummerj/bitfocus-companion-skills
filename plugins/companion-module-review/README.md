@@ -61,7 +61,7 @@ claude --plugin-dir <path-to>/bitfocus-companion-skills/plugins/companion-module
 | Workspace layout, review file naming, TRACKER rows | `skills/review-workspace-conventions/` |
 | Assigning yourself as reviewer in the developer portal (your logged-in Chrome), for one module or a whole batch up front | `skills/review-assign-reviewer/` |
 | Delivering a review: push it, then request changes with the findings link or approve in the portal, then watch the build | `skills/review-submit/` |
-| Pipeline scripts: `bitfocus-queue` (marks new modules), `bitfocus-setup-module`, `bitfocus-watch-build` (approval build: published / failed / timed out), `module-facts`, `validate-template`, `api-scan`, `lint-review` (Step 7a markdownlint, pinned, `reviews/` only), `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
+| Pipeline scripts: `bitfocus-queue` (marks new modules; lists ⬜ TRACKER rows whose version is no longer pending), `bitfocus-setup-module`, `bitfocus-watch-build` (approval build: published / failed / timed out), `module-facts`, `validate-template`, `api-scan`, `lint-review` (Step 7a markdownlint, pinned, `reviews/` only), `edit-finding` (remove a finding or change its severity in a written review, renumbering IDs, links, assumptions, the Issues list and the Verdict), `update-templates`, `archive-reviewed-clones`, `cleanup-modules` | `scripts/` |
 
 The skills call the scripts as `pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.ps1`, and the scripts locate everything at runtime:
 

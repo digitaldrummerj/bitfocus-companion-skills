@@ -72,16 +72,27 @@ $skippedTypes = @($allVersions | Where-Object { $versions -notcontains $_ } |
     Group-Object { if ($_.PSObject.Properties.Name -contains 'moduleType') { $_.moduleType } else { '(none)' } } |
     ForEach-Object { "$($_.Count) $($_.Name)" })
 
+# Parse TRACKER.md once for the whole queue.
+$trackerRows = @(Get-TrackerRows -TrackerPath $trackerPath)
+
+# ⬜ rows whose version is no longer pending: delivered outside review-submit (e.g. approved by
+# hand in the portal). Table mode only, so the -Json output keeps its shape.
+function Write-StaleTrackerRows {
+    $stale = @(Get-StaleTrackerRows -TrackerRows $trackerRows -PendingVersions $allVersions)
+    if ($Json -or $stale.Count -eq 0) { return }
+    Write-Host ""
+    Write-Host "TRACKER rows still ⬜ but no longer pending in the portal (approved, rejected or withdrawn there):" -ForegroundColor DarkYellow
+    $stale | ForEach-Object { Write-Host "  $($_.Module) @ $($_.Version) ($($_.Date)) — mark it ✅ if the review was delivered" -ForegroundColor DarkYellow }
+}
+
 if (-not $versions -or $versions.Count -eq 0) {
     if ($Json) { '[]' } else {
         Write-Host "No pending $ModuleType reviews found." -ForegroundColor Green
         if ($skippedTypes) { Write-Host "Skipped (other module types): $($skippedTypes -join ', ')" -ForegroundColor DarkGray }
+        Write-StaleTrackerRows
     }
     exit 0
 }
-
-# Parse TRACKER.md once for the whole queue.
-$trackerRows = @(Get-TrackerRows -TrackerPath $trackerPath)
 
 # Published module ids, to tell a new module from an update. Optional: on failure, newModule is $null.
 $publishedIds = $null
@@ -173,4 +184,5 @@ if ($nextUp) {
 } else {
     Write-Host "Nothing to review — every pending module is reviewed with feedback still to send." -ForegroundColor Green
 }
+Write-StaleTrackerRows
 Write-Host ""

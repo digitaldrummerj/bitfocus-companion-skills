@@ -842,6 +842,29 @@ function Get-ReviewState {
     }
 }
 
+function Get-StaleTrackerRows {
+    <#
+    .SYNOPSIS
+        TRACKER rows still marked not delivered (⬜) whose version is no longer pending review.
+    .DESCRIPTION
+        Happens when the version was approved, rejected or withdrawn in the portal outside
+        review-submit (e.g. the reviewer approved it by hand). The row should then be ✅.
+    .OUTPUTS
+        The matching tracker row objects (see Get-TrackerRows).
+    #>
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$TrackerRows,
+        # Every pending version from modules-pending-review, of any module type.
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$PendingVersions
+    )
+    $pending = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($v in $PendingVersions) { [void]$pending.Add("$($v.moduleName)@$(ConvertTo-NormalizedTag $v.gitTag)") }
+    return @($TrackerRows | Where-Object {
+        -not $_.Submitted -and $_.Module -and $_.Version -and
+        -not $pending.Contains("$($_.Module)@$(ConvertTo-NormalizedTag $_.Version)")
+    })
+}
+
 function Get-ReviewStateLabel {
     <# Human-readable label for a state value. #>
     param([Parameter(Mandatory)][string]$State)

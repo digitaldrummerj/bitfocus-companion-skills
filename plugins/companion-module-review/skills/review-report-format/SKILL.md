@@ -12,6 +12,7 @@ Defines how the final review markdown is laid out. There is **no scorecard**: th
 - When assembling the final review file from the deterministic findings and the reviewers' findings
 - When generating the 📋 Issues list with anchor links to each finding
 - When a review needs retroactive formatting
+- When the reviewer removes a finding or changes its severity in a written review (use `edit-finding.ps1`)
 
 ---
 
@@ -56,6 +57,23 @@ Exit code 0 = clean. Otherwise fix every reported line and re-run until it is cl
 
 ---
 
+## Removing a Finding or Changing Its Severity
+
+When the reviewer drops a finding from a written review ("remove H1 and H2") or changes its severity ("make H1 a Next Release item"), use the script. Don't edit the IDs by hand:
+
+```powershell
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/edit-finding.ps1 -ReviewFile reviews/<name>/<review-file>.md -Remove H1,H2
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/edit-finding.ps1 -ReviewFile reviews/<name>/<review-file>.md -Move H1 -To NextRelease -Title "Add feedbacks before 1.0.0, so buttons can show the device's state"
+```
+
+It deletes or moves the finding, renumbers what follows (H3 → H2, including links and anchors), drops assumptions that only affected removed findings and renumbers the rest, rebuilds the 📋 Issues list, and sets the Verdict. `-DryRun` prints the summary without writing. Then:
+
+- read every **Warning** line: an ID mentioned outside a link (e.g. "Prior review H2") is never rewritten, because it may refer to another review;
+- after a move, reword the finding's text where it still argues for its old severity (e.g. "A first release needs at least one feedback" → "please add feedbacks before 1.0.0");
+- run `lint-review.ps1`.
+
+---
+
 ## Section Order
 
 1. Title + meta table
@@ -74,6 +92,8 @@ Exit code 0 = clean. Otherwise fix every reported line and re-run until it is cl
 Omit any section that has no content. Do **not** add a scorecard, a "Fix Summary", a "What's Solid" section, or summary/count lines.
 
 **No 🧪 Tests section.** When a module has tests they are run, but the report says nothing about them unless they **fail**. A failing test run is an ordinary finding in the severity section that fits its impact (name the failing test and the error). Passing tests, coverage, test quality and missing tests are never mentioned.
+
+**Finding IDs** by section: `C` Critical, `H` High, `M` Medium, `L` Low, `N` Nice to Have, `NR` Next Release, numbered from 1 in each section (`C1`, `NR1`, …).
 
 **Blocking** = every finding in the `🔴 Critical` and `🟠 High` sections (pre-existing ones in those sections included). Everything else is non-blocking. Blocking drives the Verdict and the 📋 Issues grouping; it is never printed as a count.
 
@@ -122,6 +142,7 @@ Each item is a GitHub-flavored Markdown task list item (`- [ ]`). On a re-review
 - [ ] [M1: Issue title here](#m1-issue-title-here)
 - [ ] [L1: Issue title here](#l1-issue-title-here)
 - [ ] [N1: Issue title here](#n1-issue-title-here)
+- [ ] [NR1: Issue title here](#nr1-issue-title-here)
 
 ### Notes
 

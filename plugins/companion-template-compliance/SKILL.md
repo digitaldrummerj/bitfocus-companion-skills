@@ -72,7 +72,7 @@ All JS files above, **plus**:
 
 > **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
 
-> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. `.github/**` divergences (a missing or different workflow, issue templates) are 🟡 Medium by default. The reviewer may raise one to blocking when it makes the module confusing to troubleshoot against the template, for example a CI Node version that doesn't match the runtime, or a missing template workflow. **One accepted customisation:** in `companion-module-checks.yaml`, uncommenting the template's `with:` / `upload-artifact: true` lines (the template tells you to) is not a divergence.
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. A `.github/**` file the module has must match the template: a different workflow or issue template is 🟠 High (blocking), because a drifted file confuses later troubleshooting. A missing `.github` file is 🟡 Medium. Indentation-only and comment-only differences are not a divergence, as long as the comments are prose: commenting out a template line, or adding commented-out code that isn't in the template, still is. **Accepted customisation:** enabling anything the template ships commented out is not a divergence: the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and the `with:` / `upload-artifact: true` lines in `companion-module-checks.yaml` (the template tells you to uncomment them).
 
 ---
 
@@ -99,6 +99,8 @@ All JS files above, **plus**:
 ```
 * text=auto eol=lf
 ```
+
+Comment lines are fine (for example one explaining the rule), and so are extra rules that only mark file types as binary (`*.png binary`). The template's rule itself must be there and match.
 
 ### `.gitignore`
 
@@ -128,9 +130,11 @@ package.json
 /LICENSE.md
 ```
 
+Both template entries must be there unchanged. Extra entries for generated files (a generated source file, build output) are fine; an extra entry that hides hand-written source from Prettier is a divergence.
+
 ### `LICENSE`
 
-Must match the template **exactly**, including `Copyright (c) 2022 Bitfocus AS - Open Source`. The template's LICENSE is the licence Bitfocus ships for every module, not a scaffold to personalise — a maintainer's own name or year is a divergence (🟠 High). Line endings and trailing whitespace are not. A module that genuinely needs different terms should raise it with Bitfocus.
+Must carry the template's MIT licence text. The copyright line is the module author's: with an MIT licence you never replace the holder, and the year is the year the module was created, so a different copyright line is **not** a divergence. Line wrapping, line endings and the `The MIT License` spelling of the title aren't either. A different licence, or changed licence text, is a divergence (🟠 High). A module that genuinely needs different terms should raise it with Bitfocus.
 
 ### `.yarnrc.yml`
 
@@ -189,23 +193,27 @@ The v1 template extends `node22/recommended` with `"module"`/`"moduleResolution"
 
 Not a finding, as long as every value the template sets is still present and unchanged. A different `extends`, any other added or changed compiler option, or a removed template `include` entry is still a divergence.
 
-**Accepted divergence: `eslint.config.mjs` with test-only overrides.** To relax rules for tests (e.g. `n/no-unpublished-import`, `@typescript-eslint/unbound-method`), a module may change the template's `export default generateEslintConfig({…})` into:
+**Accepted divergence: `eslint.config.mjs` that extends the template's config.** A module may keep the template's `generateEslintConfig` call and build on it:
 
 ```js
+import { generateEslintConfig } from '@companion-module/tools/eslint/config.mjs'
+import tseslint from 'typescript-eslint'
+
 const baseConfig = await generateEslintConfig({ enableTypescript: true })
 export default [
 	...baseConfig,
-	{ files: ['tests/**/*.ts', 'vitest.config.ts'], rules: { 'n/no-unpublished-import': 'off' } },
+	{ files: ['vitest.config.ts'], ...tseslint.configs.disableTypeChecked },
+	{ files: ['tests/**/*.ts'], rules: { 'n/no-unpublished-import': 'off' } },
 ]
 ```
 
-Not a finding, provided all of these hold:
-- The imports are the template's.
-- The `generateEslintConfig` options are unchanged.
-- `...baseConfig` comes first.
-- Every extra block is scoped by `files:` to test or tooling paths (`tests/**`, `__mocks__/**`, `scripts/**`, `*.test.*`, `*.spec.*`, root `*.config.*`).
+Extra imports and plugins, extra `generateEslintConfig` options (such as `ignores`), and extra config blocks before or after the base config (including `src/` overrides) are the module's choice, not a finding.
 
-A block that targets `src/**`, has no `files:`, or adds plugins, imports or changed options is still a divergence.
+Still a divergence:
+- a template import is removed;
+- `generateEslintConfig` is no longer called;
+- one of the template's own options is removed or changed (e.g. `enableTypescript: false`);
+- the generated config is not part of what is exported.
 
 ---
 
@@ -297,7 +305,7 @@ All JS rules above, **plus**:
 | `id` | must equal the module name **without** the `companion-module-` prefix |
 | `name` | the human-facing module name — **expected to differ** from `id` (e.g. `id: fblab-bpm2osc` / `name: BPM2OSC`). Don't flag it |
 | `maintainers[].name` | must NOT be `"Your name"` or any obvious placeholder |
-| `maintainers[].email` | must NOT be `"Your email"` or any obvious placeholder |
+| `maintainers[].email` | must NOT be `"Your email"`. An empty email is allowed: a contact is nice to have but not required |
 | `maintainers` | must NOT be empty array `[]` |
 | `repository` | must be `"git+https://github.com/bitfocus/companion-module-{module-name}.git"` |
 | `type` | `"connection"` on base 2.x (required since 2.0.4); absent on v1 manifests — don't flag a v1 module for it |
@@ -367,8 +375,9 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | Missing template `.gitignore` entries (extra module entries are fine) | **🔴 Critical** (blocks) |
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
 | `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
-| `LICENSE` differs from the template (including the `Copyright (c) 2022 Bitfocus AS - Open Source` line) | **🟠 High** |
-| `.github/**` workflow / issue-template missing or different (except enabling `upload-artifact: true` in `companion-module-checks.yaml`, which is accepted) | **🟡 Medium** by default; the reviewer may raise it to blocking |
+| `LICENSE` licence text differs from the template (the copyright line is the author's and is not compared) | **🟠 High** |
+| `.github/**` workflow / issue template present but different (except indentation-only or comment-only changes, and enabling what the template ships commented out: the `node.yaml` test job, `upload-artifact: true`) | **🟠 High** |
+| `.github/**` workflow / issue template missing | **🟡 Medium** |
 
 ---
 
