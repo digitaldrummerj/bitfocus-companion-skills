@@ -910,6 +910,16 @@ try {
     Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: windows-latest`n    steps:`n      - run: yarn lint"
     Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 1) `
         "…and so is a change to a line that runs"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    # Note: lint runs on every push, see the README.`n    # keep this job first: later jobs depend on it`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) `
+        "prose comments added by the module are not reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint`n      # - run: yarn build"
+    $wc = Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml'
+    Ok ($wc.Count -eq 1 -and $wc[0].message -match 'Comments out code that is not in the template: # - run: yarn build') `
+        "commented-out code that isn't in the template is still reported"
+    Set-File (Join-Path $good '.github/workflows/node.yaml') "name: CI`njobs:`n  lint:`n    # runs-on: ubuntu-latest`n    steps:`n      - run: yarn lint"
+    Ok ((Find-Findings (Invoke-Validator $good $dtpl) 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 1) `
+        "commenting out one of the template's lines is still reported"
     Set-File (Join-Path $dtpl '.github/workflows/node.yaml') "name: node`njobs: {}"
     Set-File (Join-Path $good '.github/workflows/node.yaml') "name: node`njobs: {}"
 

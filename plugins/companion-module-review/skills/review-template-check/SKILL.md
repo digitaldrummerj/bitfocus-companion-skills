@@ -100,7 +100,7 @@ meta table.
 
 A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is also a `TSCONFIG-DIFF` note. Report it inside the `MAN-RUNTIME` finding's fix, not as a separate note.
 
-**Accepted deviation: comments and the template's commented-out options in `.github` workflows.** Comments are not part of the CI a workflow runs, so the validator compares only the lines that run: adding, removing or rewording comments is not a finding. Anything the template ships commented out may also be enabled. That covers the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and `upload-artifact: true` in `companion-module-checks.yaml`, which the template tells the maintainer to uncomment so the built package is uploaded as a workflow artifact:
+**Accepted deviation: comments and the template's commented-out options in `.github` workflows.** Comments are not part of the CI a workflow runs, so the validator compares only the lines that run: adding, removing or rewording prose comments is not a finding. A comment that is really commented-out code is different: commenting out one of the template's lines, or parking new code in a comment (`# - run: yarn build`), is still a High `CONFIG-DIFF` (`Comments out code that is not in the template: …`). Anything the template ships commented out may also be enabled. That covers the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and `upload-artifact: true` in `companion-module-checks.yaml`, which the template tells the maintainer to uncomment so the built package is uploaded as a workflow artifact:
 
 ```yaml
     uses: bitfocus/actions/.github/workflows/module-checks.yaml@main

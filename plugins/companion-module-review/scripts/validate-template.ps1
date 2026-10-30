@@ -884,6 +884,22 @@ function Test-WorkflowMatchesTemplate {
     return $ok[0, 0]
 }
 
+function Get-CommentedOutWorkflowCode {
+    <# Comments are ignored only while they are prose. A comment that is really commented-out
+       code (a YAML key such as `runs-on: ...`, a `- uses: ...` list item, an expression) and
+       is not one of the template's own commented-out lines is still a divergence: it either
+       disables a template line or parks new code in the file. Keys in workflow YAML are
+       lowercase, so a prose comment such as "Note: ..." is not mistaken for code. #>
+    param([string[]]$ModuleLines, [string[]]$TemplateLines)
+    $tplCommented = @($TemplateLines | ForEach-Object { $_.Trim() } | Where-Object { $_.StartsWith('#') } |
+        ForEach-Object { Remove-YamlComment ($_ -replace '^#\s?', '') } | Where-Object { $_ -ne '' })
+    return @($ModuleLines | ForEach-Object { $_.Trim() } | Where-Object { $_.StartsWith('#') } | ForEach-Object {
+        $u = Remove-YamlComment ($_ -replace '^#\s?', '')
+        $isCode = ($u -cmatch '^-\s+\S') -or ($u -cmatch '^[a-z_][\w.-]*:(\s|$)') -or ($u -cmatch '^\$\{\{')
+        if ($u -ne '' -and $isCode -and ($tplCommented -cnotcontains $u)) { $_ }
+    })
+}
+
 function Resolve-TemplateFileRule {
     param([Parameter(Mandatory)][string]$Rel)
     foreach ($r in $templateFileRules) {
@@ -1031,7 +1047,12 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             continue
         }
         if ($rule.Kind -eq 'workflow') {
-            if (Test-WorkflowMatchesTemplate -ModuleLines $modLines -TemplateLines $tplLines) { continue }
+            if (Test-WorkflowMatchesTemplate -ModuleLines $modLines -TemplateLines $tplLines) {
+                $parked = @(Get-CommentedOutWorkflowCode -ModuleLines $modLines -TemplateLines $tplLines)
+                if ($parked.Count -eq 0) { continue }
+                Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Comments out code that is not in the template: $($parked -join '; ')"
+                continue
+            }
             # Report the first difference between the lines that actually run, not a comment.
             $modCode = @($modLines | ForEach-Object { Remove-YamlComment $_ } | Where-Object { $_ -ne '' })
             $tplCode = @($tplLines | ForEach-Object { Remove-YamlComment $_ } | Where-Object { $_ -ne '' })
