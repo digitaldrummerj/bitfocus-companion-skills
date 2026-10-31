@@ -727,6 +727,23 @@ try {
     Ok ($b.counts.critical -gt 0)              "reports critical count > 0"
     Ok ($null -ne $b.counts.info)              "counts now carries an info bucket"
 
+    # ── Comments must be in English (COMMENT-LANGUAGE) ──────────────────────────
+    Write-Host "Comments in English"
+    $cl = Join-Path $root 'companion-module-commentlang'
+    Copy-Item -Recurse -Force $good $cl
+    Set-File (Join-Path $cl 'src/a.js') "// 设备通道编号为 0 起始`nconst x = 1 // 读`n/* Δt in µs, Ω */`nconst s = '// 读 PGM 当前信号源'`n"
+    Set-File (Join-Path $cl 'src/b.ts') "/**`n * Сброс соединения`n * English line`n */`nexport const y = 2`n"
+    Set-File (Join-Path $cl 'src/c.js') "// Verbindung herstellen (German is for the compliance reviewer)`nconst z = `"Привет`"`n"
+    Set-File (Join-Path $cl 'node_modules/dep/index.js') "// 中文注释"
+    $clr = Invoke-Validator $cl $tpl
+    $clf = Find-Findings $clr 'COMMENT-LANGUAGE' $null
+    Ok ($clf.Count -eq 1 -and $clf[0].severity -eq 'High')            "non-English comments are one High COMMENT-LANGUAGE finding"
+    Ok ($clf.Count -eq 1 -and $clf[0].message -match 'src/a\.js \(2 lines: 1-2\)') "…a single CJK character counts; strings and Greek letters do not"
+    Ok ($clf.Count -eq 1 -and $clf[0].message -match 'src/b\.ts \(1 line: 2\)')    "…lines inside a block comment are numbered one by one"
+    Ok ($clf.Count -eq 1 -and $clf[0].message -notmatch 'c\.js|node_modules')      "…Latin-script comments, string literals and node_modules are not flagged"
+    Ok ($clf.Count -eq 1 -and $clf[0].message -match '3 comment lines are')          "…with the total line count"
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'COMMENT-LANGUAGE' $null).Count -eq 0) "an English-only module has no COMMENT-LANGUAGE"
+
     # ── Freshness: the template clone must not be behind upstream ─────────────
     # Every fixture above passes a non-git -TemplateDir and expects silence; these build a
     # real (local) upstream + clone pair so the gate can be exercised without a network.

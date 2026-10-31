@@ -1453,6 +1453,72 @@ if (Test-Path $helpPath) {
     }
 }
 
+# ── 6b. Code comments must be in English ─────────────────────────────────────
+# Every comment in the module's code must be written in English: the next maintainer, the
+# reviewers, and anyone troubleshooting a module must be able to read it. This check finds
+# comments written in a non-Latin script (Chinese, Japanese, Korean, Cyrillic, Arabic, Hebrew,
+# Thai, …): one Chinese, Japanese or Korean character (each is a word on its own), or a run of
+# two or more letters from another script outside the Latin and Greek blocks. Greek is left out
+# because single Greek letters (Δ, Ω, λ) are common in English technical comments. A comment in
+# a Latin-script language (German, Spanish, Dutch, …) can't be told apart from English by its
+# letters, so the companion-compliance-reviewer reports those. String literals are skipped:
+# only // and /* */ comments are checked.
+$commentTokenRe = [regex]::new('''(?:\\.|[^''\\\n])*''|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|(?<c>//[^\n]*|/\*[\s\S]*?\*/)')
+$nonLatinRunRe  = [regex]::new('[\p{IsCJKUnifiedIdeographs}\p{IsHiragana}\p{IsKatakana}\p{IsHangulSyllables}]|[\p{L}-[\p{IsBasicLatin}\p{IsLatin-1Supplement}\p{IsLatinExtended-A}\p{IsLatinExtended-B}\p{IsLatinExtendedAdditional}\p{IsIPAExtensions}\p{IsSpacingModifierLetters}\p{IsGreekandCoptic}\p{IsGreekExtended}]]{2,}')
+$codeExtRe      = '\.(ts|mts|cts|tsx|js|mjs|cjs|jsx)$'
+$skipDirRe      = '(^|/)(node_modules|dist|pkg|build|out|coverage|\.yarn|\.git)/'
+function Get-NonEnglishCommentLines {
+    param([string]$Text)
+    $lines = [System.Collections.Generic.SortedSet[int]]::new()
+    foreach ($m in $commentTokenRe.Matches($Text)) {
+        $c = $m.Groups['c']
+        if (-not $c.Success) { continue }
+        $startLine = $Text.Substring(0, $c.Index).Split("`n").Count
+        $i = 0
+        foreach ($part in $c.Value.Split("`n")) {
+            if ($nonLatinRunRe.IsMatch($part)) { [void]$lines.Add($startLine + $i) }
+            $i++
+        }
+    }
+    return ,([int[]]@($lines))
+}
+function Format-LineRanges {
+    param([int[]]$Lines, [int]$Max = 12)
+    $ranges = [System.Collections.Generic.List[string]]::new()
+    $i = 0
+    while ($i -lt $Lines.Count) {
+        $j = $i
+        while ($j + 1 -lt $Lines.Count -and $Lines[$j + 1] -eq $Lines[$j] + 1) { $j++ }
+        $ranges.Add($(if ($j -gt $i) { "$($Lines[$i])-$($Lines[$j])" } else { "$($Lines[$i])" }))
+        $i = $j + 1
+    }
+    $text = ($ranges | Select-Object -First $Max) -join ', '
+    if ($ranges.Count -gt $Max) { $text += ', …' }
+    return $text
+}
+$codeFiles = if (Test-Path (Join-Path $ModuleDir '.git')) {
+    @(& git -C $ModuleDir ls-files 2>$null)
+} else {
+    @(Get-ChildItem -LiteralPath $ModuleDir -File -Recurse -ErrorAction SilentlyContinue |
+        ForEach-Object { [System.IO.Path]::GetRelativePath($ModuleDir, $_.FullName).Replace('\', '/') })
+}
+$codeFiles = @($codeFiles | Where-Object { $_ -match $codeExtRe -and "/$_" -notmatch $skipDirRe } | Sort-Object)
+$langItems = [System.Collections.Generic.List[string]]::new()
+$langFiles = [System.Collections.Generic.List[string]]::new()
+$langTotal = 0
+foreach ($rel in $codeFiles) {
+    $full = Join-Path $ModuleDir $rel
+    if (-not (Test-Path -LiteralPath $full)) { continue }
+    $hits = Get-NonEnglishCommentLines ((Get-Content -Raw -LiteralPath $full -Encoding utf8) -replace "`r`n", "`n")
+    if ($hits.Count -eq 0) { continue }
+    $langTotal += $hits.Count
+    $langFiles.Add($rel)
+    $langItems.Add("$rel ($($hits.Count) line$(if ($hits.Count -ne 1) { 's' }): $(Format-LineRanges $hits))")
+}
+if ($langItems.Count -gt 0) {
+    Add-Finding 'COMMENT-LANGUAGE' 'High' $langFiles[0] ("Code comments must be written in English. $langTotal comment line$(if ($langTotal -ne 1) { 's are' } else { ' is' }) in another language: " + ($langItems -join '; '))
+}
+
 # ── 7. husky (TS) ────────────────────────────────────────────────────────────
 # The hook is now also content-compared in §2 (the template tracks it), so a hook that
 # diverges *and* drops lint-staged would otherwise be reported twice for the same line.
