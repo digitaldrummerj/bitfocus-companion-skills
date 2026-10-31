@@ -89,6 +89,7 @@ meta table.
 | `manifest.json`: non-placeholder maintainers (an empty `email` is allowed), banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match the template; see the runtime rule below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
 | **(Critical when the manifest runtime is behind · High otherwise)** The module's Node version matches the template's in **every** place: manifest `runtime.type`, `package.json` `engines.node` and `@types/node`, the `tsconfig.build.json` preset, `node-version` in every workflow (commented-out lines included), and `.nvmrc` / `.node-version`. One finding lists every place that is off (see the Node version rule below) | `NODE-VERSION` |
 | `companion/HELP.md` not a stub | `HELP-STUB` |
+| **(Info — 📋 Issues `### Notes` group, never blocking)** Commit messages since the previous tag (the whole history on a first release) are in English. Only non-Latin scripts are detected; the compliance reviewer notes Latin-script languages. History isn't rewritten for this, so the review asks for future commit messages in English (review-report-format → Notes) | `COMMIT-LANGUAGE` |
 | **(High)** Everything is in English: code comments, user-facing text (labels, tooltips, log and status messages), `companion/HELP.md`, `README.md` and every other tracked text file (`node_modules`, `dist`, `pkg`, `.yarn`, lockfiles and binaries skipped). Each line is checked for a non-Latin script: any Chinese, Japanese or Korean character, or a run of two or more Cyrillic, Arabic, Hebrew, Thai, … letters (Greek is exempt: Δ, Ω, λ are common in English text). The author's own name is exempt (LICENSE copyright lines, the name/author/email lines of `package.json` and the manifest), and test files are checked for comments only, since a test may use non-English data on purpose. One finding lists every file with its line ranges. Text in a Latin-script language (German, Spanish, Portuguese, …) can't be detected by its letters; the compliance reviewer reports it under the same rule | `NOT-ENGLISH` |
 | TS husky `pre-commit` runs `lint-staged` | `HUSKY` |
 | Build / lint (with `-RunBuild`) | `BUILD-INSTALL`, `BUILD-PACKAGE`, `LINT` |
@@ -222,6 +223,8 @@ manifest.json maintainers[0].name = "Your name"  ← placeholder, must be replac
 ```
 
 `TSCONFIG-DIFF` goes to **📝 Additional Notes** only (never blocking, never in 📋 Issues).
+
+`COMMIT-LANGUAGE` goes to the 📋 Issues `### Notes` group as one line asking for future commit messages in English (never blocking, no checkbox).
 
 Findings addressed to *you* rather than the maintainer — `TEMPLATE-STALE`,
 `TEMPLATE-UNVERIFIED`, `TEMPLATE-COVERAGE`, `TSCONFIG-DEV-SCOPE`, `ESLINT-TEST-SCOPE`, `ESLINT-EXTENDS` — never appear in the review markdown.

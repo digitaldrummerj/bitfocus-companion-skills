@@ -167,6 +167,13 @@ try {
     Set-File (Join-Path $ws 'companion-modules-reviewing/x/review.md') $fixture
     $r = Invoke-Edit @('-ReviewFile', 'companion-modules-reviewing/x/review.md', '-Remove', 'H1')
     Ok ($r.Code -eq 2 -and $r.Out -match 'outside')                      "a file outside reviews/ is refused"
+    Write-Host "edit-finding.ps1 keeps one-line notes in the Notes group"
+    $noteLine = '- **Commit messages:** the commit messages are in Spanish. Write future commit messages in English.'
+    Set-File $file ($fixture -replace "### Notes`n`n", "### Notes`n`n$noteLine`n")
+    $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H1')
+    $t = Get-Content -LiteralPath $file -Raw
+    Ok ($r.Code -eq 0 -and $t.Contains("### Notes`n`n$noteLine`n- [📝 Additional Notes](#-additional-notes)")) "a one-line note stays in the Notes group, ahead of the Additional Notes link"
+
     Set-File $file ($fixture -replace '### Notes', '### Something else')
     $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H1')
     Ok ($r.Code -eq 2 -and $r.Out -match 'layout')                       "an Issues list with an unknown layout is refused"

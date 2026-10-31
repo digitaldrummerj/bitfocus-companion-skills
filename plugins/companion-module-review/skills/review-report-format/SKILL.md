@@ -125,7 +125,8 @@ or (no blocking findings)
 - The groups are `### Blocking` / `### Non-blocking` **headings** (never bold-only lines — that is MD036), each followed by a blank line before its list
 - If there are no blocking issues, omit the `### Blocking` heading and its list
 - If there are no non-blocking issues, omit the `### Non-blocking` heading and its list
-- If there is no 📝 Additional Notes section, omit the `### Notes` group
+- **Notes for future releases go in the `### Notes` group itself**, as one-line bullets ahead of the Additional Notes link, so the maintainer sees them near the top. They ask for something the maintainer can't fix in this release, only from now on. The one in use today: **commit messages not in English** (the validator's Info `COMMIT-LANGUAGE`, or the compliance reviewer for Latin-script languages), written as `- **Commit messages:** the commit messages in this release are in <language> (e.g. `<hash>` "<subject>"). Please write future commit messages in English.` They're not checklist items either.
+- If there is no 📝 Additional Notes section and no such note, omit the `### Notes` group
 
 Each item is a GitHub-flavored Markdown task list item (`- [ ]`). On a re-review, mark an item `- [x]` once the maintainer has addressed it in the resubmitted version.
 

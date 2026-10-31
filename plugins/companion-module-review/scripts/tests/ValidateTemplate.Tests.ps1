@@ -752,6 +752,21 @@ try {
     Ok ($clm -match '7 lines are')                                "…with the total line count"
     Ok ((Find-Findings (Invoke-Validator $good $tpl) 'NOT-ENGLISH' $null).Count -eq 0) "an English-only module has no NOT-ENGLISH"
 
+    # ── Commit messages should be in English (COMMIT-LANGUAGE note) ──────────────
+    Write-Host "Commit messages in English"
+    $cm = Join-Path $root 'companion-module-commitlang'
+    Copy-Item -Recurse -Force $good $cm
+    & git -C $cm init -q 2>$null | Out-Null
+    Git-Q $cm @('add', '-A'); Git-Q $cm @('commit', '-q', '-m', 'Initial commit'); Git-Q $cm @('tag', 'v1.0.0')
+    Set-File (Join-Path $cm 'src/x.js') "export const a = 1"
+    Git-Q $cm @('add', '-A'); Git-Q $cm @('commit', '-q', '-m', '添加新功能')
+    Set-File (Join-Path $cm 'src/y.js') "export const b = 2"
+    Git-Q $cm @('add', '-A'); Git-Q $cm @('commit', '-q', '-m', 'Add y')
+    $cmf = Find-Findings (Invoke-Validator $cm $tpl) 'COMMIT-LANGUAGE' $null
+    Ok ($cmf.Count -eq 1 -and $cmf[0].severity -eq 'Info')                      "a non-English commit message is one Info COMMIT-LANGUAGE note"
+    Ok ($cmf.Count -eq 1 -and $cmf[0].message -match '^1 of 2 commit messages since v1\.0\.0') "…counting only the commits since the previous tag"
+    Ok ($cmf.Count -eq 1 -and $cmf[0].message -match '添加新功能')               "…quoting an example"
+
     # ── Freshness: the template clone must not be behind upstream ─────────────
     # Every fixture above passes a non-git -TemplateDir and expects silence; these build a
     # real (local) upstream + clone pair so the gate can be exercised without a network.

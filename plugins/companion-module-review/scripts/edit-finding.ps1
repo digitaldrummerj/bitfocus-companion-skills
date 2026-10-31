@@ -19,6 +19,7 @@
         (A1..An, including [A2](#-assumptions-to-confirm) links in the text), and drops the
         section when no assumption is left;
       - rebuilds the 📋 Issues list (Blocking / Non-blocking / Notes) from the findings,
+        keeping any one-line notes in the Notes group,
         keeping each item's [x] state;
       - sets the Verdict from what is left: ❌ Changes Required while any Critical/High remains,
         ✅ Approved otherwise.
@@ -186,9 +187,15 @@ foreach ($id in $requested) {
 $issues = @($sections | Where-Object { $_.Heading -match '^## 📋' })
 if ($issues.Count -ne 1) { Fail "Expected one '## 📋 Issues' section, found $($issues.Count)" }
 $checked = @{}
+# One-line notes in the ### Notes group (e.g. "commit messages must be in English") are kept as
+# they are, ahead of the 📝 Additional Notes link.
+$extraNotes = [System.Collections.Generic.List[string]]::new()
+$issueGroup = ''
 foreach ($e in $issues[0].Lines) {
     $t = $e.Text
-    if (-not $t.Trim() -or $t -match '^### (Blocking|Non-blocking|Notes)\s*$' -or $t -match '^- \[📝 Additional Notes\]') { continue }
+    if ($t -match '^### (Blocking|Non-blocking|Notes)\s*$') { $issueGroup = $Matches[1]; continue }
+    if (-not $t.Trim() -or $t -match '^- \[📝 Additional Notes\]') { continue }
+    if ($issueGroup -eq 'Notes' -and $t -match '^- ') { $extraNotes.Add($t); continue }
     if ($t -match '^- \[([ xX])\] \[(NR|C|H|M|L|N)(\d+): ') { $checked["$($Matches[2])$($Matches[3])"] = ($Matches[1] -ne ' '); continue }
     Fail "Line $($e.LineNo): the 📋 Issues list has a layout this script doesn't know ('$t'); edit this review by hand"
 }
@@ -324,7 +331,12 @@ foreach ($s in $sections) {
     if ($s.Heading -match '^## 📋') {
         if ($blocking.Count) { $out.Add('### Blocking'); $out.Add(''); $blocking | ForEach-Object { $out.Add((Format-Item $_)) }; $out.Add('') }
         if ($nonBlocking.Count) { $out.Add('### Non-blocking'); $out.Add(''); $nonBlocking | ForEach-Object { $out.Add((Format-Item $_)) }; $out.Add('') }
-        if ($hasNotes) { $out.Add('### Notes'); $out.Add(''); $out.Add('- [📝 Additional Notes](#-additional-notes)'); $out.Add('') }
+        if ($hasNotes -or $extraNotes.Count) {
+            $out.Add('### Notes'); $out.Add('')
+            foreach ($n in $extraNotes) { $out.Add($n) }
+            if ($hasNotes) { $out.Add('- [📝 Additional Notes](#-additional-notes)') }
+            $out.Add('')
+        }
         continue
     }
     if ($s.Prefix) {

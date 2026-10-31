@@ -1545,6 +1545,27 @@ if ($langItems.Count -gt 0) {
     Add-Finding 'NOT-ENGLISH' 'High' $langFiles[0] ("Everything in the module must be written in English (code comments, user-facing text, HELP.md, README.md, …). $langTotal line$(if ($langTotal -ne 1) { 's are' } else { ' is' }) in another language: " + ($langItems -join '; '))
 }
 
+# ── 6c. Commit messages should be in English (note) ──────────────────────────
+# Commit messages are part of the module's history that the next maintainer reads, so they
+# belong in English too. History can't be fixed in this release without rewriting it, so this is
+# an Info note, not a finding: the review puts it in the 📋 Issues "Notes" group and asks for
+# future commits in English. Checked: the commits since the previous tag before HEAD (all of
+# them on a first release), for the same non-Latin scripts as NOT-ENGLISH. Commit messages in a
+# Latin-script language (Spanish, German, …) are the compliance reviewer's to note.
+if (Test-Path (Join-Path $ModuleDir '.git')) {
+    $prevTag = (& git -C $ModuleDir describe --tags --abbrev=0 'HEAD^' 2>$null)
+    $range = if ($LASTEXITCODE -eq 0 -and $prevTag) { "$($prevTag.Trim())..HEAD" } else { 'HEAD' }
+    $log = (& git -C $ModuleDir log --no-merges --format='%h%x1f%B%x1e' $range 2>$null) -join "`n"
+    $commits = @($log -split "\x1e" | Where-Object { $_.Trim() })
+    $bad = @($commits | Where-Object { $nonLatinRunRe.IsMatch(($_ -split "\x1f", 2)[1]) })
+    if ($bad.Count -gt 0) {
+        $first = $bad[0].Trim() -split "\x1f", 2
+        $subject = (($first[1] -split "`n")[0]).Trim()
+        $since = if ($range -eq 'HEAD') { 'in the history' } else { "since $($range -replace '\.\.HEAD$', '')" }
+        Add-Finding 'COMMIT-LANGUAGE' 'Info' '' ("$($bad.Count) of $($commits.Count) commit messages $since are not in English (e.g. $($first[0]) '$subject'). Future commit messages must be written in English.")
+    }
+}
+
 # ── 7. husky (TS) ────────────────────────────────────────────────────────────
 # The hook is now also content-compared in §2 (the template tracks it), so a hook that
 # diverges *and* drops lint-staged would otherwise be reported twice for the same line.
