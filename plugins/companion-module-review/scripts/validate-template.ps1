@@ -228,6 +228,28 @@ if (Test-Path $tplPkgPath) { try { $tplPkg = Get-Content -Raw -LiteralPath $tplP
 $tplManPath = Join-Path $TemplateDir 'companion/manifest.json'
 if (Test-Path $tplManPath) { try { $tplMan = Get-Content -Raw -LiteralPath $tplManPath | ConvertFrom-Json } catch { } }
 
+# The Node major the template runs on (manifest runtime.type "node26" -> 26). Every place a module
+# names its Node version must follow it: manifest runtime.type, package.json engines.node and
+# @types/node, the tsconfig.build.json preset and node-version in the workflows. §5b reports every
+# place that is off in ONE NODE-VERSION finding, so §2 and §5 don't also report those lines. A
+# runtime NEWER than the template's (node26 on an API 2.0 module) is a different problem (the base
+# is too old for it): MAN-RUNTIME says so, and the NODE-VERSION check is skipped.
+function Get-NodeMajor { param([string]$Text) if ("$Text" -match '(\d+)') { return [int]$Matches[1] } return $null }
+$nodeTarget = $null
+if ($tplMan -and (Has-Prop $tplMan 'runtime') -and (Has-Prop $tplMan.runtime 'type') -and "$($tplMan.runtime.type)" -match '^node(\d+)$') {
+    $nodeTarget = [int]$Matches[1]
+    if ("$modRuntimeType" -match '^node(\d+)$' -and [int]$Matches[1] -gt $nodeTarget) { $nodeTarget = $null }
+}
+$nodeVersionRe = '^(\s*#?\s*-?\s*)node-version:\s*(.*)$'
+$tsPresetRe    = '"@companion-module/tools/tsconfig/node(\d+)/[^"]*"'
+function Get-TemplateTsPreset {
+    $f = Join-Path $TemplateDir 'tsconfig.build.json'
+    if (-not (Test-Path $f)) { return $null }
+    $m = [regex]::Match((Get-Content -Raw -LiteralPath $f), $tsPresetRe)
+    if ($m.Success) { return $m.Value } else { return $null }
+}
+$tplTsPreset = Get-TemplateTsPreset
+
 # ── 1. Required files ────────────────────────────────────────────────────────
 # Only files that are required REGARDLESS of what the template happens to track live here.
 # Everything else (.gitattributes, .gitignore, .prettierignore, .yarnrc.yml, and the TS-only
@@ -971,6 +993,13 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $modLines = @($modLines | ForEach-Object { Normalize-TsconfigLine $_ })
         $tplLines = @($tplLines | ForEach-Object { Normalize-TsconfigLine $_ })
     }
+    if ($rule.Kind -eq 'tsconfig' -and $null -ne $nodeTarget -and $tplTsPreset) {
+        # A preset for another Node major is reported by NODE-VERSION (§5b), not as a TSCONFIG-DIFF.
+        $modLines = @($modLines | ForEach-Object {
+            $pm = [regex]::Match($_, $tsPresetRe)
+            if ($pm.Success -and [int]$pm.Groups[1].Value -ne $nodeTarget) { $_.Replace($pm.Value, $tplTsPreset) } else { $_ }
+        })
+    }
     if ($rule.Kind -eq 'workflow' -and [IO.Path]::GetFileName($rel) -eq 'companion-module-checks.yaml') {
         $modLines = Remove-UploadArtifactOption $modLines
         $tplLines = Remove-UploadArtifactOption $tplLines
@@ -987,6 +1016,16 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
     if ($rule.IgnoreIndent) {
         $modLines = @($modLines | ForEach-Object { $_.TrimStart() })
         $tplLines = @($tplLines | ForEach-Object { $_.TrimStart() })
+    }
+    if ($rule.Kind -eq 'workflow' -and $null -ne $nodeTarget) {
+        # node-version values are reported by NODE-VERSION (§5b), so they are not a CONFIG-DIFF too.
+        $tplNode = @($tplLines | Where-Object { $_ -match $nodeVersionRe } | ForEach-Object { ([regex]::Match($_, $nodeVersionRe)).Groups[2].Value.Trim() }) | Select-Object -First 1
+        if ($tplNode) {
+            $modLines = @($modLines | ForEach-Object {
+                $mm = [regex]::Match($_, $nodeVersionRe)
+                if ($mm.Success -and $null -ne (Get-NodeMajor $mm.Groups[2].Value)) { "$($mm.Groups[1].Value)node-version: $tplNode" } else { $_ }
+            })
+        }
     }
     if ($rule.Kind -eq 'gitignore-subset') {
         # Subset rule: every template entry must be present in the module's .gitignore.
@@ -1279,9 +1318,10 @@ if (Test-Path $manifestPath) {
                     if ($allowed -contains $have) { continue }
                     $msg = if ($have -eq 'node26') {
                         "runtime.type 'node26' requires @companion-module/base >= 2.1 (Companion 5.0+); this module resolves to $($baseInfo.version) (API $($baseInfo.apiLevel)). Use 'node22' or upgrade base to ~2.1.x"
+                    } elseif ($null -ne $nodeTarget -and $have -match '^node\d+$' -and $allowed -contains "node$nodeTarget") {
+                        continue   # an older Node runtime: NODE-VERSION (§5b) lists it with every other place to update
                     } elseif ($allowed.Count -eq 1) {
-                        $hint = if ($isTs -and $allowed[0] -eq 'node26') { "; also extend '@companion-module/tools/tsconfig/node26/recommended.json' in tsconfig.build.json, as the template does" } else { '' }
-                        "runtime.type '$have' should be '$($allowed[0])' to match the API $($baseInfo.apiLevel) template$hint"
+                        "runtime.type '$have' should be '$($allowed[0])' to match the API $($baseInfo.apiLevel) template"
                     } else {
                         "runtime.type '$have' should be one of: $($allowed -join ', ') (API $($baseInfo.apiLevel))"
                     }
@@ -1289,6 +1329,7 @@ if (Test-Path $manifestPath) {
                     continue
                 }
                 if ($have -ne $want) {
+                    if ($rp -eq 'type' -and $null -ne $nodeTarget -and $have -match '^node\d+$' -and $want -eq "node$nodeTarget") { continue }   # NODE-VERSION (§5b)
                     Add-Finding 'MAN-RUNTIME' 'Critical' 'companion/manifest.json' "runtime.$rp '$have' should be '$want'"
                 }
             }
@@ -1309,6 +1350,82 @@ if (Test-Path $manifestPath) {
                 }
             }
         }
+    }
+}
+
+# ── 5b. Node version: every place must name the template's Node major ─────────
+# Upgrading Node (e.g. node22 -> node26 for API 2.1) touches several files, and a review must list
+# all of them every time, so one finding names every place that is still on another version:
+#   companion/manifest.json  runtime.type
+#   package.json             engines.node, devDependencies @types/node (when the template has them)
+#   tsconfig.build.json      the @companion-module/tools/tsconfig/node<N>/ preset (TS)
+#   .github/workflows/*      every node-version line, commented-out ones included
+#   .nvmrc / .node-version   when the module has one
+# Critical when the manifest runtime is behind (it decides what Companion runs), otherwise High.
+if ($null -ne $nodeTarget) {
+    $nodeItems = [System.Collections.Generic.List[string]]::new()
+    $nodeFiles = [System.Collections.Generic.List[string]]::new()
+    $runtimeBehind = $false
+    if ("$modRuntimeType" -match '^node(\d+)$' -and [int]$Matches[1] -ne $nodeTarget) {
+        $runtimeBehind = $true
+        $nodeItems.Add("companion/manifest.json runtime.type '$modRuntimeType' -> 'node$nodeTarget'"); $nodeFiles.Add('companion/manifest.json')
+    }
+    if ($pkg -and $tplPkg -and (Has-Prop $tplPkg 'engines') -and (Has-Prop $tplPkg.engines 'node') -and (Has-Prop $pkg 'engines')) {
+        $want = "$($tplPkg.engines.node)"
+        if (-not (Has-Prop $pkg.engines 'node')) {
+            $nodeItems.Add("package.json engines.node missing -> '$want'"); $nodeFiles.Add('package.json')
+        } elseif ((Get-NodeMajor $pkg.engines.node) -ne $nodeTarget) {
+            $nodeItems.Add("package.json engines.node '$($pkg.engines.node)' -> '$want'"); $nodeFiles.Add('package.json')
+        }
+    }
+    if ($pkg -and $tplPkg -and (Has-Prop $tplPkg 'devDependencies') -and (Has-Prop $tplPkg.devDependencies '@types/node') -and
+        (Has-Prop $pkg 'devDependencies') -and (Has-Prop $pkg.devDependencies '@types/node')) {
+        $have = "$($pkg.devDependencies.'@types/node')"
+        if ((Get-NodeMajor $have) -ne $nodeTarget) {
+            $nodeItems.Add("package.json devDependencies @types/node '$have' -> '$($tplPkg.devDependencies.'@types/node')'"); $nodeFiles.Add('package.json')
+        }
+    }
+    $modTsBuild = Join-Path $ModuleDir 'tsconfig.build.json'
+    if ($tplTsPreset -and (Test-Path $modTsBuild)) {
+        $pm = [regex]::Match((Get-Content -Raw -LiteralPath $modTsBuild), $tsPresetRe)
+        if ($pm.Success -and [int]$pm.Groups[1].Value -ne $nodeTarget) {
+            $nodeItems.Add("tsconfig.build.json extends $($pm.Value) -> $tplTsPreset"); $nodeFiles.Add('tsconfig.build.json')
+        }
+    }
+    $wfDir = Join-Path $ModuleDir '.github/workflows'
+    if (Test-Path $wfDir) {
+        foreach ($wf in @(Get-ChildItem -LiteralPath $wfDir -File | Where-Object { $_.Extension -in '.yml', '.yaml' } | Sort-Object Name)) {
+            $rel = ".github/workflows/$($wf.Name)"
+            $tplWf = Join-Path $TemplateDir $rel
+            $tplNode = if (Test-Path $tplWf) {
+                @(Get-Content -LiteralPath $tplWf | Where-Object { $_ -match $nodeVersionRe } | ForEach-Object { ([regex]::Match($_, $nodeVersionRe)).Groups[2].Value.Trim() }) | Select-Object -First 1
+            } else { $null }
+            if (-not $tplNode) { $tplNode = "$nodeTarget.x" }
+            $lineNo = 0
+            foreach ($line in @(Get-Content -LiteralPath $wf.FullName)) {
+                $lineNo++
+                $mm = [regex]::Match($line, $nodeVersionRe)
+                if (-not $mm.Success) { continue }
+                $val = $mm.Groups[2].Value.Trim()
+                $maj = Get-NodeMajor $val
+                if ($null -eq $maj -or $maj -eq $nodeTarget) { continue }
+                $note = if ($mm.Groups[1].Value -match '#') { ' (commented out)' } else { '' }
+                $nodeItems.Add("$rel line $lineNo node-version $val -> $tplNode$note"); $nodeFiles.Add($rel)
+            }
+        }
+    }
+    foreach ($vf in @('.nvmrc', '.node-version')) {
+        $vp = Join-Path $ModuleDir $vf
+        if (Test-Path $vp) {
+            $val = (Get-Content -Raw -LiteralPath $vp).Trim()
+            $maj = Get-NodeMajor $val
+            if ($null -ne $maj -and $maj -ne $nodeTarget) { $nodeItems.Add("$vf '$val' -> '$nodeTarget'"); $nodeFiles.Add($vf) }
+        }
+    }
+    if ($nodeItems.Count -gt 0) {
+        $sev = if ($runtimeBehind) { 'Critical' } else { 'High' }
+        $apiText = if ($baseInfo.apiLevel) { "API $($baseInfo.apiLevel) " } else { '' }
+        Add-Finding 'NODE-VERSION' $sev $nodeFiles[0] ("The ${apiText}template runs on Node $nodeTarget; update every place still on another version: " + ($nodeItems -join '; '))
     }
 }
 

@@ -985,15 +985,31 @@ try {
 
     # ── Runtime by API level: each level must match its own template ─────────
     # 2.0 modules are judged against the -v2.0.4 template (node22), 2.1+ against main (node26).
-    # A 2.1 module must be on node26 like its template; node22 there is a Critical, and node26
-    # on a 2.0 module is a Critical that says why. tsconfig differences stay TSCONFIG-DIFF notes.
+    # A 2.1 module must be on node26 like its template: every place still on node22 is listed in
+    # one NODE-VERSION finding. node26 on a 2.0 module is a Critical MAN-RUNTIME that says why.
     $preset22 = '@companion-module/tools/tsconfig/node22/recommended-esm.json'
     $preset26 = '@companion-module/tools/tsconfig/node26/recommended.json'
+    # Each template names its Node major in five places; the fixtures keep them consistent.
+    $nodeSet = @{
+        node22 = @{ Engines = '^22.20'; Types = '^22.19.17'; Ci = '22.x' }
+        node26 = @{ Engines = '^26';    Types = '^26.6.4';   Ci = '26.x' }
+    }
+    function Get-NodeCiWorkflow($ci, $testCi) {
+        if (-not $testCi) { $testCi = $ci }
+        return "name: Node CI`non: [push]`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - uses: actions/setup-node@v6`n        with:`n          node-version: $ci`n  # test:`n  #   runs-on: ubuntu-latest`n  #   steps:`n  #     - uses: actions/setup-node@v6`n  #       with:`n  #         node-version: $testCi`n"
+    }
+    function Set-NodePackageFields($dir, $engines, $types) {
+        $pkgText = (Get-Content -Raw (Join-Path $dir 'package.json')) -replace '"node": "\^22\.20"', "`"node`": `"$engines`""
+        $pkgText = $pkgText -replace '"devDependencies": \{ ', "`"devDependencies`": { `"@types/node`": `"$types`", "
+        Set-File (Join-Path $dir 'package.json') $pkgText
+    }
     function New-ApiTemplate($name, $runtime, $preset) {
         $dir = Join-Path $root $name
         Copy-Item -Recurse -Force $tsTpl $dir
         Set-File (Join-Path $dir 'tsconfig.build.json') "{`n`t`"extends`": `"$preset`",`n`t`"compilerOptions`": { `"outDir`": `"./dist`" }`n}"
         Set-File (Join-Path $dir 'package.json') (Get-Content -Raw (Join-Path (New-TsModule "$name-src" '"types": ["node"]') 'package.json'))
+        Set-NodePackageFields $dir $nodeSet[$runtime].Engines $nodeSet[$runtime].Types
+        Set-File (Join-Path $dir '.github/workflows/node.yaml') (Get-NodeCiWorkflow $nodeSet[$runtime].Ci)
         Set-File (Join-Path $dir 'companion/manifest.json') (@'
 {
   "type": "connection",
@@ -1008,8 +1024,11 @@ try {
     }
     $tpl20 = New-ApiTemplate 'companion-module-template-ts-api20' 'node22' $preset22
     $tpl21 = New-ApiTemplate 'companion-module-template-ts-api21' 'node26' $preset26
-    function New-ApiModule($name, $baseRange, $runtime, $buildExtends, [string]$lockVersion) {
+    function New-ApiModule($name, $baseRange, $runtime, $buildExtends, [string]$lockVersion, [string]$NodeOf = $runtime, [string]$Ci, [string]$TestCi) {
         $dir = New-TsModule $name '"types": ["node"]'
+        Set-NodePackageFields $dir $nodeSet[$NodeOf].Engines $nodeSet[$NodeOf].Types
+        if (-not $Ci) { $Ci = $nodeSet[$NodeOf].Ci }
+        Set-File (Join-Path $dir '.github/workflows/node.yaml') (Get-NodeCiWorkflow $Ci $TestCi)
         Set-File (Join-Path $dir 'tsconfig.build.json') "{`n`t`"extends`": `"$buildExtends`",`n`t`"compilerOptions`": { `"outDir`": `"./dist`" }`n}"
         $pkgText = (Get-Content -Raw (Join-Path $dir 'package.json')) -replace '"~2\.0\.4"', "`"$baseRange`""
         Set-File (Join-Path $dir 'package.json') $pkgText
@@ -1028,16 +1047,39 @@ try {
     Ok ($r21.baseVersion -eq '2.1.3' -and $r21.baseVersionSource -eq 'yarn.lock') "reports baseVersion + source"
     Ok ((Find-Findings $r21 'MAN-RUNTIME' $null).Count -eq 0)            "node26 on API 2.1 is not a MAN-RUNTIME"
     Ok ((Find-Findings $r21 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "the node26 preset matches the 2.1 template"
+    Ok ((Find-Findings $r21 'NODE-VERSION' $null).Count -eq 0)           "…with no NODE-VERSION"
+    Ok ((Find-Findings $r21 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "…and a matching workflow"
     Ok ($r21.counts.critical -eq 0)                                      "clean 2.1/node26 module has no criticals (got $(@($r21.findings | Where-Object severity -eq 'Critical' | ForEach-Object { $_.id }) -join ','))"
 
-    Write-Host "API 2.1 — staying on node22 does not match the template"
+    Write-Host "API 2.1 — staying on node22: one NODE-VERSION finding lists every place"
     $m21b = New-ApiModule 'api21n22' '~2.1.3' 'node22' $preset22 '2.1.3'
     $r21b = Invoke-Validator $m21b $tpl21
-    $rt22 = Find-Findings $r21b 'MAN-RUNTIME' 'companion/manifest.json'
-    Ok ($rt22.Count -eq 1 -and $rt22[0].severity -eq 'Critical')        "node22 on API 2.1 is a Critical MAN-RUNTIME"
-    Ok ($rt22.Count -eq 1 -and $rt22[0].message -match "should be 'node26'") "…saying it should be node26"
-    Ok ($rt22.Count -eq 1 -and $rt22[0].message -match 'node26/recommended\.json') "…and naming the node26 tsconfig preset (TS)"
-    Ok ((Find-Findings $r21b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "the node22 preset is a TSCONFIG-DIFF note"
+    $nv = Find-Findings $r21b 'NODE-VERSION' $null
+    Ok ($nv.Count -eq 1 -and $nv[0].severity -eq 'Critical')            "node22 on API 2.1 is one Critical NODE-VERSION"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match "runtime\.type 'node22' -> 'node26'") "…naming the manifest runtime"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match "engines\.node '\^22\.20' -> '\^26'") "…engines.node, with the template's value"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match "@types/node '\^22\.19\.17' -> '\^26\.6\.4'") "…@types/node, with the template's value"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node26/recommended\.json')  "…the node26 tsconfig preset"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node\.yaml line \d+ node-version 22\.x -> 26\.x;') "…the workflow's node-version"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node-version 22\.x -> 26\.x \(commented out\)') "…and the commented-out test job's node-version"
+    Ok ((Find-Findings $r21b 'MAN-RUNTIME' $null).Count -eq 0)          "…and is not also a MAN-RUNTIME"
+    Ok ((Find-Findings $r21b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "…nor a TSCONFIG-DIFF note for the preset"
+    Ok ((Find-Findings $r21b 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "…nor a CONFIG-DIFF for the workflow"
+
+    Write-Host "API 2.1 — runtime already node26, the rest left behind"
+    $m21d = New-ApiModule 'api21half' '~2.1.3' 'node26' $preset26 '2.1.3' -NodeOf 'node22'
+    $r21d = Invoke-Validator $m21d $tpl21
+    $nvd = Find-Findings $r21d 'NODE-VERSION' $null
+    Ok ($nvd.Count -eq 1 -and $nvd[0].severity -eq 'High')              "a node26 runtime with node22 elsewhere is a High NODE-VERSION"
+    Ok ($nvd.Count -eq 1 -and $nvd[0].message -notmatch 'runtime\.type') "…that does not list the (correct) runtime"
+    Ok ($nvd.Count -eq 1 -and $nvd[0].message -match '@types/node' -and $nvd[0].message -match 'engines\.node' -and $nvd[0].message -match 'node\.yaml') "…but lists engines, @types/node and the workflow"
+
+    Write-Host "API 2.1 — only the commented-out test job is behind"
+    $m21f = New-ApiModule 'api21ci' '~2.1.3' 'node26' $preset26 '2.1.3' -TestCi '22.x'
+    $r21f = Invoke-Validator $m21f $tpl21
+    $nvf = Find-Findings $r21f 'NODE-VERSION' $null
+    Ok ($nvf.Count -eq 1 -and $nvf[0].severity -eq 'High' -and $nvf[0].message -match '\(commented out\)') "a stale commented-out node-version is still listed (High)"
+    Ok ((Find-Findings $r21f 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "…and is not also a CONFIG-DIFF"
 
     Write-Host "API 2.0 — node26 is a version mismatch"
     $m20 = New-ApiModule 'api20n26' '~2.0.4' 'node26' $preset26 '2.0.4'
@@ -1046,12 +1088,14 @@ try {
     Ok ($rt.Count -eq 1 -and $rt[0].severity -eq 'Critical')            "node26 on API 2.0 is a Critical MAN-RUNTIME"
     Ok ($rt.Count -eq 1 -and $rt[0].message -match '>= 2\.1')            "…whose message says node26 needs base >= 2.1"
     Ok ((Find-Findings $r20 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 1) "node26 preset on API 2.0 is a TSCONFIG-DIFF note (MAN-RUNTIME carries the block)"
+    Ok ((Find-Findings $r20 'NODE-VERSION' $null).Count -eq 0)           "…and no NODE-VERSION (the base is too old, not the Node version)"
 
     Write-Host "API 2.0 — node22 matches the 2.0 template"
     $m20b = New-ApiModule 'api20n22' '~2.0.4' 'node22' $preset22 '2.0.4'
     $r20b = Invoke-Validator $m20b $tpl20
     Ok ((Find-Findings $r20b 'MAN-RUNTIME' $null).Count -eq 0)           "node22 on API 2.0 is fine"
     Ok ((Find-Findings $r20b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "…with no tsconfig note"
+    Ok ((Find-Findings $r20b 'NODE-VERSION' $null).Count -eq 0)          "…and no NODE-VERSION"
 
     Write-Host "API 2.1 — another tsconfig change"
     $m21c = New-ApiModule 'api21mix' '~2.1.3' 'node26' $preset26 '2.1.3'
@@ -1062,8 +1106,8 @@ try {
     Write-Host "API 2.1 — an unknown runtime is still flagged"
     $m21e = New-ApiModule 'api21n18' '~2.1.3' 'node18' $preset26 '2.1.3'
     $r21e = Invoke-Validator $m21e $tpl21
-    $rt18 = Find-Findings $r21e 'MAN-RUNTIME' 'companion/manifest.json'
-    Ok ($rt18.Count -eq 1 -and $rt18[0].message -match "should be 'node26'") "node18 on API 2.1 names the required runtime"
+    $rt18 = Find-Findings $r21e 'NODE-VERSION' 'companion/manifest.json'
+    Ok ($rt18.Count -eq 1 -and $rt18[0].message -match "'node18' -> 'node26'") "node18 on API 2.1 names the required runtime"
 
     # ── Template selection by API level (auto-detected, no -TemplateDir) ─────
     # base 1.x → "-v1", 2.0 → pinned "-v2.0.4", 2.1+ → main. A missing pinned folder must be

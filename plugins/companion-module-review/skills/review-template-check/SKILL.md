@@ -1,6 +1,6 @@
 ---
 name: review-template-check
-description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, eslint configs that extend the template's generateEslintConfig, comment-only or binary-rule .gitattributes additions, comment-only or re-indented .github workflows and the template's optional test job, the module author's LICENSE copyright line, an empty maintainer email, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
+description: Run and interpret validate-template.ps1 (the deterministic template-compliance check of the companion-module-review workspace) — exit codes, the template freshness gate, every finding id, accepted deviations (test-widened tsconfig.json, eslint configs that extend the template's generateEslintConfig, comment-only or binary-rule .gitattributes additions, comment-only or re-indented .github workflows and the template's optional test job, one NODE-VERSION finding for every place a Node version is named, the module author's LICENSE copyright line, an empty maintainer email, root tool config files), tsconfig differences as non-blocking Additional Notes, and which findings stay out of the review. Use in step 4 of a module review. For the general template rules outside a review workspace, use companion-template-compliance:companion-template-compliance.
 ---
 
 # Skill: review-template-check (validate-template.ps1)
@@ -86,19 +86,44 @@ meta table.
 | All source under `src/` (none at module root). Tool config files named `<tool>.config.(js\|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
 | `package.json`: version-vs-tag, `main` (references an existing entry file; filename may differ from the template), `repository.url`, required fields, `packageManager` (yarn@4), required scripts, devDependencies, lint-staged | `PKG-VERSION`, `PKG-MAIN`, `PKG-REPO`, `PKG-FIELD`, `PKG-YARN`, `PKG-SCRIPT`, `PKG-DEVDEP`, `PKG-LINTSTAGED`, `PKG-DEP` |
 | `manifest.json`: non-placeholder maintainers (an empty `email` is allowed), banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match the template; see the runtime rule below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
+| **(Critical when the manifest runtime is behind · High otherwise)** The module's Node version matches the template's in **every** place: manifest `runtime.type`, `package.json` `engines.node` and `@types/node`, the `tsconfig.build.json` preset, `node-version` in every workflow (commented-out lines included), and `.nvmrc` / `.node-version`. One finding lists every place that is off (see the Node version rule below) | `NODE-VERSION` |
 | `companion/HELP.md` not a stub | `HELP-STUB` |
 | TS husky `pre-commit` runs `lint-staged` | `HUSKY` |
 | Build / lint (with `-RunBuild`) | `BUILD-INSTALL`, `BUILD-PACKAGE`, `LINT` |
 
-**Runtime must match the module's own template.** Each API level allows exactly the runtime its template uses: 2.0 → `node22` (`-v2.0.4`), 2.1+ → `node26` (`main`). A module on API 2.1 is expected to match the 2.1 template, so staying on Node 22 is a finding. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports):
+**Runtime must match the module's own template.** Each API level allows exactly the runtime its template uses: 1.x → `node22` (`-v1`), 2.0 → `node22` (`-v2.0.4`), 2.1+ → `node26` (`main`). A module on API 2.1 is expected to match the 2.1 template, so staying on Node 22 is a finding. The validator resolves the module's installed base version (the same `apiLevel` the fact sheet reports):
 
 | Situation | Result |
 | --- | --- |
-| base ≥ 2.1, `runtime.type: "node26"` | matches the 2.1 template — no `MAN-RUNTIME` |
-| base ≥ 2.1, `runtime.type: "node22"` | `MAN-RUNTIME` (Critical): "should be 'node26' to match the API 2.1 template" — for TS the message also says to extend `@companion-module/tools/tsconfig/node26/recommended.json` in `tsconfig.build.json` |
-| base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22` |
+| base ≥ 2.1, Node 26 everywhere | matches the 2.1 template — no finding |
+| base ≥ 2.1, `runtime.type: "node22"` (or older) | `NODE-VERSION` (Critical), listing the runtime and every other place still on the old version |
+| base ≥ 2.1, `runtime.type: "node26"` but another place still on Node 22 | `NODE-VERSION` (High), listing those places |
+| base 2.0.x, `runtime.type: "node26"` | `MAN-RUNTIME` (Critical): "node26 requires @companion-module/base ≥ 2.1 (Companion 5.0+)" — the fix is to bump base to `~2.1.x` or go back to `node22`. No `NODE-VERSION`: the base is too old, not the Node version |
 
-A `tsconfig.build.json` that still extends the node22 preset on a 2.1 module is also a `TSCONFIG-DIFF` note. Report it inside the `MAN-RUNTIME` finding's fix, not as a separate note.
+**Node version: one finding, every place.** Upgrading a module's Node version (e.g. Node 22 → 26 for API 2.1) touches several files, and the maintainer must be told about all of them every time. `NODE-VERSION` checks each place against the template the module is judged by, and its message lists every place that is off, each as `found -> template value`:
+
+| Place | Template value (API 2.1) |
+| --- | --- |
+| `companion/manifest.json` `runtime.type` | `"node26"` |
+| `package.json` `engines.node` | `"^26"` |
+| `package.json` `devDependencies` `@types/node` (TS) | `"^26.6.4"` (whatever the template pins) |
+| `tsconfig.build.json` `extends` (TS) | `"@companion-module/tools/tsconfig/node26/recommended.json"` |
+| `.github/workflows/*.yaml` `node-version` (commented-out lines too, e.g. the `node.yaml` `test:` job) | `26.x` |
+| `.nvmrc` / `.node-version`, if the module has one | `26` |
+
+Report it as **one** finding whose Fix is a checklist with one bullet per place, using the template's values from the message. The places it covers are not reported again elsewhere: the validator leaves the runtime out of `MAN-RUNTIME`, the preset out of `TSCONFIG-DIFF` and `node-version` lines out of the workflow `CONFIG-DIFF`. A workflow that also differs in other ways still gets its own High `CONFIG-DIFF` for those lines. A missing `engines` field or `@types/node` stays `PKG-FIELD` / `PKG-DEVDEP`, and a missing workflow stays `FILE-MISSING`. Example:
+
+```markdown
+### C3: The module still targets Node 22, but the API 2.1 template runs on Node 26
+
+**Fix:** update every place to Node 26, as the template does:
+
+- [ ] `companion/manifest.json`: `"runtime": { "type": "node26" }`
+- [ ] `package.json`: `"engines": { "node": "^26" }`
+- [ ] `package.json`: `"@types/node": "^26.6.4"` in `devDependencies`
+- [ ] `tsconfig.build.json`: `"extends": "@companion-module/tools/tsconfig/node26/recommended.json"`
+- [ ] `.github/workflows/node.yaml`: `node-version: 26.x` (lines 25 and 69, including the commented-out `test:` job)
+```
 
 **Accepted deviation: comments and the template's commented-out options in `.github` workflows.** Comments are not part of the CI a workflow runs, so the validator compares only the lines that run: adding, removing or rewording prose comments is not a finding. A comment that is really commented-out code is different: commenting out one of the template's lines, or parking new code in a comment (`# - run: yarn build`), is still a High `CONFIG-DIFF` (`Comments out code that is not in the template: …`). Anything the template ships commented out may also be enabled. That covers the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and `upload-artifact: true` in `companion-module-checks.yaml`, which the template tells the maintainer to uncomment so the built package is uploaded as a workflow artifact:
 

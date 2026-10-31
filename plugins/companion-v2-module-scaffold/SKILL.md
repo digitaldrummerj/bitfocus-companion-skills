@@ -150,7 +150,7 @@ When you add tests (`tests/**/*.ts`, `vitest.config.ts`), also set `"rootDir": "
 - `verbatimModuleSyntax: true` means any import used **only as a type** must be written `import type { … }` or `import { type X }`.
 - Every relative import needs the `.js` extension (`./actions.js`), even though the source file is `.ts`.
 
-> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one: it already uses `node20`/`node16` module settings with an `es2025` target. Then set `runtime.type` to `"node26"` in the manifest (Step 4), and bump `engines.node` and `@types/node` to Node 26. This is what the 2.1 template ships, and a 2.1 module is expected to match it.
+> **2.1+ (Companion 5.0+)** — Node 26: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one: it already uses `node20`/`node16` module settings with an `es2025` target. Then set `runtime.type` to `"node26"` in the manifest (Step 4), bump `engines.node` to `^26` and `@types/node` to `^26.x`, and set `node-version: 26.x` in `.github/workflows/node.yaml` (the commented-out `test:` job too). This is what the 2.1 template ships, and a 2.1 module is expected to match it.
 
 ## Step 4 — `companion/manifest.json`
 

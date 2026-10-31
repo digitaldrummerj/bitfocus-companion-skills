@@ -141,7 +141,7 @@ Already ESM (`"type": "module"`)? Then Phase 1 is mostly the tsconfig swap plus 
 
 - Without `rootDir: "./"`, `tsc -p tsconfig.json` fails with TS6059 ("not under rootDir"). Without `noEmit`, a stray `tsc -p tsconfig.json` writes `.js` files next to your tests, and lint then fails on them. Add your test framework's types (`"vitest/globals"`, `"jest"`) and extra include globs (`vitest.config.ts`, `scripts/**`) as needed.
 - Remove `"module": "Node16"`, `"moduleResolution": "Node16"`, `baseUrl` and `paths` overrides carried over from v1. `node22/recommended-esm` already sets an ESM-capable `"module": "node20"` / `"moduleResolution": "node16"`, and `"type": "module"` makes the output ESM.
-- **2.1+ (Companion 5.0+)** with a `node26` runtime: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one, because it also uses `node20`/`node16` (with `es2025`). Also bump `engines.node` and `@types/node` to Node 26.
+- **2.1+ (Companion 5.0+)** with a `node26` runtime: extend `@companion-module/tools/tsconfig/node26/recommended.json` instead. It has no `-esm` variant and doesn't need one, because it also uses `node20`/`node16` (with `es2025`). Also bump `engines.node` to `^26`, `@types/node` to `^26.x` and `node-version` in `.github/workflows/node.yaml` to `26.x`.
 
 ### 1.3 Fix ESM import syntax across `src/` (and `tests/`)
 

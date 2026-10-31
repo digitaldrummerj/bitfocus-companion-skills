@@ -309,7 +309,7 @@ All JS rules above, **plus**:
 | `maintainers` | must NOT be empty array `[]` |
 | `repository` | must be `"git+https://github.com/bitfocus/companion-module-{module-name}.git"` |
 | `type` | `"connection"` on base 2.x (required since 2.0.4); absent on v1 manifests — don't flag a v1 module for it |
-| `runtime.type` | Must match the template for the module's API level: `"node22"` on base 2.0.x, `"node26"` on base **≥ 2.1** (Companion 5.0+). `node26` on a 2.0.x module is 🔴 (it needs base ≥ 2.1); `node22` on a 2.1 module is 🔴 (it doesn't match the 2.1 template) |
+| `runtime.type` | Must match the template for the module's API level: `"node22"` on base 2.0.x, `"node26"` on base **≥ 2.1** (Companion 5.0+). `node26` on a 2.0.x module is 🔴 (it needs base ≥ 2.1); `node22` on a 2.1 module is 🔴 (it doesn't match the 2.1 template). The Node version must match in every place, not just here: `engines.node`, `@types/node`, the `tsconfig.build.json` preset and `node-version` in the workflows |
 | `runtime.api` | `"nodejs-ipc"` |
 | `runtime.entrypoint` | Must reference a file that exists (build outputs under `dist/` are produced by the build) and resolve to the same file as `package.json` `main`. It does not have to be the template's filename |
 | `keywords` | see below |
