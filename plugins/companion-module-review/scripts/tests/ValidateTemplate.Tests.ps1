@@ -996,7 +996,7 @@ try {
     }
     function Get-NodeCiWorkflow($ci, $testCi) {
         if (-not $testCi) { $testCi = $ci }
-        return "name: Node CI`non: [push]`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - uses: actions/setup-node@v6`n        with:`n          node-version: $ci`n  # test:`n  #   runs-on: ubuntu-latest`n  #   steps:`n  #     - uses: actions/setup-node@v6`n  #       with:`n  #         node-version: $testCi`n"
+        return "name: Node CI`non: [push]`njobs:`n  lint:`n    runs-on: ubuntu-latest`n    steps:`n      - name: Use Node.js $ci`n        uses: actions/setup-node@v6`n        with:`n          node-version: $ci`n  # test:`n  #   runs-on: ubuntu-latest`n  #   steps:`n  #     - uses: actions/setup-node@v6`n  #       with:`n  #         node-version: $testCi`n"
     }
     function Set-NodePackageFields($dir, $engines, $types) {
         $pkgText = (Get-Content -Raw (Join-Path $dir 'package.json')) -replace '"node": "\^22\.20"', "`"node`": `"$engines`""
@@ -1062,6 +1062,7 @@ try {
     Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node26/recommended\.json')  "…the node26 tsconfig preset"
     Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node\.yaml line \d+ node-version 22\.x -> 26\.x;') "…the workflow's node-version"
     Ok ($nv.Count -eq 1 -and $nv[0].message -match 'node-version 22\.x -> 26\.x \(commented out\)') "…and the commented-out test job's node-version"
+    Ok ($nv.Count -eq 1 -and $nv[0].message -match "step name 'Use Node\.js 22\.x' -> 'Use Node\.js 26\.x'") "…and the workflow's 'Use Node.js' step name"
     Ok ((Find-Findings $r21b 'MAN-RUNTIME' $null).Count -eq 0)          "…and is not also a MAN-RUNTIME"
     Ok ((Find-Findings $r21b 'TSCONFIG-DIFF' 'tsconfig.build.json').Count -eq 0) "…nor a TSCONFIG-DIFF note for the preset"
     Ok ((Find-Findings $r21b 'CONFIG-DIFF' '.github/workflows/node.yaml').Count -eq 0) "…nor a CONFIG-DIFF for the workflow"

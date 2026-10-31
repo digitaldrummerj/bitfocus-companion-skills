@@ -241,6 +241,7 @@ if ($tplMan -and (Has-Prop $tplMan 'runtime') -and (Has-Prop $tplMan.runtime 'ty
     if ("$modRuntimeType" -match '^node(\d+)$' -and [int]$Matches[1] -gt $nodeTarget) { $nodeTarget = $null }
 }
 $nodeVersionRe = '^(\s*#?\s*-?\s*)node-version:\s*(.*)$'
+$nodeStepNameRe = '^(\s*#?\s*-?\s*name:\s*Use Node\.js\s+)(\S+)\s*$'   # the template's "- name: Use Node.js 26.x" step
 $tsPresetRe    = '"@companion-module/tools/tsconfig/node(\d+)/[^"]*"'
 function Get-TemplateTsPreset {
     $f = Join-Path $TemplateDir 'tsconfig.build.json'
@@ -993,7 +994,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $modLines = @($modLines | ForEach-Object { Normalize-TsconfigLine $_ })
         $tplLines = @($tplLines | ForEach-Object { Normalize-TsconfigLine $_ })
     }
-    if ($rule.Kind -eq 'tsconfig' -and $null -ne $nodeTarget -and $tplTsPreset) {
+    if ($rel -eq 'tsconfig.build.json' -and $null -ne $nodeTarget -and $tplTsPreset) {
         # A preset for another Node major is reported by NODE-VERSION (§5b), not as a TSCONFIG-DIFF.
         $modLines = @($modLines | ForEach-Object {
             $pm = [regex]::Match($_, $tsPresetRe)
@@ -1024,6 +1025,13 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
             $modLines = @($modLines | ForEach-Object {
                 $mm = [regex]::Match($_, $nodeVersionRe)
                 if ($mm.Success -and $null -ne (Get-NodeMajor $mm.Groups[2].Value)) { "$($mm.Groups[1].Value)node-version: $tplNode" } else { $_ }
+            })
+        }
+        $tplStep = @($tplLines | Where-Object { $_ -match $nodeStepNameRe } | ForEach-Object { ([regex]::Match($_, $nodeStepNameRe)).Groups[2].Value }) | Select-Object -First 1
+        if ($tplStep) {
+            $modLines = @($modLines | ForEach-Object {
+                $mm = [regex]::Match($_, $nodeStepNameRe)
+                if ($mm.Success -and $null -ne (Get-NodeMajor $mm.Groups[2].Value)) { "$($mm.Groups[1].Value)$tplStep" } else { $_ }
             })
         }
     }
@@ -1359,7 +1367,7 @@ if (Test-Path $manifestPath) {
 #   companion/manifest.json  runtime.type
 #   package.json             engines.node, devDependencies @types/node (when the template has them)
 #   tsconfig.build.json      the @companion-module/tools/tsconfig/node<N>/ preset (TS)
-#   .github/workflows/*      every node-version line, commented-out ones included
+#   .github/workflows/*      every node-version line and "Use Node.js <N>" step name, commented-out ones included
 #   .nvmrc / .node-version   when the module has one
 # Critical when the manifest runtime is behind (it decides what Companion runs), otherwise High.
 if ($null -ne $nodeTarget) {
@@ -1405,12 +1413,18 @@ if ($null -ne $nodeTarget) {
             foreach ($line in @(Get-Content -LiteralPath $wf.FullName)) {
                 $lineNo++
                 $mm = [regex]::Match($line, $nodeVersionRe)
+                $isStep = $false
+                if (-not $mm.Success) { $mm = [regex]::Match($line, $nodeStepNameRe); $isStep = $mm.Success }
                 if (-not $mm.Success) { continue }
                 $val = $mm.Groups[2].Value.Trim()
                 $maj = Get-NodeMajor $val
                 if ($null -eq $maj -or $maj -eq $nodeTarget) { continue }
                 $note = if ($mm.Groups[1].Value -match '#') { ' (commented out)' } else { '' }
-                $nodeItems.Add("$rel line $lineNo node-version $val -> $tplNode$note"); $nodeFiles.Add($rel)
+                if ($isStep) {
+                    $nodeItems.Add("$rel line $lineNo step name 'Use Node.js $val' -> 'Use Node.js $tplNode'$note"); $nodeFiles.Add($rel)
+                } else {
+                    $nodeItems.Add("$rel line $lineNo node-version $val -> $tplNode$note"); $nodeFiles.Add($rel)
+                }
             }
         }
     }

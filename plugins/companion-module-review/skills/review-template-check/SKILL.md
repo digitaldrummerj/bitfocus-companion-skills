@@ -108,7 +108,7 @@ meta table.
 | `package.json` `engines.node` | `"^26"` |
 | `package.json` `devDependencies` `@types/node` (TS) | `"^26.6.4"` (whatever the template pins) |
 | `tsconfig.build.json` `extends` (TS) | `"@companion-module/tools/tsconfig/node26/recommended.json"` |
-| `.github/workflows/*.yaml` `node-version` (commented-out lines too, e.g. the `node.yaml` `test:` job) | `26.x` |
+| `.github/workflows/*.yaml` `node-version` and the `- name: Use Node.js 26.x` step name (commented-out lines too, e.g. the `node.yaml` `test:` job) | `26.x` |
 | `.nvmrc` / `.node-version`, if the module has one | `26` |
 
 Report it as **one** finding whose Fix is a checklist with one bullet per place, using the template's values from the message. The places it covers are not reported again elsewhere: the validator leaves the runtime out of `MAN-RUNTIME`, the preset out of `TSCONFIG-DIFF` and `node-version` lines out of the workflow `CONFIG-DIFF`. A workflow that also differs in other ways still gets its own High `CONFIG-DIFF` for those lines. A missing `engines` field or `@types/node` stays `PKG-FIELD` / `PKG-DEVDEP`, and a missing workflow stays `FILE-MISSING`. Example:
@@ -122,7 +122,7 @@ Report it as **one** finding whose Fix is a checklist with one bullet per place,
 - [ ] `package.json`: `"engines": { "node": "^26" }`
 - [ ] `package.json`: `"@types/node": "^26.6.4"` in `devDependencies`
 - [ ] `tsconfig.build.json`: `"extends": "@companion-module/tools/tsconfig/node26/recommended.json"`
-- [ ] `.github/workflows/node.yaml`: `node-version: 26.x` (lines 25 and 69, including the commented-out `test:` job)
+- [ ] `.github/workflows/node.yaml`: `- name: Use Node.js 26.x` (line 18) and `node-version: 26.x` (lines 25 and 69, including the commented-out `test:` job)
 ```
 
 **Accepted deviation: comments and the template's commented-out options in `.github` workflows.** Comments are not part of the CI a workflow runs, so the validator compares only the lines that run: adding, removing or rewording prose comments is not a finding. A comment that is really commented-out code is different: commenting out one of the template's lines, or parking new code in a comment (`# - run: yarn build`), is still a High `CONFIG-DIFF` (`Comments out code that is not in the template: …`). Anything the template ships commented out may also be enabled. That covers the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and `upload-artifact: true` in `companion-module-checks.yaml`, which the template tells the maintainer to uncomment so the built package is uploaded as a workflow artifact:
