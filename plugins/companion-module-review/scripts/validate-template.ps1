@@ -807,6 +807,7 @@ function Get-TemplateTrackedFiles {
 #   yarnrc            parsed key/value comparison, sourced from the v2 template
 #   covered-elsewhere a dedicated section below owns this file's content
 #   module-owned      legitimately differs per module; never compared
+#   presence          must exist (FILE-MISSING when absent), but its content is the module's own
 #   skip-binary       not text; a line diff would be meaningless
 # Optional per-row flags:
 #   MissingSeverity   severity of FILE-MISSING when it differs from a content CONFIG-DIFF
@@ -835,7 +836,11 @@ $templateFileRules = @(
     # out (the node.yaml `test:` job, `with: upload-artifact: true` in
     # companion-module-checks.yaml) is accepted too (see Test-WorkflowMatchesTemplate).
     @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
-    # Anything else under .github (issue templates, ...) follows the same rule.
+    # Issue templates are the maintainer's to customise for their module (labels, questions,
+    # links), so only their presence is checked: a missing one is still Medium, a different one
+    # is never reported.
+    @{ Pattern = '.github/ISSUE_TEMPLATE/*'; Kind = 'presence';        Severity = 'Medium'; MissingSeverity = 'Medium' }
+    # Anything else under .github follows the workflow rule.
     @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
     @{ Pattern = 'LICENSE';                 Kind = 'covered-elsewhere' }   # §3b LICENSE-DIFF
     @{ Pattern = 'package.json';            Kind = 'covered-elsewhere' }   # §4 PKG-*
@@ -957,6 +962,7 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         Add-Finding 'FILE-MISSING' $rule.MissingSeverity $rel 'Required file is missing (tracked by the template)'
         continue
     }
+    if ($rule.Kind -eq 'presence') { continue }
     if ($rule.Defaulted) {
         Add-Finding 'TEMPLATE-COVERAGE' 'Info' $rel (
             "Template tracks this file but validate-template.ps1 has no explicit rule for it — " +

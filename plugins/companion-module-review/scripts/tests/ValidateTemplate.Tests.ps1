@@ -903,7 +903,12 @@ try {
     $d5 = Invoke-Validator $good $dtpl
     Ok ((Find-Findings $d5 'CONFIG-DIFF' '.github/workflows/companion-module-checks.yaml').Count -eq 0) "enabling upload-artifact is the accepted customisation"
     $it = Find-Findings $d5 'CONFIG-DIFF' '.github/ISSUE_TEMPLATE/bug.md'
-    Ok ($it.Count -eq 1 -and $it[0].severity -eq 'High')      "other .github files (issue templates) that differ are High too"
+    Ok ($it.Count -eq 0)                                      "issue templates are the maintainer's to customise: a different one is not reported"
+    Remove-Item -Force (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md')
+    $d5m = Invoke-Validator $good $dtpl
+    $itm = Find-Findings $d5m 'FILE-MISSING' '.github/ISSUE_TEMPLATE/bug.md'
+    Ok ($itm.Count -eq 1 -and $itm[0].severity -eq 'Medium')  "…but a missing issue template is still a Medium FILE-MISSING"
+    Set-File (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md') "name: bug report"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl
     $d6 = Invoke-Validator $good $dtpl
