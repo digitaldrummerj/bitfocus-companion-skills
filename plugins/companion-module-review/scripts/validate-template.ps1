@@ -1554,14 +1554,21 @@ if ($langItems.Count -gt 0) {
 # Latin-script language (Spanish, German, …) are the compliance reviewer's to note.
 if (Test-Path (Join-Path $ModuleDir '.git')) {
     $prevTag = (& git -C $ModuleDir describe --tags --abbrev=0 'HEAD^' 2>$null)
-    $range = if ($LASTEXITCODE -eq 0 -and $prevTag) { "$($prevTag.Trim())..HEAD" } else { 'HEAD' }
-    $log = (& git -C $ModuleDir log --no-merges --format='%h%x1f%B%x1e' $range 2>$null) -join "`n"
+    $prevSha = $null
+    if ($LASTEXITCODE -eq 0 -and $prevTag) {
+        # The tag name comes from the module's repo: resolve it to a SHA so it is never parsed as an option.
+        $prevTag = $prevTag.Trim()
+        $prevSha = (& git -C $ModuleDir rev-parse --verify --quiet --end-of-options "$prevTag^{commit}" 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $prevSha -notmatch '^[0-9a-f]{40,64}$') { $prevSha = $null }
+    }
+    $range = if ($prevSha) { "$prevSha..HEAD" } else { 'HEAD' }
+    $log = (& git -C $ModuleDir log --no-merges --format='%h%x1f%B%x1e' --end-of-options $range 2>$null) -join "`n"
     $commits = @($log -split "\x1e" | Where-Object { $_.Trim() })
     $bad = @($commits | Where-Object { $nonLatinRunRe.IsMatch(($_ -split "\x1f", 2)[1]) })
     if ($bad.Count -gt 0) {
         $first = $bad[0].Trim() -split "\x1f", 2
         $subject = (($first[1] -split "`n")[0]).Trim()
-        $since = if ($range -eq 'HEAD') { 'in the history' } else { "since $($range -replace '\.\.HEAD$', '')" }
+        $since = if ($prevSha) { "since $prevTag" } else { 'in the history' }
         Add-Finding 'COMMIT-LANGUAGE' 'Info' '' ("$($bad.Count) of $($commits.Count) commit messages $since are not in English (e.g. $($first[0]) '$subject'). Future commit messages must be written in English.")
     }
 }
