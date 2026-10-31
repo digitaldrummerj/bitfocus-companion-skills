@@ -1453,34 +1453,51 @@ if (Test-Path $helpPath) {
     }
 }
 
-# ── 6b. Code comments must be in English ─────────────────────────────────────
-# Every comment in the module's code must be written in English: the next maintainer, the
-# reviewers, and anyone troubleshooting a module must be able to read it. This check finds
-# comments written in a non-Latin script (Chinese, Japanese, Korean, Cyrillic, Arabic, Hebrew,
-# Thai, …): one Chinese, Japanese or Korean character (each is a word on its own), or a run of
-# two or more letters from another script outside the Latin and Greek blocks. Greek is left out
-# because single Greek letters (Δ, Ω, λ) are common in English technical comments. A comment in
-# a Latin-script language (German, Spanish, Dutch, …) can't be told apart from English by its
-# letters, so the companion-compliance-reviewer reports those. String literals are skipped:
-# only // and /* */ comments are checked.
-$commentTokenRe = [regex]::new('''(?:\\.|[^''\\\n])*''|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|(?<c>//[^\n]*|/\*[\s\S]*?\*/)')
+# ── 6b. Everything must be written in English ────────────────────────────────
+# Everything in the module must be written in English: code comments, the text users see
+# (labels, tooltips, log messages), companion/HELP.md, README.md and every other file. The
+# next maintainer, the reviewers, and anyone troubleshooting the module must be able to read
+# it. This check reads every tracked text file line by line and finds text in a non-Latin
+# script (Chinese, Japanese, Korean, Cyrillic, Arabic, Hebrew, Thai, …): one Chinese, Japanese
+# or Korean character (each is a word on its own), or a run of two or more letters from another
+# script outside the Latin and Greek blocks. Greek is left out because single Greek letters
+# (Δ, Ω, λ) are common in English technical text. The author's own name is theirs to write:
+# LICENSE copyright lines and the name/author/email lines of package.json and the manifest are
+# skipped. Test files (under test/, tests/ or __tests__/, or named *.test.* / *.spec.*) are
+# checked for comments only: a test may use non-English text on purpose, e.g. to test sorting
+# of a Cyrillic label. Text in a Latin-script language (German, Spanish, Dutch, …) can't be told apart from
+# English by its letters, so the companion-compliance-reviewer reports those.
 $nonLatinRunRe  = [regex]::new('[\p{IsCJKUnifiedIdeographs}\p{IsHiragana}\p{IsKatakana}\p{IsHangulSyllables}]|[\p{L}-[\p{IsBasicLatin}\p{IsLatin-1Supplement}\p{IsLatinExtended-A}\p{IsLatinExtended-B}\p{IsLatinExtendedAdditional}\p{IsIPAExtensions}\p{IsSpacingModifierLetters}\p{IsGreekandCoptic}\p{IsGreekExtended}]]{2,}')
-$codeExtRe      = '\.(ts|mts|cts|tsx|js|mjs|cjs|jsx)$'
-$skipDirRe      = '(^|/)(node_modules|dist|pkg|build|out|coverage|\.yarn|\.git)/'
-function Get-NonEnglishCommentLines {
-    param([string]$Text)
-    $lines = [System.Collections.Generic.SortedSet[int]]::new()
-    foreach ($m in $commentTokenRe.Matches($Text)) {
-        $c = $m.Groups['c']
-        if (-not $c.Success) { continue }
-        $startLine = $Text.Substring(0, $c.Index).Split("`n").Count
-        $i = 0
-        foreach ($part in $c.Value.Split("`n")) {
-            if ($nonLatinRunRe.IsMatch($part)) { [void]$lines.Add($startLine + $i) }
-            $i++
+$langSkipDirRe  = '(^|/)(node_modules|dist|pkg|build|out|coverage|\.yarn|\.git)/'
+$langTestFileRe = '(^|/)(tests?|__tests__)/|\.(test|spec)\.[cm]?[jt]sx?$'
+$commentTokenRe = [regex]::new('''(?:\\.|[^''\\\n])*''|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|(?<c>//[^\n]*|/\*[\s\S]*?\*/)')
+$langSkipFileRe = '(^|/)(yarn\.lock|package-lock\.json|pnpm-lock\.yaml)$|\.(tgz|gz|zip|png|jpe?g|gif|ico|svg|webp|bmp|pdf|woff2?|ttf|otf|eot|mp3|wav|mp4|mov)$'
+function Get-NonEnglishLines {
+    param([string]$RelPath, [string]$Text)
+    $lines = [System.Collections.Generic.List[int]]::new()
+    $ownerRe = if ($RelPath -eq 'LICENSE' -or $RelPath -like 'LICENSE.*') { '^\s*copyright\b' }
+        elseif ($RelPath -in 'package.json', 'companion/manifest.json') { '"(name|author|email)"\s*:' }
+        else { $null }
+    if ($RelPath -match $langTestFileRe) {
+        # Comments only: blank out everything else, keeping the line breaks so line numbers hold.
+        $kept = [System.Text.StringBuilder]::new()
+        $pos = 0
+        foreach ($m in $commentTokenRe.Matches($Text)) {
+            $c = $m.Groups['c']
+            if (-not $c.Success) { continue }
+            [void]$kept.Append(($Text.Substring($pos, $c.Index - $pos) -replace '[^\n]', ' ')).Append($c.Value)
+            $pos = $c.Index + $c.Length
         }
+        [void]$kept.Append(($Text.Substring($pos) -replace '[^\n]', ' '))
+        $Text = $kept.ToString()
     }
-    return ,([int[]]@($lines))
+    $n = 0
+    foreach ($line in $Text.Split("`n")) {
+        $n++
+        if ($ownerRe -and $line -match $ownerRe) { continue }
+        if ($nonLatinRunRe.IsMatch($line)) { $lines.Add($n) }
+    }
+    return ,([int[]]$lines.ToArray())
 }
 function Format-LineRanges {
     param([int[]]$Lines, [int]$Max = 12)
@@ -1496,27 +1513,30 @@ function Format-LineRanges {
     if ($ranges.Count -gt $Max) { $text += ', …' }
     return $text
 }
-$codeFiles = if (Test-Path (Join-Path $ModuleDir '.git')) {
+$langFilesAll = if (Test-Path (Join-Path $ModuleDir '.git')) {
     @(& git -C $ModuleDir ls-files 2>$null)
 } else {
-    @(Get-ChildItem -LiteralPath $ModuleDir -File -Recurse -ErrorAction SilentlyContinue |
+    @(Get-ChildItem -LiteralPath $ModuleDir -File -Recurse -Force -ErrorAction SilentlyContinue |
         ForEach-Object { [System.IO.Path]::GetRelativePath($ModuleDir, $_.FullName).Replace('\', '/') })
 }
-$codeFiles = @($codeFiles | Where-Object { $_ -match $codeExtRe -and "/$_" -notmatch $skipDirRe } | Sort-Object)
+$langFilesAll = @($langFilesAll | Where-Object { "/$_" -notmatch $langSkipDirRe -and $_ -notmatch $langSkipFileRe } | Sort-Object)
 $langItems = [System.Collections.Generic.List[string]]::new()
 $langFiles = [System.Collections.Generic.List[string]]::new()
 $langTotal = 0
-foreach ($rel in $codeFiles) {
+foreach ($rel in $langFilesAll) {
     $full = Join-Path $ModuleDir $rel
-    if (-not (Test-Path -LiteralPath $full)) { continue }
-    $hits = Get-NonEnglishCommentLines ((Get-Content -Raw -LiteralPath $full -Encoding utf8) -replace "`r`n", "`n")
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { continue }
+    if ([System.IO.FileInfo]::new($full).Length -gt 2MB) { continue }
+    $bytes = [System.IO.File]::ReadAllBytes($full)
+    if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { continue }   # binary
+    $hits = Get-NonEnglishLines $rel (([System.Text.Encoding]::UTF8.GetString($bytes)) -replace "`r`n", "`n")
     if ($hits.Count -eq 0) { continue }
     $langTotal += $hits.Count
     $langFiles.Add($rel)
     $langItems.Add("$rel ($($hits.Count) line$(if ($hits.Count -ne 1) { 's' }): $(Format-LineRanges $hits))")
 }
 if ($langItems.Count -gt 0) {
-    Add-Finding 'COMMENT-LANGUAGE' 'High' $langFiles[0] ("Code comments must be written in English. $langTotal comment line$(if ($langTotal -ne 1) { 's are' } else { ' is' }) in another language: " + ($langItems -join '; '))
+    Add-Finding 'NOT-ENGLISH' 'High' $langFiles[0] ("Everything in the module must be written in English (code comments, user-facing text, HELP.md, README.md, …). $langTotal line$(if ($langTotal -ne 1) { 's are' } else { ' is' }) in another language: " + ($langItems -join '; '))
 }
 
 # ── 7. husky (TS) ────────────────────────────────────────────────────────────

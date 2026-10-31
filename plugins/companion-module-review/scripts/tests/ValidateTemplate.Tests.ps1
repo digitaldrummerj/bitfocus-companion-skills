@@ -727,22 +727,30 @@ try {
     Ok ($b.counts.critical -gt 0)              "reports critical count > 0"
     Ok ($null -ne $b.counts.info)              "counts now carries an info bucket"
 
-    # ── Comments must be in English (COMMENT-LANGUAGE) ──────────────────────────
-    Write-Host "Comments in English"
-    $cl = Join-Path $root 'companion-module-commentlang'
+    # ── Everything must be in English (NOT-ENGLISH) ──────────────────────────────
+    Write-Host "Everything in English"
+    $cl = Join-Path $root 'companion-module-notenglish'
     Copy-Item -Recurse -Force $good $cl
-    Set-File (Join-Path $cl 'src/a.js') "// 设备通道编号为 0 起始`nconst x = 1 // 读`n/* Δt in µs, Ω */`nconst s = '// 读 PGM 当前信号源'`n"
+    Set-File (Join-Path $cl 'src/a.js') "// 设备通道编号为 0 起始`nconst x = 1 // 读`n/* Δt in µs, Ω */`nconst s = '读 PGM 当前信号源'`n"
     Set-File (Join-Path $cl 'src/b.ts') "/**`n * Сброс соединения`n * English line`n */`nexport const y = 2`n"
-    Set-File (Join-Path $cl 'src/c.js') "// Verbindung herstellen (German is for the compliance reviewer)`nconst z = `"Привет`"`n"
+    Set-File (Join-Path $cl 'src/c.js') "// Verbindung herstellen (German is for the compliance reviewer)`nexport const z = 3`n"
+    Set-File (Join-Path $cl 'README.md') "# Foo`n`n中文说明`nEnglish text`n"
+    Set-File (Join-Path $cl 'companion/HELP.md') ((Get-Content -Raw (Join-Path $good 'companion/HELP.md')) + "`nСправка по модулю`n")
+    Set-File (Join-Path $cl 'tests/sort.test.ts') "// Тест сортировки`nconst label = 'Другое'`n"
+    Set-File (Join-Path $cl 'package.json') ((Get-Content -Raw (Join-Path $good 'package.json')) -replace '"license"', "`"author`": `"张三`",`n  `"license`"")
     Set-File (Join-Path $cl 'node_modules/dep/index.js') "// 中文注释"
     $clr = Invoke-Validator $cl $tpl
-    $clf = Find-Findings $clr 'COMMENT-LANGUAGE' $null
-    Ok ($clf.Count -eq 1 -and $clf[0].severity -eq 'High')            "non-English comments are one High COMMENT-LANGUAGE finding"
-    Ok ($clf.Count -eq 1 -and $clf[0].message -match 'src/a\.js \(2 lines: 1-2\)') "…a single CJK character counts; strings and Greek letters do not"
-    Ok ($clf.Count -eq 1 -and $clf[0].message -match 'src/b\.ts \(1 line: 2\)')    "…lines inside a block comment are numbered one by one"
-    Ok ($clf.Count -eq 1 -and $clf[0].message -notmatch 'c\.js|node_modules')      "…Latin-script comments, string literals and node_modules are not flagged"
-    Ok ($clf.Count -eq 1 -and $clf[0].message -match '3 comment lines are')          "…with the total line count"
-    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'COMMENT-LANGUAGE' $null).Count -eq 0) "an English-only module has no COMMENT-LANGUAGE"
+    $clf = Find-Findings $clr 'NOT-ENGLISH' $null
+    $clm = if ($clf.Count -eq 1) { $clf[0].message } else { '' }
+    Ok ($clf.Count -eq 1 -and $clf[0].severity -eq 'High')        "non-English text is one High NOT-ENGLISH finding"
+    Ok ($clm -match 'src/a\.js \(3 lines: 1-2, 4\)')           "…comments and strings count, a single CJK character counts, Greek letters do not"
+    Ok ($clm -match 'src/b\.ts \(1 line: 2\)')                 "…lines inside a block comment are numbered one by one"
+    Ok ($clm -match 'README\.md \(1 line: 3\)')                "…README.md is checked"
+    Ok ($clm -match 'companion/HELP\.md \(1 line: ')            "…companion/HELP.md is checked"
+    Ok ($clm -match 'tests/sort\.test\.ts \(1 line: 1\)')     "…test files are checked for comments only (non-English test data is fine)"
+    Ok ($clm -notmatch 'c\.js|node_modules|package\.json')      "…Latin-script text, node_modules and the author's name are not flagged"
+    Ok ($clm -match '7 lines are')                                "…with the total line count"
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'NOT-ENGLISH' $null).Count -eq 0) "an English-only module has no NOT-ENGLISH"
 
     # ── Freshness: the template clone must not be behind upstream ─────────────
     # Every fixture above passes a non-git -TemplateDir and expects silence; these build a
