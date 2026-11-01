@@ -193,6 +193,25 @@ comments are **not** divergences and are never flagged. What *is* Critical:
   `enableScripts: false`, `npmMinimalAgeGate: 3d`, and `npmPreapprovedPackages`. A module
   still shipping only `nodeLinker: node-modules` is missing that supply-chain hardening.
 - **Conflicting value** — e.g. `enableScripts: true`, `npmMinimalAgeGate: 5`.
+
+**`enableScripts: true` — the Fix is an allow-list, not "turn it back on".** A module usually
+sets it because one native dependency (a MIDI, serial or HID binding) has an install script.
+The Fix keeps `enableScripts: false` and allow-lists only that package in `package.json`:
+
+```json
+"dependenciesMeta": {
+  "@julusian/midi": { "built": true }
+}
+```
+
+With scripts off, Yarn 4 builds only the packages whose `dependenciesMeta` entry sets
+`built: true` ([Yarn manifest docs](https://yarnpkg.com/configuration/manifest#dependenciesMeta.built)).
+Name the actual package(s) from the module's dependencies, tell the maintainer to commit the
+resulting `yarn.lock` change (Yarn records the entry on the workspace), and to confirm with
+`yarn install`. A built package logs `YN0007 … must be built`, and a blocked one logs `YN0004 …
+build scripts have been disabled`. The validator appends this fix to its `Value mismatch`
+message. A module that already uses this allow-list is not a finding: `dependenciesMeta`
+in `package.json` is not compared with the template.
 - **Extra keys** — e.g. `yarnPath`, `enableGlobalCache`, `approvedGitRepositories`; these
   change install behaviour for everyone building the module.
 

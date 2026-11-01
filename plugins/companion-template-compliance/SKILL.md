@@ -147,7 +147,7 @@ npmPreapprovedPackages:
   - "@companion-module/*"
 ```
 
-Compare **by key**, not as raw text: key order, quote style and blank lines are not divergences; a missing key, an extra key, or a conflicting value is. `.yarnrc.yml` is repo tooling, not API surface, and Bitfocus only updates it on the current template — so compare **v1 modules against the current template's** `.yarnrc.yml` too, not the pinned v1 copy. Never tell a maintainer to delete `enableScripts: false` or the age gate: that is the template's supply-chain hardening.
+Compare **by key**, not as raw text: key order, quote style and blank lines are not divergences; a missing key, an extra key, or a conflicting value is. `.yarnrc.yml` is repo tooling, not API surface, and Bitfocus only updates it on the current template — so compare **v1 modules against the current template's** `.yarnrc.yml` too, not the pinned v1 copy. Never tell a maintainer to delete `enableScripts: false` or the age gate: that is the template's supply-chain hardening. When a module sets `enableScripts: true` for a dependency that needs its install script (a native binding), the fix is to keep `enableScripts: false` and allow-list just that package in `package.json` with `"dependenciesMeta": { "<package>": { "built": true } }`, committing the `yarn.lock` change ([Yarn docs](https://yarnpkg.com/configuration/manifest#dependenciesMeta.built)).
 
 ### `eslint.config.mjs` (TS only)
 

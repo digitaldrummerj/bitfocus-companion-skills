@@ -987,7 +987,14 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         $mismatches = @($tplMap.Keys | Where-Object { $modMap.Contains($_) -and $modMap[$_] -ne $tplMap[$_] } |
             ForEach-Object { "$_ = '$($modMap[$_])' (template '$($tplMap[$_])')" })
         if ($mismatches.Count -gt 0) {
-            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel "Value mismatch: $($mismatches -join '; ')"
+            $msg = "Value mismatch: $($mismatches -join '; ')"
+            # enableScripts: true is usually there for one native dependency. The fix keeps the
+            # template's false and allow-lists just that package: with scripts off, Yarn builds
+            # only packages whose package.json dependenciesMeta entry sets built: true.
+            if ($modMap.Contains('enableScripts') -and $modMap['enableScripts'] -eq 'true' -and $tplMap['enableScripts'] -eq 'false') {
+                $msg += ". Fix: keep enableScripts: false and allow-list only the packages that need their install script in package.json (`"dependenciesMeta`": { `"<package>`": { `"built`": true } }), committing the yarn.lock change"
+            }
+            Add-Finding 'CONFIG-DIFF' $rule.Severity $rel $msg
         }
         $extraKeys = @($modMap.Keys | Where-Object { -not $tplMap.Contains($_) })
         if ($extraKeys.Count -gt 0) {

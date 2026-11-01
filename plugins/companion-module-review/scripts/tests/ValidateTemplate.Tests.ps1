@@ -557,6 +557,8 @@ try {
     $yVal = Get-YarnrcFindings (Invoke-Validator (New-YarnrcModule 'yarnval' ($yarnrcTpl -replace 'enableScripts: false','enableScripts: true')) $tpl)
     Ok ($yVal.Count -eq 1 -and $yVal[0].message -match "Value mismatch:.*enableScripts = 'true' \(template 'false'\)") `
         "flags enableScripts: true as a value mismatch, and nothing else"
+    Ok ($yVal.Count -eq 1 -and $yVal[0].message -match 'dependenciesMeta' -and $yVal[0].message -match '"built": true') `
+        "enableScripts: true mismatch names the dependenciesMeta built: true allow-list as the fix"
 
     Write-Host ".yarnrc.yml — extra key"
     $yExtra = Get-YarnrcFindings (Invoke-Validator (New-YarnrcModule 'yarnextra' "$yarnrcTpl`nyarnPath: .yarn/releases/yarn-4.10.3.cjs") $tpl)
