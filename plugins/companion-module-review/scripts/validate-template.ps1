@@ -45,6 +45,9 @@
 .PARAMETER ExpectedVersion
     The git tag under review (with or without leading 'v'). Enables the package.json
     version-match check. Skipped if omitted.
+.PARAMETER NewModule
+    The module has never been published (bitfocus-setup-module.ps1's newModule). Enables the
+    first-release manifest checks: legacyIds must be empty (MAN-LEGACYIDS).
 .PARAMETER RunBuild
     Also run `yarn install --immutable` + `yarn package` (and `yarn lint` for TS) and gate
     on success. Slow and requires network; off by default.
@@ -65,6 +68,7 @@ param(
     [Parameter(Mandatory)][string]$ModuleDir,
     [string]$TemplateDir,
     [string]$ExpectedVersion,
+    [switch]$NewModule,
     [switch]$RunBuild,
     [switch]$SkipTemplateFreshness,
     [switch]$Json
@@ -807,7 +811,6 @@ function Get-TemplateTrackedFiles {
 #   yarnrc            parsed key/value comparison, sourced from the v2 template
 #   covered-elsewhere a dedicated section below owns this file's content
 #   module-owned      legitimately differs per module; never compared
-#   presence          must exist (FILE-MISSING when absent), but its content is the module's own
 #   skip-binary       not text; a line diff would be meaningless
 # Optional per-row flags:
 #   MissingSeverity   severity of FILE-MISSING when it differs from a content CONFIG-DIFF
@@ -837,9 +840,8 @@ $templateFileRules = @(
     # companion-module-checks.yaml) is accepted too (see Test-WorkflowMatchesTemplate).
     @{ Pattern = '.github/workflows/*';     Kind = 'workflow';         Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
     # Issue templates are the maintainer's to customise for their module (labels, questions,
-    # links), so only their presence is checked: a missing one is still Medium, a different one
-    # is never reported.
-    @{ Pattern = '.github/ISSUE_TEMPLATE/*'; Kind = 'presence';        Severity = 'Medium'; MissingSeverity = 'Medium' }
+    # links), or to leave out: neither a different nor a missing one is reported (2026-10-31).
+    @{ Pattern = '.github/ISSUE_TEMPLATE/*'; Kind = 'module-owned' }
     # Anything else under .github follows the workflow rule.
     @{ Pattern = '.github/*';               Kind = 'exact';            Severity = 'High'; MissingSeverity = 'Medium'; IgnoreIndent = $true }
     @{ Pattern = 'LICENSE';                 Kind = 'covered-elsewhere' }   # §3b LICENSE-DIFF
@@ -962,7 +964,6 @@ foreach ($rel in (Get-TemplateTrackedFiles -Dir $TemplateDir)) {
         Add-Finding 'FILE-MISSING' $rule.MissingSeverity $rel 'Required file is missing (tracked by the template)'
         continue
     }
-    if ($rule.Kind -eq 'presence') { continue }
     if ($rule.Defaulted) {
         Add-Finding 'TEMPLATE-COVERAGE' 'Info' $rel (
             "Template tracks this file but validate-template.ps1 has no explicit rule for it — " +
@@ -1307,6 +1308,14 @@ if (Test-Path $manifestPath) {
                     Add-Finding 'MAN-KEYWORD' 'Critical' 'companion/manifest.json' "Banned/low-value keyword '$kw'"
                 }
             }
+        }
+        # A module that has never been published replaces no older module, so a legacy id only
+        # claims an id it doesn't own: Companion would move connections of any future module
+        # with that id over to it. The template ships []. Updates are not checked, since a
+        # renamed module legitimately lists its old ids (cuemark, 2026-10-31).
+        if ($NewModule -and (Has-Prop $man 'legacyIds') -and @($man.legacyIds).Count -gt 0) {
+            $ids = (@($man.legacyIds) | ForEach-Object { "'$_'" }) -join ', '
+            Add-Finding 'MAN-LEGACYIDS' 'High' 'companion/manifest.json' "legacyIds lists $ids but the module has never been published; it must be [] as in the template"
         }
         # manifest.type: required only if the matched template has it (v2 'connection'; absent in v1).
         if ($tplMan -and (Has-Prop $tplMan 'type')) {

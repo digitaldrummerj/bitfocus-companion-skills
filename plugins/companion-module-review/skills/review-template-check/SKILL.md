@@ -18,10 +18,11 @@ list. Then apply judgment to the handful of items the script can't decide.
 ## 1. Run the validator
 
 ```powershell
-pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <module path> -ExpectedVersion <git tag> [-RunBuild]
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <module path> -ExpectedVersion <git tag> [-NewModule] [-RunBuild]
 ```
 
 - `-ExpectedVersion` (the submitted git tag, e.g. `v2.1.0`) enables the `package.json` version-match check. Pass it whenever you know the tag.
+- `-NewModule` when the module has never been published (`newModule` from `bitfocus-setup-module.ps1`). It turns on `MAN-LEGACYIDS`.
 - `-RunBuild` additionally runs `yarn install --immutable`, `yarn package` (build) and, for TS, `yarn lint`, and gates on success. Use it to satisfy the "build runs / lint runs" review gates. It is slower and needs network.
 - Add `-Json` for machine-readable output. Templates are auto-selected from `companion-module-templates/` in the workspace (override with `COMPANION_TEMPLATES_DIR`; the workspace itself with `COMPANION_REVIEW_ROOT`) or pass `-TemplateDir`.
 
@@ -79,7 +80,7 @@ meta table.
 | Required files present; no `package-lock.json` | `FILE-MISSING`, `NPM-LOCK` |
 | Config-file parity vs template — exact match for `.gitattributes` (comment lines and extra `<pattern> binary` rules ignored), `.prettierignore` (extra entries are listed in the message; see below), TS `eslint.config.mjs` (extending the template's config is accepted, see below), and `.husky/*`. `.gitignore` is a **subset** check: every template entry must be present, but **extra** module entries are allowed and not flagged. `.yarnrc.yml` is a **key-level** check (see below) | `CONFIG-DIFF` |
 | **(High when the file exists and differs · Medium when it is missing)** `.github/workflows/**` and other `.github/**` parity. A file the module has must match the template, so a content difference is a High `CONFIG-DIFF`; a missing file is a Medium `FILE-MISSING`. Indentation-only and comment-only differences are not reported, and neither is enabling anything the template ships commented out (the `node.yaml` `test:` job, `upload-artifact: true` in `companion-module-checks.yaml`; see below) | `CONFIG-DIFF`, `FILE-MISSING` |
-| **(Medium when missing · never compared)** `.github/ISSUE_TEMPLATE/**`. The issue templates are the maintainer's to customise for their module (labels, questions, links), so only their presence is checked. Never report a difference in an issue template, from the validator or by hand | `FILE-MISSING` |
+| **(Never reported)** `.github/ISSUE_TEMPLATE/**`. The issue templates are the maintainer's to customise for their module (labels, questions, links) or to leave out. Never report a different or missing issue template, from the validator or by hand | — |
 | **(Info — 📝 Additional Notes, never blocking)** TS `tsconfig.json` / `tsconfig.build.json` differ from the template. Maintainers may tune their tsconfig as long as the module builds — a broken build is reported by `BUILD-*`/`LINT`, not here. A **missing** tsconfig is still a Critical `FILE-MISSING` | `TSCONFIG-DIFF` |
 | **(Info — for you, not the maintainer)** The template tracks a file the validator has no rule for. It is still compared, as exact text; add a row to `$templateFileRules` in this plugin's `scripts/validate-template.ps1` and a line to this table | `TEMPLATE-COVERAGE` |
 | Gitignored artifacts not committed (`node_modules`, `/pkg`, `*.tgz`, `/dist`, `/.yarn`, …) | `GITIGNORED-COMMITTED` |
@@ -87,6 +88,7 @@ meta table.
 | All source under `src/` (none at module root). Tool config files named `<tool>.config.(js\|ts)` (`vitest.config.ts`, `vite.config.js`, `jest.config.ts`, …) belong at the root and are exempt | `SRC-AT-ROOT` |
 | `package.json`: version-vs-tag, `main` (references an existing entry file; filename may differ from the template), `repository.url`, required fields, `packageManager` (yarn@4), required scripts, devDependencies, lint-staged | `PKG-VERSION`, `PKG-MAIN`, `PKG-REPO`, `PKG-FIELD`, `PKG-YARN`, `PKG-SCRIPT`, `PKG-DEVDEP`, `PKG-LINTSTAGED`, `PKG-DEP` |
 | `manifest.json`: non-placeholder maintainers (an empty `email` is allowed), banned keywords, `type` (v2 `connection`), `runtime.type/api` (must match the template; see the runtime rule below), `runtime.entrypoint` (exists and resolves to the same file as `main`) | `MAN-PLACEHOLDER`, `MAN-MAINT`, `MAN-KEYWORD`, `MAN-TYPE`, `MAN-RUNTIME`, `ENTRY-MISMATCH` |
+| **(High)** `manifest.json` `legacyIds` is not empty on a module that has never been published (`-NewModule`). It replaces no older module, so a legacy id only claims an id it doesn't own, and Companion would move connections of a future module with that id over to it. Fix: `"legacyIds": []` as in the template. Not checked on updates | `MAN-LEGACYIDS` |
 | **(Critical when the manifest runtime is behind · High otherwise)** The module's Node version matches the template's in **every** place: manifest `runtime.type`, `package.json` `engines.node` and `@types/node`, the `tsconfig.build.json` preset, `node-version` in every workflow (commented-out lines included), and `.nvmrc` / `.node-version`. One finding lists every place that is off (see the Node version rule below) | `NODE-VERSION` |
 | `companion/HELP.md` not a stub | `HELP-STUB` |
 | **(Info — 📋 Issues `### Notes` group, never blocking)** Commit messages since the previous tag (the whole history on a first release) are in English. Only non-Latin scripts are detected; the compliance reviewer notes Latin-script languages. History isn't rewritten for this, so the review asks for future commit messages in English (review-report-format → Notes) | `COMMIT-LANGUAGE` |

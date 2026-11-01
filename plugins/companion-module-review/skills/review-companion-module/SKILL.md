@@ -82,8 +82,10 @@ Templates are never refreshed automatically because concurrent review sessions s
 ## Step 4 — Deterministic compliance + build/lint
 
 ```powershell
-pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> -RunBuild -Json
+pwsh ${CLAUDE_PLUGIN_ROOT}/scripts/validate-template.ps1 -ModuleDir <directory> -ExpectedVersion <reviewTag> [-NewModule] -RunBuild -Json
 ```
+
+Add `-NewModule` when Step 2's `newModule` is `true`: it turns on the first-release manifest check (`MAN-LEGACYIDS`).
 
 Interpret the output with the **`companion-module-review:review-template-check`** skill (invoke it with the Skill tool: finding ids, accepted deviations, environment findings). Every `Critical` and `High` finding is **blocking** — carry each into the review verbatim. (These are full-module checks; they apply regardless of scope, since a release that breaks the build/template can't ship.) A `.github/**` file the module has but that differs from the template is High; a missing one is `Medium`, reported but non-blocking.
 

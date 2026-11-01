@@ -641,6 +641,15 @@ try {
     Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-PLACEHOLDER' $null).Count -eq 1) "…but the template's 'Your email' placeholder still is"
     Set-File $goodMan $goodManText
 
+    Write-Host "Manifest — legacyIds on a module that has never been published"
+    Set-File $goodMan ($goodManText -replace '"maintainers"', '"legacyIds": [ "old-id" ], "maintainers"')
+    $li = Find-Findings (Invoke-ValidatorArgs $good $tpl @('-NewModule')).Result 'MAN-LEGACYIDS' $null
+    Ok ($li.Count -eq 1 -and $li[0].severity -eq 'High')      "a new module with a legacy id is a High MAN-LEGACYIDS"
+    Ok ((Find-Findings (Invoke-Validator $good $tpl) 'MAN-LEGACYIDS' $null).Count -eq 0) "…but an update may list the ids it replaces"
+    Set-File $goodMan ($goodManText -replace '"maintainers"', '"legacyIds": [], "maintainers"')
+    Ok ((Find-Findings (Invoke-ValidatorArgs $good $tpl @('-NewModule')).Result 'MAN-LEGACYIDS' $null).Count -eq 0) "…and an empty legacyIds is clean"
+    Set-File $goodMan $goodManText
+
     Write-Host ".prettierignore — extra entries only"
     Set-File (Join-Path $good '.prettierignore') "package.json`n/LICENSE.md`n# generated`nsrc/generated.ts"
     $pi1 = Find-Findings (Invoke-Validator $good $tpl) 'CONFIG-DIFF' '.prettierignore'
@@ -921,8 +930,7 @@ try {
     Ok ($it.Count -eq 0)                                      "issue templates are the maintainer's to customise: a different one is not reported"
     Remove-Item -Force (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md')
     $d5m = Invoke-Validator $good $dtpl
-    $itm = Find-Findings $d5m 'FILE-MISSING' '.github/ISSUE_TEMPLATE/bug.md'
-    Ok ($itm.Count -eq 1 -and $itm[0].severity -eq 'Medium')  "…but a missing issue template is still a Medium FILE-MISSING"
+    Ok ((Find-Findings $d5m 'FILE-MISSING' '.github/ISSUE_TEMPLATE/bug.md').Count -eq 0) "…and a missing issue template is not reported either"
     Set-File (Join-Path $good '.github/ISSUE_TEMPLATE/bug.md') "name: bug report"
 
     Set-File (Join-Path $good '.github/workflows/companion-module-checks.yaml') $checksTpl

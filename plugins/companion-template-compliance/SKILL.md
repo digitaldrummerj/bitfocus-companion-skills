@@ -72,7 +72,7 @@ All JS files above, **plus**:
 
 > **Entry-point filename:** `src/main.js` / `src/main.ts` are the template's names, not a requirement. A module may use e.g. `src/index.ts`, as long as `package.json` `main` and the manifest `runtime.entrypoint` both reference a file that exists and resolve to the **same** file. Don't ask a maintainer to rename a working entry point.
 
-> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**` and `.github/ISSUE_TEMPLATE/**`) is compared too. A `.github/**` file the module has must match the template: a different workflow or issue template is 🟠 High (blocking), because a drifted file confuses later troubleshooting. A missing `.github` file is 🟡 Medium. Indentation-only and comment-only differences are not a divergence, as long as the comments are prose: commenting out a template line, or adding commented-out code that isn't in the template, still is. **Accepted customisation:** enabling anything the template ships commented out is not a divergence: the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and the `with:` / `upload-artifact: true` lines in `companion-module-checks.yaml` (the template tells you to uncomment them).
+> **The template's tracked files are the list.** Anything else the template tracks (for example `.github/workflows/**`) is compared too. A `.github/**` file the module has must match the template: a different workflow is 🟠 High (blocking), because a drifted file confuses later troubleshooting. A missing `.github` file is 🟡 Medium. **Exception:** `.github/ISSUE_TEMPLATE/**` is the maintainer's to customise or leave out, so a different or missing issue template is never reported. Indentation-only and comment-only differences are not a divergence, as long as the comments are prose: commenting out a template line, or adding commented-out code that isn't in the template, still is. **Accepted customisation:** enabling anything the template ships commented out is not a divergence: the `node.yaml` `test:` job under `# Uncomment this to enable running unit tests`, and the `with:` / `upload-artifact: true` lines in `companion-module-checks.yaml` (the template tells you to uncomment them).
 
 ---
 
@@ -312,6 +312,7 @@ All JS rules above, **plus**:
 | `runtime.type` | Must match the template for the module's API level: `"node22"` on base 2.0.x, `"node26"` on base **≥ 2.1** (Companion 5.0+). `node26` on a 2.0.x module is 🔴 (it needs base ≥ 2.1); `node22` on a 2.1 module is 🔴 (it doesn't match the 2.1 template). The Node version must match in every place, not just here: `engines.node`, `@types/node`, the `tsconfig.build.json` preset and `node-version` in the workflows |
 | `runtime.api` | `"nodejs-ipc"` |
 | `runtime.entrypoint` | Must reference a file that exists (build outputs under `dist/` are produced by the build) and resolve to the same file as `package.json` `main`. It does not have to be the template's filename |
+| `legacyIds` | `[]` on a module that has never been published: it replaces no older module, so a legacy id only claims an id it doesn't own. An update may list the ids of the modules it replaces |
 | `keywords` | see below |
 | `$schema` | should reference `../node_modules/@companion-module/base/assets/manifest.schema.json` |
 
@@ -376,8 +377,9 @@ A good HELP.md covers: what the module does, how to configure it (host/port/auth
 | `tsconfig` deviations without justification | **🔴 Critical** (blocks) |
 | `package.json` `main` / manifest `runtime.entrypoint` missing or resolving to different files | **🔴 Critical** (blocks) |
 | `LICENSE` licence text differs from the template (the copyright line is the author's and is not compared) | **🟠 High** |
-| `.github/**` workflow / issue template present but different (except indentation-only or comment-only changes, and enabling what the template ships commented out: the `node.yaml` test job, `upload-artifact: true`) | **🟠 High** |
-| `.github/**` workflow / issue template missing | **🟡 Medium** |
+| `.github/**` workflow present but different (except indentation-only or comment-only changes, and enabling what the template ships commented out: the `node.yaml` test job, `upload-artifact: true`) | **🟠 High** |
+| `.github/**` workflow missing (issue templates are never reported) | **🟡 Medium** |
+| `legacyIds` not empty on a module that has never been published | **🟠 High** |
 
 ---
 
