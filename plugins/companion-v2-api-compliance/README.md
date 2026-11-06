@@ -1,7 +1,7 @@
 # Companion v2 API Compliance
 
 Version-gated review of @companion-module/base v2.x modules (API 2.0 for Companion 4.3+,
-API 2.1 for Companion 5.0+) for entrypoint, manifest, ESM, expression, preset, and
+API 2.1 for Companion 5.0+, API 2.2 for Companion 5.1+) for entrypoint, manifest, ESM, expression, preset, and
 upgrade compliance. This plugin packages the guidance from `SKILL.md` into marketplace-
 ready metadata so agents can discover and apply the pattern quickly during Bitfocus
 Companion module work.
