@@ -147,6 +147,37 @@ try {
     Ok ($sh.Count -eq 1 -and $sh[0].file -eq 'src/actions.ts') "SUBSCRIBE-NO-MONITOR fires only where optionsToMonitorForSubscribe is missing"
     Ok ((Hits $ra 'SETCUSTOMVAR-DEPRECATED').Count -eq 1) "SETCUSTOMVAR-DEPRECATED fires on 2.1"
 
+    Write-Host "2.0 / 2.1 module using 2.2-only features"
+    $later22 = @'
+import { Regex, sanitizeVariable, UDPHelper } from '@companion-module/base'
+const preset = { steps: [{ down: [{ actionId: 'get', options: {}, storeResult: { type: 'local-variable', variableName: 'v' } }] }] }
+const c: CompanionColorValue = '#ff0000'
+const id = sanitizeVariable('Channel 1')
+const field = { id: 'host', type: 'textinput', regex: Regex.IPV4 }
+const udp = new UDPHelper(host, port, { family: 'udp6' })
+const shared = this.createSharedUdpSocket({ type: 'udp6' })
+'@
+    foreach ($v in '2.0.4', '2.1.3') {
+        $rl = Scan (New-Module "uses22-$($v -replace '\.','')" $v @{ 'main.ts' = $later22 } 'node26')
+        $l22 = Hits $rl 'LATER-API-2.2'
+        # storeResult, CompanionColorValue, sanitizeVariable(), Regex.IPV4, UDPHelper family: 'udp6'
+        Ok ($l22.Count -eq 5) "[$v] LATER-API-2.2 fires for each 2.2-only feature (got $($l22.Count))"
+        Ok (@($l22 | ForEach-Object { $_.level } | Sort-Object -Unique) -join ',' -eq '2.0-2.1') "[$v] LATER-API-2.2 is labelled 2.0-2.1"
+        Ok (-not (@($l22 | ForEach-Object { $_.line }) -contains 8)) "[$v] createSharedUdpSocket({ type: 'udp6' }) is fine on every 2.x"
+    }
+    $r22 = Scan (New-Module 'is22' '2.2.2' @{ 'main.ts' = $later22 } 'node26')
+    Ok ((Hits $r22 'LATER-API-2.2').Count -eq 0)          "no LATER-API-2.2 hints on a 2.2 module"
+
+    Write-Host "2.2 Regex deprecations"
+    $regexSrc = "const a = { regex: Regex.PORT }`nconst b = { regex: Regex.IP }`nconst c = { regex: Regex.IPV4 }`nconst d = { regex: Regex.MAC_ADDRESS }`nconst e = { regex: Regex.SOMETHING }"
+    $rr = Scan (New-Module 'regex22' '2.2.2' @{ 'config.ts' = $regexSrc } 'node26')
+    $rd = Hits $rr 'REGEX-DEPRECATED'
+    Ok ($rd.Count -eq 3)                                   "REGEX-DEPRECATED fires for PORT, IP and SOMETHING only (got $($rd.Count))"
+    Ok (-not (@($rd | ForEach-Object { $_.line }) -contains 3)) "…not for the new Regex.IPV4"
+    Ok (@($rd | ForEach-Object { $_.level } | Sort-Object -Unique) -join ',' -eq '2.2+') "REGEX-DEPRECATED is labelled 2.2+"
+    $rr21 = Scan (New-Module 'regex21' '2.1.3' @{ 'config.ts' = $regexSrc } 'node26')
+    Ok ((Hits $rr21 'REGEX-DEPRECATED').Count -eq 0)       "Regex.PORT is not deprecated on a 2.1 module"
+
     Write-Host "v2 behaviours that compile but misbehave (any v2.x)"
     $beh = @{
         'tcp.ts'     = "import { TCPHelper } from '@companion-module/base'`nasync function go(s: TCPHelper) {`n  await this.socket.send('x')`n  this.socket.send('y')`n}"

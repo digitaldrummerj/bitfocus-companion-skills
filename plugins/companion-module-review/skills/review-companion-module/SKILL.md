@@ -59,7 +59,7 @@ Capture `language`, `apiVersion`, **`apiSkill`** (`companion-v1-api-compliance` 
 | `apiLevel` | `1`, `2.0`, `2.1`, … — the exact API rule set (resolved from `yarn.lock` / lockfile / `node_modules`, falling back to the `package.json` range) |
 | `baseVersion` / `baseVersionSource` | e.g. `2.1.3` from `yarn.lock` |
 | `apiAmbiguous` | `true` when only a caret range (`^2.x`) was available, so the minor version had to be assumed |
-| `minCompanion` | the Companion version the module needs (4.3 for API 2.0, 5.0 for API 2.1) |
+| `minCompanion` | the Companion version the module needs (4.3 for API 2.0, 5.0 for API 2.1, 5.1 for API 2.2) |
 | `apiReferences` | the reference files of `apiSkill` the compliance reviewer must load (e.g. `references/v2.0.md`, `references/v2.1.md`) |
 | `apiScan` | deterministic version-specific hints from `api-scan.ps1` (leads for the compliance reviewer, not findings) |
 

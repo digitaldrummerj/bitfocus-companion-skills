@@ -24,9 +24,12 @@
                  affectedProperties, layered/alternatives presets, internal:* ids,
                  feedback-type local variables, composite elements,
                  CreateUseActionResultStoreUpgradeScript, manifest node26).
+      2.0–2.1    LATER-API-2.2: features that need base >= 2.2 (preset storeResult,
+                 CompanionColorValue, sanitizeVariable, Regex.IPV4/IPV6, UDPHelper family).
       2.1+       advanced feedbacks without affectedProperties, action subscribe without
                  optionsToMonitorForSubscribe (both TypeScript errors at 2.1.3), and the
                  deprecated setCustomVariableValue.
+      2.2+       REGEX-DEPRECATED: Regex patterns deprecated in 2.2 (warned at runtime from 2.2.2).
       v1         nothing — v1 modules are judged by companion-v1-api-compliance.
 
     Everything here is a HINT, never a finding: grep can't see types, runtime data, or which
@@ -64,6 +67,7 @@ if ($level -match '^(\d+)(?:\.(\d+))?$') { $major = [int]$Matches[1]; if ($Match
 $isV2      = $major -ge 2
 $is20      = $major -eq 2 -and $minor -eq 0
 $isAtLeast21 = ($major -gt 2) -or ($major -eq 2 -and $minor -ge 1)
+$isAtLeast22 = ($major -gt 2) -or ($major -eq 2 -and $minor -ge 2)
 
 # ── Comment stripping ────────────────────────────────────────────────────────
 # Quote-aware, so a glob like 'src/**/*.ts' or a URL 'http://x' inside a string is not taken
@@ -161,6 +165,21 @@ $lineRules = @(
     @{ Id = 'LATER-API-2.1'; Scope = '2.0'; Sev = 'Critical'; Re = '\bCreateUseActionResultStoreUpgradeScript\b'
        Msg = 'CreateUseActionResultStoreUpgradeScript needs base >= 2.1.1'; Verify = 'Bump base to ~2.1.x or remove.' }
 
+    @{ Id = 'LATER-API-2.2'; Scope = '<2.2'; Sev = 'Critical'; Re = '\bstoreResult\s*:'
+       Msg = 'storeResult on a preset action needs base >= 2.2 (Companion 5.1+)'; Verify = 'Confirm it is a preset action entry; bump base to ~2.2.x or remove.' }
+    @{ Id = 'LATER-API-2.2'; Scope = '<2.2'; Sev = 'Critical'; Re = '\bCompanionColorValue\b'
+       Msg = 'CompanionColorValue (CSS colour strings) needs base >= 2.2 (Companion 5.1+)'; Verify = 'Bump base to ~2.2.x or use packed numbers (combineRgb).' }
+    @{ Id = 'LATER-API-2.2'; Scope = '<2.2'; Sev = 'Critical'; Re = '\bsanitizeVariable\s*\('
+       Msg = 'sanitizeVariable is exported by base >= 2.2.1'; Verify = 'Check it is imported from @companion-module/base, not a helper of the module''s own; bump base or keep a local helper.' }
+    @{ Id = 'LATER-API-2.2'; Scope = '<2.2'; Sev = 'Critical'; Re = '\bRegex\s*\.\s*IPV[46]\b'
+       Msg = 'Regex.IPV4 / Regex.IPV6 exist from base 2.2.2; before that they are undefined, so the field has no validation'; Verify = 'Bump base to ~2.2.2 or use a pattern of your own.' }
+    @{ Id = 'LATER-API-2.2'; Scope = '<2.2'; Sev = 'Critical'; Re = '\bfamily\s*:\s*[''"]udp6[''"]'
+       Msg = 'UDPHelper family: udp6 needs base >= 2.2.2'; Verify = 'Confirm it is UDPHelper options (createSharedUdpSocket takes udp6 in every 2.x); bump base or remove.' }
+
+    @{ Id = 'REGEX-DEPRECATED'; Scope = '2.2+'; Sev = 'Medium'; Re = '\bRegex\s*\.\s*(IP|HOSTNAME|BOOLEAN|PORT|PERCENT|FLOAT|SIGNED_FLOAT|FLOAT_OR_INT|NUMBER|SIGNED_NUMBER|SOMETHING)\b'
+       Msg = 'This Regex pattern is deprecated in API 2.2; base 2.2.2+ logs a warning when the module reads it'
+       Verify = 'Use the replacement field (number for PORT/PERCENT/numbers, checkbox for BOOLEAN, a plain textinput or Regex.IPV4 for IP/HOSTNAME, minLength: 1 for SOMETHING). Changing a config field type needs an upgrade script.' }
+
     @{ Id = 'SETCUSTOMVAR-DEPRECATED'; Scope = '2.1+'; Sev = 'Medium'; Re = '\bsetCustomVariableValue\s*\('
        Msg = 'context.setCustomVariableValue is deprecated in API 2.1 — use the action result flow (hasResult)'
        Verify = 'Consider hasResult + CreateUseActionResultStoreUpgradeScript (2.1.1+) to migrate saved actions.' }
@@ -171,6 +190,8 @@ function Test-InScope { param([string]$Scope)
         'v2'   { return $isV2 }
         '2.0'  { return $is20 }
         '2.1+' { return $isAtLeast21 }
+        '<2.2' { return $isV2 -and -not $isAtLeast22 }
+        '2.2+' { return $isAtLeast22 }
     }
     return $false
 }
@@ -178,7 +199,7 @@ function Test-InScope { param([string]$Scope)
 $hints = [System.Collections.Generic.List[object]]::new()
 function Add-Hint {
     param([string]$Id, [string]$Scope, [string]$Sev, [string]$File, [int]$Line, [string]$Msg, [string]$Verify, [string]$Code)
-    $label = switch ($Scope) { 'v2' { 'v2.x' } '2.0' { '2.0-only' } '2.1+' { '2.1+' } default { $Scope } }
+    $label = switch ($Scope) { 'v2' { 'v2.x' } '2.0' { '2.0-only' } '2.1+' { '2.1+' } '<2.2' { '2.0-2.1' } '2.2+' { '2.2+' } default { $Scope } }
     $hints.Add([pscustomobject]@{
         id = $Id; level = $label; severityHint = $Sev; file = $File; line = $Line
         message = $Msg; verify = $Verify; code = if ($Code) { $Code.Trim() } else { $null }

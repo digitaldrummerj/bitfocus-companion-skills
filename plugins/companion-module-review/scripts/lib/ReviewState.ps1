@@ -679,7 +679,7 @@ function Get-CompanionApiProfile {
         skill's directory is known (-SkillDir = the skill plugin's own directory, as returned by
         Resolve-SkillDir; or -SkillsDir = a parent holding one directory per skill), any that
         don't exist there are reported in referencesMissing (e.g. a 2.2 module reviewed before
-        anyone wrote references/v2.2.md).
+        anyone wrote references/v2.3.md).
 
         allowedRuntimes is $null for v1: v1 runtimes are judged against the pinned v1
         template exactly as before. For v2 each level allows exactly the runtime of its own
@@ -714,7 +714,7 @@ function Get-CompanionApiProfile {
     }
     # Companion release that introduced each module API level. Unknown future levels report
     # $null rather than a guess.
-    $minCompanion = @{ '2.0' = '4.3'; '2.1' = '5.0' }["$major.$minor"]
+    $minCompanion = @{ '2.0' = '4.3'; '2.1' = '5.0'; '2.2' = '5.1' }["$major.$minor"]
     # Assigned inside the branches: `$x = if (…) { @('a') }` would unroll the one-element
     # array to a bare string, and the JSON consumers expect a list.
     if ($major -eq 2 -and $minor -eq 0) { $runtimes = @('node22') } else { $runtimes = @('node26') }
@@ -788,6 +788,12 @@ function Get-ReviewFile {
     $files = foreach ($p in $patterns) {
         Get-ChildItem -LiteralPath $moduleDir -Filter $p -File -ErrorAction SilentlyContinue
     }
+    # The glob's '*' also swallows a longer tag: 'v1.0.0-*' matches the v1.0.0-beta.2 review
+    # ('beta.2-20261030-090507'). Keep only names where the tag is followed directly by the
+    # review stamp: YYYYMMDD-HHMMSS, or the older YYYY-MM-DD-HHMMSS.
+    $exact = '^review-' + [regex]::Escape($ModuleName) + '-v?' + [regex]::Escape($normTag) +
+        '-(\d{8}|\d{4}-\d{2}-\d{2})-\d{6}\.md$'
+    $files = @($files | Where-Object { $_.Name -match $exact })
     return @($files | Sort-Object FullName -Unique)
 }
 

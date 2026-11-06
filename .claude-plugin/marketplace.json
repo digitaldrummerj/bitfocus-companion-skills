@@ -66,7 +66,7 @@
     {
       "name": "companion-module-review",
       "description": "Companion module review workspace tooling: the /review-module orchestrator, review and finding-verifier subagents, report-format and template-check skills, and the PowerShell review pipeline scripts (queue, setup, fact sheet, validate-template, api-scan).",
-      "version": "1.11.0",
+      "version": "1.12.0",
       "source": "./plugins/companion-module-review"
     },
     {
@@ -155,8 +155,8 @@
     },
     {
       "name": "companion-v2-api-compliance",
-      "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
-      "version": "1.1.6",
+      "description": "Version-gated review of @companion-module/base v2.x modules (API 2.0 / 2.1 / 2.2) for entrypoint, manifest, ESM, expression, preset, and upgrade compliance.",
+      "version": "1.2.0",
       "source": "./plugins/companion-v2-api-compliance"
     },
     {

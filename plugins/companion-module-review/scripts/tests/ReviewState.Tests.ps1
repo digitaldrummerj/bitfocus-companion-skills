@@ -50,6 +50,8 @@ try {
     New-ReviewFile 'epsilon-mod' 'v3.0.0'  '20260401-000000'   # file only, no row => feedback-pending
     New-ReviewFile 'zeta-mod'    'v1.0.0'  '20260501-000000'   # prefix-collision pair
     New-ReviewFile 'zeta-mod'    'v1.0.10' '20260502-000000'
+    New-ReviewFile 'eta-mod'     'v1.0.0-beta.2' '20260601-000000'   # pre-release only: v1.0.0 is a different release
+    New-ReviewFile 'theta-mod'   'v1.0.3'  '2026-04-02-200846'       # older YYYY-MM-DD-HHMMSS stamp
 
     @'
 # Module Review Tracker
@@ -88,6 +90,15 @@ try {
     # Prefix collision: v1.0.0 must not match v1.0.10
     Assert-Equal 1 (State 'zeta-mod' 'v1.0.0' ).ReviewFiles.Count "zeta v1.0.0 matches exactly 1 file"
     Assert-Equal 1 (State 'zeta-mod' 'v1.0.10').ReviewFiles.Count "zeta v1.0.10 matches exactly 1 file"
+
+    # Pre-release collision: a v1.0.0-beta.2 review is not a review of v1.0.0 (fritz-fritzbox, 2026-11-06)
+    Assert-Equal 'needs-review'     (State 'eta-mod' 'v1.0.0').State "eta: v1.0.0 does not match the v1.0.0-beta.2 file"
+    Assert-Equal 0 @((State 'eta-mod' 'v1.0.0').ReviewFiles).Count "eta: v1.0.0 matches no file"
+    Assert-Equal 'feedback-pending' (State 'eta-mod' 'v1.0.0-beta.2').State "eta: v1.0.0-beta.2 still matches its own file"
+    Assert-Equal 'needs-review'     (State 'eta-mod' 'v1.0.0-beta').State "eta: v1.0.0-beta does not match the v1.0.0-beta.2 file"
+
+    # Older stamp format still matches
+    Assert-Equal 'feedback-pending' (State 'theta-mod' 'v1.0.3').State "theta: YYYY-MM-DD-HHMMSS stamp still matches"
 
     # TrackerSubmitted nullability
     Assert-Equal $null (State 'epsilon-mod' 'v3.0.0').TrackerSubmitted "epsilon: no row => TrackerSubmitted null"
@@ -196,7 +207,15 @@ try {
     Set-Content -LiteralPath (Join-Path $skills 'companion-v2-api-compliance/references/v2.0.md') -Value 'x'
     Set-Content -LiteralPath (Join-Path $skills 'companion-v2-api-compliance/references/v2.1.md') -Value 'x'
     $p = Get-CompanionApiProfile -ApiLevel '2.2' -SkillsDir $skills
+    Assert-Equal 'references/v2.0.md,references/v2.1.md,references/v2.2.md' (@($p.apiReferences) -join ',') "2.2 => v2.0 + v2.1 + v2.2 references"
     Assert-Equal 'references/v2.2.md' (@($p.referencesMissing) -join ',') "2.2 with no v2.2.md => reported missing"
+    Assert-Equal '5.1' $p.minCompanion "2.2 => Companion 5.1+"
+    Assert-Equal 'node26' (@($p.allowedRuntimes) -join ',') "2.2 => node26 (the main template)"
+    Set-Content -LiteralPath (Join-Path $skills 'companion-v2-api-compliance/references/v2.2.md') -Value 'x'
+    $p = Get-CompanionApiProfile -ApiLevel '2.2' -SkillsDir $skills
+    Assert-Equal 0 @($p.referencesMissing).Count "2.2 with v2.2.md present => nothing missing"
+    $p = Get-CompanionApiProfile -ApiLevel '2.3' -SkillsDir $skills
+    Assert-Equal 'references/v2.3.md' (@($p.referencesMissing) -join ',') "2.3 with no v2.3.md => reported missing"
     Assert-Equal $null $p.minCompanion "unknown future level => no guessed Companion version"
     $p = Get-CompanionApiProfile -ApiLevel '2.1' -SkillDir (Join-Path $skills 'companion-v2-api-compliance')
     Assert-Equal 0 @($p.referencesMissing).Count "-SkillDir (the plugin's own dir) checks references there"
