@@ -220,6 +220,77 @@ Body of L1.
     Ok ($t.IndexOf('## 🔮 Next Release') -lt $t.IndexOf('## ❓ Assumptions to Confirm') -and $t.IndexOf('## 🔮 Next Release') -gt $t.IndexOf('## 🟠 High')) "…the new section goes before the Assumptions table that closes the review"
     Ok ($t -match '(?m)^## ❓ Assumptions$' -and $t.TrimEnd().EndsWith('| A1 | Only about feedbacks | guess | [H1](#h1-no-feedbacks) |')) "…both Assumptions sections stay, the table still last"
 
+    Write-Host "edit-finding.ps1 with --- dividers between sections"
+    $hrFixture = @"
+# Review: companion-module-demo v0.3.0
+
+## Verdict: ❌ Changes Required
+
+## 📋 Issues
+
+### Blocking
+
+- [ ] [H1: No feedbacks](#h1-no-feedbacks)
+- [ ] [H2: CI workflow differs](#h2-ci-workflow-differs)
+
+### Non-blocking
+
+- [ ] [L1: Log is noisy](#l1-log-is-noisy)
+- [ ] [NR1: Plan the v2 move](#nr1-plan-the-v2-move)
+
+### Notes
+
+- [📝 Additional Notes](#-additional-notes)
+
+---
+
+## 🟠 High
+
+### H1: No feedbacks
+
+Body of H1.
+
+### H2: CI workflow differs
+
+Body of H2.
+
+---
+
+## 🟢 Low
+
+### L1: Log is noisy
+
+Body of L1.
+
+---
+
+## 🔮 Next Release
+
+### NR1: Plan the v2 move
+
+Body of NR1.
+
+---
+
+## 📝 Additional Notes
+
+- A note.
+"@ -replace "`r`n", "`n"
+    Set-File $file $hrFixture
+    $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H1')
+    $t = Get-Content -LiteralPath $file -Raw
+    Ok ($r.Code -eq 0)                                                   "a review with --- dividers can be edited"
+    Ok ($t -match '- \[📝 Additional Notes\]\(#-additional-notes\)\n\n---\n\n## 🟠 High\n\n### H1: CI workflow differs') "…the divider after the Issues list stays"
+    Ok ($t -match 'Body of H2\.\n\n---\n\n## 🟢 Low' -and $t -match 'Body of L1\.\n\n---\n\n## 🔮 Next Release') "…each section keeps its divider"
+
+    Set-File $file $hrFixture
+    $r = Invoke-Edit @('-ReviewFile', $rel, '-Move', 'H2', '-To', 'NextRelease')
+    $t = Get-Content -LiteralPath $file -Raw
+    Ok ($r.Code -eq 0 -and $t -match '(?m)^### NR2: CI workflow differs$') "moving the last High to Next Release succeeds"
+    Ok ($t -match 'Body of NR1\.\n\n### NR2: CI workflow differs\n\nBody of H2\.\n\n---\n\n## 📝 Additional Notes') "…no divider between NR1 and NR2, one after the section"
+    Ok ($t -match 'Body of H1\.\n\n---\n\n## 🟢 Low')                    "…the High section that is left still ends with its divider"
+    Ok (-not ($t -match "---\n\n---"))                                   "…and no doubled dividers"
+
     Write-Host "edit-finding.ps1 refusals"
     Set-File $file $fixture
     $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H9')

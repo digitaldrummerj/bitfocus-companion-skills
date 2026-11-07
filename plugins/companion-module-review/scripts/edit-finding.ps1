@@ -98,6 +98,9 @@ $Severities = [ordered]@{
 }
 $Prefixes = @($Severities.Keys)
 $FindingHeading = '^### (NR|C|H|M|L|N)(\d+): (.+)$'
+# A thematic break (---, ***, ___). Some reviews put one between sections; they are allowed.
+$HrPattern = '^\s*(-{3,}|\*{3,}|_{3,})\s*$'
+$usesDividers = $false
 $IdPattern = '^(NR|C|H|M|L|N)(\d+)$'
 $AssumptionsHeading = '## ❓ Assumptions to Confirm'
 # The short section right after the Verdict that links to the table at the end of the review.
@@ -176,9 +179,22 @@ foreach ($s in $sections) {
             $s.Findings.Add($current); $findings.Add($current)
         } elseif ($current) {
             $current.Body.Add($e)
+        } elseif ($e.Text -match $HrPattern) {
+            $usesDividers = $true
         } elseif ($e.Text.Trim()) {
             Fail "Line $($e.LineNo): text between '$($s.Heading)' and its first finding; edit this review by hand"
         }
+    }
+}
+
+# A divider at the end of a finding is the section break after it. Take it off every finding, so a
+# moved finding doesn't carry one into its new section; the output puts one after each section instead.
+foreach ($f in $findings) {
+    while ($f.Body.Count) {
+        $last = $f.Body[$f.Body.Count - 1]
+        if (-not $last.InFence -and -not $last.Text.Trim()) { $f.Body.RemoveAt($f.Body.Count - 1); continue }
+        if (-not $last.InFence -and $last.Text -match $HrPattern) { $usesDividers = $true; $f.Body.RemoveAt($f.Body.Count - 1); continue }
+        break
     }
 }
 
@@ -199,6 +215,7 @@ foreach ($e in $issues[0].Lines) {
     $t = $e.Text
     if ($t -match '^### (Blocking|Non-blocking|Notes)\s*$') { $issueGroup = $Matches[1]; continue }
     if (-not $t.Trim() -or $t -match '^- \[📝 Additional Notes\]') { continue }
+    if ($t -match $HrPattern) { $usesDividers = $true; continue }
     if ($issueGroup -eq 'Notes' -and $t -match '^- ') { $extraNotes.Add($t); continue }
     if ($t -match '^- \[([ xX])\] \[(NR|C|H|M|L|N)(\d+): ') { $checked["$($Matches[2])$($Matches[3])"] = ($Matches[1] -ne ' '); continue }
     Fail "Line $($e.LineNo): the 📋 Issues list has a layout this script doesn't know ('$t'); edit this review by hand"
@@ -349,6 +366,7 @@ foreach ($s in $sections) {
             if ($hasNotes) { $out.Add('- [📝 Additional Notes](#-additional-notes)') }
             $out.Add('')
         }
+        if ($usesDividers) { $out.Add('---'); $out.Add('') }
         continue
     }
     if ($s.Prefix) {
@@ -359,6 +377,7 @@ foreach ($s in $sections) {
             foreach ($b in $body) { $out.Add($b) }
             $out.Add('')
         }
+        if ($usesDividers) { $out.Add('---'); $out.Add('') }
         continue
     }
     $body = @($s.Lines | ForEach-Object { Update-Line $_ })
