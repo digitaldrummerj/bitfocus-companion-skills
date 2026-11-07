@@ -78,7 +78,7 @@ It deletes or moves the finding, renumbers what follows (H3 → H2, including li
 
 1. Title + meta table
 2. **Verdict**
-3. **❓ Assumptions to Confirm** *(only when there are any)*
+3. **❓ Assumptions** *(only when there are assumptions)*: one line linking to the full table at the end
 4. **📋 Issues**
 5. 🔴 Critical
 6. 🟠 High
@@ -88,6 +88,7 @@ It deletes or moves the finding, renumbers what follows (H3 → H2, including li
 10. 🔮 Next Release
 11. ⚠️ Pre-existing Notes *(scope `both` only)*
 12. 📝 Additional Notes *(only when there are notes)*
+13. **❓ Assumptions to Confirm** *(only when there are any)*: the full table, always last
 
 Omit any section that has no content. Do **not** add a scorecard, a "Fix Summary", a "What's Solid" section, or summary/count lines.
 
@@ -174,7 +175,17 @@ To generate the anchor for a heading:
 
 ## ❓ Assumptions to Confirm
 
-Right after the Verdict, so the reviewer sees it first. It lists every assumption a finding depends on that the review could **not** confirm from the module's code or the `@companion-module/base` package in its `node_modules`. Typical examples are how the Companion host application behaves (for example upgrade-script input, or what it does with a malformed value) and device or protocol behaviour. Other apps that consume Companion presets (Bitfocus Buttons, for example) are **out of scope**: don't raise findings or assumptions about them. Collect them from the reviewers' and verifiers' `ASSUMPTIONS` output; a verifier's `uncertain` verdict always yields one.
+The **last section** of the review, after 📝 Additional Notes (after the last section when there are no notes), so the findings come first (user, 2026-11-07). A short `## ❓ Assumptions` section sits right after the Verdict, above 📋 Issues, and points to it, so the reviewer still knows there is something to confirm:
+
+```markdown
+## ❓ Assumptions
+
+Some findings depend on assumptions the reviewers couldn't check. They're listed in [❓ Assumptions to Confirm](#-assumptions-to-confirm) at the end of this review.
+```
+
+Use exactly that heading and line. The heading must differ from the table's: two `## ❓ Assumptions to Confirm` headings fail markdownlint (MD024), and the first one would take the `#-assumptions-to-confirm` anchor that the findings' `[A1](#-assumptions-to-confirm)` links point to. Both sections exist together or not at all: when the review has no assumptions, leave out both.
+
+The table lists every assumption a finding depends on that the review could **not** confirm from the module's code or the `@companion-module/base` package in its `node_modules`. Typical examples are how the Companion host application behaves (for example upgrade-script input, or what it does with a malformed value) and device or protocol behaviour. Other apps that consume Companion presets (Bitfocus Buttons, for example) are **out of scope**: don't raise findings or assumptions about them. Collect them from the reviewers' and verifiers' `ASSUMPTIONS` output; a verifier's `uncertain` verdict always yields one.
 
 ### Confirmed facts (never list as assumptions)
 

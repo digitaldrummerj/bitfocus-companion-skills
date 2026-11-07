@@ -155,6 +155,71 @@ try {
     Ok ($t -match '(?m)^## Verdict: ❌ Changes Required$')               "…the verdict stays Changes Required (H1 and H2 are left)"
     Ok ($r.Out -match 'Reread the moved finding')                        "…and the summary asks to reread the moved text"
 
+    Write-Host "edit-finding.ps1 with the Assumptions table at the end (2026-11 layout)"
+    $endFixture = @"
+# Review: companion-module-demo v0.2.0
+
+| Field | Value |
+| --- | --- |
+| **Prior review** | v0.1.0: its CI finding is still open, see [H2](#h2-ci-workflow-differs). |
+
+Intro: the one blocking finding, [H1](#h1-no-feedbacks), was missed before.
+
+## Verdict: ❌ Changes Required
+
+## ❓ Assumptions
+
+Some findings depend on assumptions the reviewers couldn't check. They're listed in [❓ Assumptions to Confirm](#-assumptions-to-confirm) at the end of this review.
+
+## 📋 Issues
+
+### Blocking
+
+- [ ] [H1: No feedbacks](#h1-no-feedbacks)
+- [ ] [H2: CI workflow differs](#h2-ci-workflow-differs)
+
+### Non-blocking
+
+- [ ] [L1: Log is noisy](#l1-log-is-noisy)
+
+## 🟠 High
+
+### H1: No feedbacks
+
+Body of H1 (see [A1](#-assumptions-to-confirm)).
+
+### H2: CI workflow differs
+
+Body of H2.
+
+## 🟢 Low
+
+### L1: Log is noisy
+
+Body of L1.
+
+## ❓ Assumptions to Confirm
+
+| # | Assumption | Based on | Affects |
+| --- | --- | --- | --- |
+| A1 | Only about feedbacks | guess | [H1](#h1-no-feedbacks) |
+"@ -replace "`r`n", "`n"
+    Set-File $file $endFixture
+    $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H1')
+    $t = Get-Content -LiteralPath $file -Raw
+    Ok ($r.Code -eq 0)                                                   "removing H1 succeeds"
+    Ok ($t -match 'still open, see \[H1\]\(#h1-ci-workflow-differs\)')    "…a link in the meta table above the Verdict follows the renumber (H2 -> H1)"
+    Ok ($r.Out -match 'line 7: links to removed finding H1')             "…a link in the intro to the removed finding is reported, with its line"
+    Ok ($t -notmatch '(?m)^## ❓ Assumptions' -and $t -notmatch 'assumptions-to-confirm') "…the last assumption is dropped, and the short ❓ Assumptions section goes with the table"
+    Ok ($r.Out -match 'Assumptions section removed')                     "…and the summary says so"
+
+    Set-File $file $endFixture
+    $r = Invoke-Edit @('-ReviewFile', $rel, '-Move', 'L1', '-To', 'NextRelease')
+    $t = Get-Content -LiteralPath $file -Raw
+    Ok ($r.Code -eq 0 -and $t -match '(?m)^### NR1: Log is noisy$')      "moving L1 to Next Release succeeds"
+    Ok ($t.IndexOf('## 🔮 Next Release') -lt $t.IndexOf('## ❓ Assumptions to Confirm') -and $t.IndexOf('## 🔮 Next Release') -gt $t.IndexOf('## 🟠 High')) "…the new section goes before the Assumptions table that closes the review"
+    Ok ($t -match '(?m)^## ❓ Assumptions$' -and $t.TrimEnd().EndsWith('| A1 | Only about feedbacks | guess | [H1](#h1-no-feedbacks) |')) "…both Assumptions sections stay, the table still last"
+
     Write-Host "edit-finding.ps1 refusals"
     Set-File $file $fixture
     $r = Invoke-Edit @('-ReviewFile', $rel, '-Remove', 'H9')

@@ -13,11 +13,13 @@
         creating that section in the standard order when it doesn't exist yet);
       - drops a severity section that is left with no findings;
       - renumbers every finding so each section runs 1..n (H3 -> H2, ...), and rewrites every
-        link that points at a renumbered finding (link text and #anchor);
+        link that points at a renumbered finding (link text and #anchor), including links in
+        the title, meta table and intro above the Verdict;
       - in ❓ Assumptions to Confirm, removes links to removed findings from the "Affects"
         column, drops an assumption that no longer affects any finding, renumbers the rest
         (A1..An, including [A2](#-assumptions-to-confirm) links in the text), and drops the
-        section when no assumption is left;
+        section when no assumption is left, together with the short "## ❓ Assumptions" section
+        after the Verdict that links to it;
       - rebuilds the 📋 Issues list (Blocking / Non-blocking / Notes) from the findings,
         keeping any one-line notes in the Notes group,
         keeping each item's [x] state;
@@ -98,6 +100,8 @@ $Prefixes = @($Severities.Keys)
 $FindingHeading = '^### (NR|C|H|M|L|N)(\d+): (.+)$'
 $IdPattern = '^(NR|C|H|M|L|N)(\d+)$'
 $AssumptionsHeading = '## ❓ Assumptions to Confirm'
+# The short section right after the Verdict that links to the table at the end of the review.
+$AssumptionsStubHeading = '## ❓ Assumptions'
 $AssumptionsAnchor = '-assumptions-to-confirm'
 
 # Rank of every known ## section, used to place a newly created severity section.
@@ -140,7 +144,7 @@ $lines = $text.TrimEnd("`n").Split("`n")
 
 # --- Parse: head + ## sections; findings inside severity sections ----------------------------
 
-$head = [System.Collections.Generic.List[string]]::new()
+$head = [System.Collections.Generic.List[object]]::new()
 $sections = [System.Collections.Generic.List[object]]::new()
 $inFence = $false
 foreach ($i in 0..($lines.Count - 1)) {
@@ -151,7 +155,7 @@ foreach ($i in 0..($lines.Count - 1)) {
         continue
     }
     $entry = [pscustomobject]@{ Text = $line; LineNo = $i + 1; InFence = ($inFence -or $line -match '^\s*(```|~~~)') }
-    if ($sections.Count -eq 0) { $head.Add($line) } else { $sections[$sections.Count - 1].Lines.Add($entry) }
+    if ($sections.Count -eq 0) { $head.Add($entry) } else { $sections[$sections.Count - 1].Lines.Add($entry) }
 }
 
 $findings = [System.Collections.Generic.List[object]]::new()
@@ -229,6 +233,8 @@ if ($PSCmdlet.ParameterSetName -eq 'Remove') {
             $r = Get-SectionRank $sections[$k].Heading
             if ($null -ne $r -and $r -gt $rank) { $at = $k; break }
         }
+        # Nothing ranks after it, but the Assumptions table closes the review: go in before it.
+        if ($at -eq $sections.Count -and $sections.Count -and $sections[$sections.Count - 1].Heading.TrimEnd() -eq $AssumptionsHeading) { $at = $sections.Count - 1 }
         $sections.Insert($at, $dest)
     }
     $dest.Findings.Add($f)
@@ -278,7 +284,12 @@ if ($assumptions) {
     if ($droppedAssumptions.Count) { $summary.Add("Assumptions dropped (affected only removed findings): $($droppedAssumptions -join ', ')") }
     $aRenamed = @($assumptionMap.GetEnumerator() | Where-Object { $_.Value -and $_.Value -ne $_.Key } | Sort-Object Key | ForEach-Object { "$($_.Key) -> $($_.Value)" })
     if ($aRenamed) { $summary.Add("Assumptions renumbered: $($aRenamed -join ', ')") }
-    if ($n -eq 0) { [void]$sections.Remove($assumptions); $summary.Add("Assumptions section removed (none left)") }
+    if ($n -eq 0) {
+        [void]$sections.Remove($assumptions)
+        $stub = $sections | Where-Object { $_.Heading.TrimEnd() -eq $AssumptionsStubHeading } | Select-Object -First 1
+        if ($stub) { [void]$sections.Remove($stub) }
+        $summary.Add("Assumptions section removed (none left)")
+    }
 }
 
 # --- Rewrite links, collect warnings ---------------------------------------------------------
@@ -310,7 +321,8 @@ function Update-Line($Entry) {
 }
 
 $out = [System.Collections.Generic.List[string]]::new()
-foreach ($l in $head) { $out.Add($l) }
+# The title, meta table and intro above the first ## heading link to findings too ("see [H1](#h1-...)").
+foreach ($e in $head) { $out.Add((Update-Line $e)) }
 $hasNotes = [bool]($sections | Where-Object { $_.Heading -match '^## 📝' })
 $remaining = @($sections | Where-Object Prefix | ForEach-Object { $_.Findings } | Where-Object { $_ })
 $blocking = @($remaining | Where-Object { $Severities[$_.Prefix].Blocking })
