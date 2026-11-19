@@ -140,7 +140,7 @@ Apply checks for the module's version AND all versions below it (a v1.13 module 
 
 **Module permissions in `companion/manifest.json`:**
 
-As of v1.12, modules run with Node.js permissions model enabled. If the module uses any of these APIs, the corresponding permission MUST be declared in the manifest's `permissions` object:
+As of v1.12, modules run with the Node.js permissions model enabled. Companion applies it when the module's built `runtime.apiVersion` is 1.12 or later and `runtime.type` is not `node18`. If the module uses any of these APIs, the corresponding permission MUST be declared in **`runtime.permissions`**, the `permissions` object inside the manifest's `runtime` block. A top-level `permissions` key is not read by Companion and is not in the manifest schema.
 
 | API Used | Required Permission |
 |---|---|
@@ -149,14 +149,23 @@ As of v1.12, modules run with Node.js permissions model enabled. If the module u
 | Native C/C++ addons | `"native-addons"` |
 | Filesystem read/write | `"filesystem"` |
 
-- ⚠️ Using these APIs WITHOUT declaring the permission: flag as 🟠 High — module will fail to run in Companion 4.0+
+- ⚠️ Using these APIs WITHOUT declaring the permission: flag as 🟠 High. The module fails at run time; for example, a native add-on throws `ERR_DLOPEN_DISABLED`.
+- ⚠️ A `permissions` object at the top level of the manifest instead of inside `runtime`: flag as 🟠 High, because Companion ignores it and the module runs without the permission.
+- `"native-addons": true` also grants child processes and full filesystem read/write. Companion adds `--allow-child-process` and `--allow-fs-read=*` / `--allow-fs-write=*` for it, so a native-addon module (e.g. `serialport`, which runs `udevadm` on Linux to list ports) needs no separate `child-process` or `filesystem` entry.
+- A native add-on must also ship inside the built package. For `serialport`, declare it as an external in `build-config.cjs` (`externals: { serialport: 'commonjs serialport' }`), so the build installs it with its prebuilds into the package's `node_modules`. `useOriginalStructureDirname: true` does **not** work for it: `@companion-module/tools` (verified on 2.9.0) doesn't copy prebuilds from scoped packages such as `@serialport/bindings-cpp`.
 
 Example manifest:
 ```json
 {
-  "permissions": {
-    "worker-threads": true,
-    "filesystem": true
+  "runtime": {
+    "type": "node22",
+    "api": "nodejs-ipc",
+    "apiVersion": "0.0.0",
+    "entrypoint": "../src/main.js",
+    "permissions": {
+      "worker-threads": true,
+      "filesystem": true
+    }
   }
 }
 ```
